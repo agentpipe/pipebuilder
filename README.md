@@ -2,6 +2,8 @@
 
 HarnessBuilder 是一个无第三方依赖的单文件 Harness Space 编译器。它读取必需的 `harness-space.json`、`<name>.code-workspace`、Skill Providers，以及 Space/Skill 两级 Agent 原生 source，在 Harness Space 根目录生成 Codex、Cursor、CodeBuddy 和 Claude Code 的项目配置。
 
+对外发布物只有 `harnessbuilder.py`；README、`docs/` 和测试不会随产品分发。发布脚本顶部与 `python3 harnessbuilder.py --help` 必须自包含运行要求、CLI、输入布局、Provider 和 ownership 说明。
+
 能力状态会写入 `explain` 和 lock：Codex 当前为 `client-verified`；Cursor、CodeBuddy、Claude Code 在各自真实客户端 E1 建立前标记为 `generated-only`，避免把离线投影误报为客户端兼容认证。
 
 要求 Python 3.11 或更高版本。

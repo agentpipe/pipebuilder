@@ -1,5 +1,60 @@
 #!/usr/bin/env python3
-"""HarnessBuilder v1: deterministic, dependency-free Harness Space compiler."""
+"""HarnessBuilder：可独立分发的单文件 Harness Space 编译器。
+
+发布与运行要求
+------------
+只需要分发本文件，不依赖本仓库中的 README、docs、tests 或 Python 第三方包。
+运行环境要求 Python 3.11+；只有使用 Git Provider 时才需要系统安装 git。
+
+快速使用
+--------
+    python3 harnessbuilder.py check [SPACE] [--format text|json] [--offline]
+    python3 harnessbuilder.py explain [SPACE] [--format text|json] [--offline]
+    python3 harnessbuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
+    python3 harnessbuilder.py clean [SPACE] [--format text|json]
+    python3 harnessbuilder.py --version
+    python3 harnessbuilder.py --help
+
+SPACE 省略时使用当前目录。建议先运行 check 或 build --dry-run，再运行 build。
+--offline 只从已有 lock 和本地 immutable Git cache 解析 Git Provider，不访问 origin。
+
+Harness Space 最小输入
+---------------------
+    <space>/
+    ├── harness-space.json
+    └── <manifest.name>.code-workspace
+
+最小 harness-space.json：
+    {"schema":"harness-space.v1", "name":"my-space", "agents":["codex"],
+     "skills":[], "tags":[], "skillProviders":[]}
+
+最小 my-space.code-workspace：
+    {"folders":[{"name":"project", "path":"."}]}
+
+可选的 Space-level source：
+    .harness-builder/agents/<agent>/
+    .harness-builder/skills/<skill>/SKILL.md
+
+外部 Skill Provider 在 harness-space.json.skillProviders 中声明。支持：
+    {"type":"folder", "path":"../shared-skills"}
+    {"type":"git", "url":"https://example/repo.git", "branch":"main", "subdir":"skills"}
+    {"type":"git", "url":"https://example/repo.git", "tag":"v1.0.0", "subdir":"skills"}
+
+Git Provider 的 branch/tag 严格二选一；认证交给 Git credential helper 或 SSH agent，
+不得把 credential 写入 manifest。HARNESSBUILDER_CACHE_DIR 可覆盖默认用户 cache，
+但 cache 必须位于 Harness Space 之外。
+
+所有权与输出
+-----------
+平台配置和安装后的 Skill 是 Builder-owned target；Human-owned source 只能放在
+.harness-builder/agents、.harness-builder/skills 或外部 Provider 中。build 将 ownership
+写入 .harness-builder/lock.json；clean 只删除有效 lock 证明由 Builder 管理的文件。
+不要直接维护生成的 AGENTS.md、CLAUDE.md、.codex、.cursor、.codebuddy、.claude 或
+.agents/skills 内容，应修改 source 后重新 build。
+
+自动化应使用 --format json，并依赖 harnessbuilder-report.v1 中稳定的 diagnostic code，
+不要解析人类可读 message。完整命令说明可随时运行本文件的 --help 查看。
+"""
 
 from __future__ import annotations
 
@@ -2174,22 +2229,32 @@ def print_report(value: dict[str, Any], output_format: str) -> None:
         print(f"{key}: {item}")
 
 
-def add_common_subcommand(parser: argparse.ArgumentParser, *, dry_run: bool = False) -> None:
+def add_common_subcommand(
+    parser: argparse.ArgumentParser,
+    *,
+    dry_run: bool = False,
+    offline: bool = True,
+) -> None:
     parser.add_argument("space", nargs="?", default=".", help="Harness Space root (default: cwd)")
     parser.add_argument("--format", choices=("text", "json"), default="text")
-    parser.add_argument("--offline", action="store_true", help="Resolve Git Providers only from the locked local cache")
+    if offline:
+        parser.add_argument("--offline", action="store_true", help="Resolve Git Providers only from the locked local cache")
     if dry_run:
         parser.add_argument("--dry-run", action="store_true")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="harnessbuilder.py")
+    parser = argparse.ArgumentParser(
+        prog="harnessbuilder.py",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--version", action="version", version=f"HarnessBuilder {VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
     add_common_subcommand(subparsers.add_parser("build", help="Build a Harness Space"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
-    add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"))
+    add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"), offline=False)
     return parser.parse_args(argv)
 
 

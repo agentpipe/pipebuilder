@@ -140,11 +140,18 @@ class CliContractCases(HarnessBuilderE2ECase):
 
     def test_release_artifact_is_single_python_file_and_compiles(self):
         self.assertTrue(HARNESSBUILDER.is_file())
+        first_hundred_lines = "\n".join(HARNESSBUILDER.read_text(encoding="utf-8").splitlines()[:100])
+        for expected in ("可独立分发的单文件", "快速使用", "harness-space.json", "branch/tag", "所有权与输出"):
+            self.assertIn(expected, first_hundred_lines)
         result = self.box.run_command([str(Path(__import__("sys").executable)), "-m", "py_compile", str(HARNESSBUILDER)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         release = self.box.base / "standalone-release" / "harnessbuilder.py"
         release.parent.mkdir()
         shutil.copy2(HARNESSBUILDER, release)
+        help_result = self.box.run_command([str(Path(__import__("sys").executable)), str(release), "--help"], cwd=self.box.base)
+        self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
+        for expected in ("快速使用", "Git Provider", ".harness-builder/lock.json", "--offline"):
+            self.assertIn(expected, help_result.stdout)
         standalone = self.box.run_command(
             [str(Path(__import__("sys").executable)), str(release), "build", str(self.box.root), "--format", "json"],
             cwd=self.box.base,
