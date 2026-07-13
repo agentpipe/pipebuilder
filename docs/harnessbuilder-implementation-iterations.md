@@ -1,10 +1,12 @@
-# HarnessBuilder v0.1.0 落地与 20 轮迭代记录
+# HarnessBuilder v0.2.0 落地与迭代记录
 
 日期：2026-07-13
 验证解释器：CPython 3.11.9（隔离构建，仅用于测试）
 第 20 轮结束结果：40/40 passed
 第一次交付前 hardening：43/43 passed
 全面 E2E 重写后：E0 57/57、Codex E1 5/5、Codex E2 1/1
+v0.2.0 安全与迁移 hardening 后：E0 71/71、Codex E1 5/5、Codex E2 1/1
+Git Provider 与 folder 边界补强后：E0 84/84、Codex E1 5/5、Codex E2 1/1
 
 当前主机默认 `python3` 为 3.6.8，低于项目明确要求的 Python 3.11。为保持“只依赖 3.11 标准库 `tomllib`”的发布约束，本次在 `/tmp` 隔离构建 CPython 3.11.9 运行测试，没有向仓库或系统 Python 安装依赖。
 
@@ -36,3 +38,7 @@
 后续全面重写把测试拆成 case/fixture/golden/support，并补齐结构化报告、失败制品、并行安全 metadata 和 `COVERAGE.md`。本机 Codex CLI 0.144.1 已完成 E1 真实 prompt assembly/config/execpolicy/hook schema 验证，并用一次真实模型请求同时通过 generated AGENTS、Skill 与 SessionStart hook 哨兵。其他三个平台仍只声称 E0 projection 覆盖。
 
 20 轮完成后的交付前 hardening 继续增加了 3 个 case：Codex machine/user-level key 拒绝、Cursor 跨目录 slash command semantic collision、Claude Code legacy command migration warning。它们不计入上述 20 轮循环，最终全量为 43/43。
+
+第二次审计 hardening 修复了伪造 lock 越权 clean、`.harness-builder` symlink 写锁、YAML block scalar/unknown nested frontmatter、Unicode normalization 与 Windows reserved name 等问题；补充 Adapter schema、hook command secret、risk/semantic lock、standalone release copy 和 runner redaction。原 THarness 45 个真实 shared Skills 中 43 个通过新解析器，剩余两个需要显式 canonical rename。最终本机验证为 E0 71/71、Codex E1 5/5、Codex E2 1/1。
+
+Provider follow-up 实现了 `url + branch/tag` Git Provider、独立 mirror/snapshot cache、commit lock、subdir 和 `--offline` digest 校验，并补充 folder symlink root、realpath alias、特殊字符路径、root kind 与内容变更覆盖。新增 13 个黑盒 case 后 E0 为 84/84；Codex E2 哨兵 Skill 也改为从真实本地 Git branch Provider 构建后交给模型消费。原安全 P0 继续由 forged lock、Builder state symlink、THarness-compatible frontmatter 与 unknown nested frontmatter 回归用例守护。

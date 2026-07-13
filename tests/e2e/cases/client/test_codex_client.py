@@ -21,6 +21,15 @@ class CodexClientCases(HarnessBuilderE2ECase):
     def setUp(self) -> None:
         super().setUp()
         self.codex = self.require_program("codex")
+        version_probe = self.box.run_command([self.codex, "--version"], cwd=self.box.root)
+        self.assertEqual(version_probe.returncode, 0, version_probe.stdout + version_probe.stderr)
+        self.client_record = {
+            "id": "codex",
+            "executable": str(Path(self.codex).resolve()),
+            "version": version_probe.stdout.strip(),
+            "verificationLevel": "client-parsed",
+            "model": None,
+        }
         self.use_fixture("minimal-all-agents")
         git = self.require_program("git")
         initialized = self.box.run_command([git, "init", "-q"], cwd=self.box.root)

@@ -54,6 +54,12 @@ class CodexAdapterCases(HarnessBuilderE2ECase):
         self.assertTrue((self.box.root / ".codex/hooks/skill.py").is_file())
         self.assertTrue((self.box.root / ".codex/rules/space.rules").is_file())
         self.assertTrue((self.box.root / ".codex/rules/skill.rules").is_file())
+        explain = self.expect_ok(self.box.builder("explain"))
+        rule = next(item for item in explain["details"]["operations"] if item["target"] == ".codex/rules/skill.rules")
+        self.assertIn("experimental-platform-surface", {item["kind"] for item in rule["risks"]})
+        lock = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))
+        locked_rule = next(item for item in lock["artifacts"] if item["target"] == ".codex/rules/skill.rules")
+        self.assertEqual(locked_rule["risks"], rule["risks"])
 
     def test_project_machine_keys_are_rejected_but_project_keys_are_allowed(self):
         forbidden = ("model_provider", "openai_base_url", "notify", "profile", "otel")
@@ -160,6 +166,11 @@ class OtherAdapterCases(HarnessBuilderE2ECase):
         self.expect_ok(self.box.builder("build"))
         self.assertFalse((self.box.root / ".cursor").exists())
 
+    def test_unknown_space_agent_namespace_is_rejected_even_when_empty(self):
+        self.box.manifest(agents=["codex"])
+        (self.box.root / ".harness-builder/agents/not-an-agent").mkdir(parents=True)
+        self.expect_code(self.box.builder("check"), "HB009")
+
 
 class AdapterRejectionCases(HarnessBuilderE2ECase):
     metadata = CaseMetadata(tier="offline", requirements=("HB009", "HB010", "HB011"), tags=("adapter", "negative"))
@@ -178,19 +189,75 @@ class AdapterRejectionCases(HarnessBuilderE2ECase):
             with self.subTest(agent=agent, relative=relative):
                 self.expect_code(self.box.builder("check"), "HB009")
 
+    def test_empty_unsupported_native_directories_are_not_silently_ignored(self):
+        cases = (
+            ("codex", ".codex/commands"),
+            ("cursor", ".cursor/agents"),
+            ("codebuddy", ".codebuddy/rules"),
+            ("claude-code", ".claude/plugins"),
+        )
+        for agent, relative in cases:
+            self.box.close(); self.box = __import__("support").Sandbox()
+            self.box.manifest(agents=[agent])
+            (self.box.root / f".harness-builder/agents/{agent}/{relative}").mkdir(parents=True)
+            with self.subTest(agent=agent, relative=relative):
+                self.expect_code(self.box.builder("check"), "HB009")
+
     def test_invalid_cursor_rule_agent_frontmatter_json_and_toml_are_rejected(self):
         cases = (
-            ("cursor", ".cursor/rules/bad.mdc", "---\nunknown: x\n---\n"),
-            ("codebuddy", ".codebuddy/agents/bad.md", "---\nname: bad\n---\n"),
-            ("claude-code", ".claude/settings.json", "["),
-            ("codex", ".codex/config.toml", "[broken"),
+            ("cursor", ".cursor/rules/bad.mdc", "---\nunknown: x\n---\n", "HB009"),
+            ("codebuddy", ".codebuddy/agents/bad.md", "---\nname: bad\n---\n", "HB009"),
+            ("claude-code", ".claude/settings.json", "[", "HB009"),
+            ("codex", ".codex/config.toml", "[broken", "HB009"),
+            ("codex", ".codex/hooks.json", '{"hooks":{"Stop":[{"matcher":"x"}]}}', "HB009"),
+            ("codebuddy", ".codebuddy/settings.json", '{"hooks":{"Stop":"not-a-list"}}', "HB009"),
+            ("claude-code", ".claude/settings.json", '{"permissions":{"defaultMode":"bypassPermissions"}}', "HB011"),
         )
-        for agent, relative, content in cases:
+        for agent, relative, content, code in cases:
             self.box.close(); self.box = __import__("support").Sandbox()
             self.box.manifest(agents=[agent])
             self.box.write_text(f".harness-builder/agents/{agent}/{relative}", content)
             with self.subTest(agent=agent, relative=relative):
-                self.expect_code(self.box.builder("check"), "HB009")
+                self.expect_code(self.box.builder("check"), code)
+
+    def test_hook_command_secret_literals_are_rejected_but_environment_references_are_allowed(self):
+        self.box.manifest(agents=["codex"])
+        path = ".harness-builder/agents/codex/.codex/hooks.json"
+        self.box.write_json(
+            path,
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "curl -H 'Authorization: Bearer literal-secret' https://example.invalid"}]}]}},
+        )
+        self.expect_code(self.box.builder("check"), "HB011")
+        self.box.write_json(
+            path,
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "curl -H 'Authorization: Bearer ${HOOK_TOKEN}' https://example.invalid"}]}]}},
+        )
+        payload = self.expect_ok(self.box.builder("explain"))
+        hooks = next(item for item in payload["details"]["operations"] if item["target"] == ".codex/hooks.json")
+        self.assertTrue(hooks["risks"])
+
+    def test_agent_rule_mcp_and_toml_semantic_shapes_are_validated(self):
+        cases = (
+            ("codebuddy", ".codebuddy/agents/bad.md", "---\nname: bad\ndescription: Bad\ntools:\n  nested: invalid\n---\n", "HB009"),
+            ("claude-code", ".claude/rules/bad.md", "---\npaths:\n  nested: invalid\n---\n", "HB009"),
+            ("claude-code", ".claude/agents/bad.md", "---\nname: bad\ndescription: Bad\nisolation: container\n---\n", "HB009"),
+            ("claude-code", ".mcp.json", '{"mcpServers":[]}', "HB009"),
+            ("codex", ".codex/config.toml", '[[agents]]\nname = "unsupported-array-table"\n', "HB009"),
+        )
+        for agent, relative, content, code in cases:
+            self.box.close(); self.box = __import__("support").Sandbox()
+            self.box.manifest(agents=[agent])
+            self.box.write_text(f".harness-builder/agents/{agent}/{relative}", content)
+            with self.subTest(agent=agent, relative=relative):
+                self.expect_code(self.box.builder("check"), code)
+
+        self.box.close(); self.box = __import__("support").Sandbox()
+        self.box.manifest(agents=["claude-code"])
+        self.box.write_text(
+            ".harness-builder/agents/claude-code/.claude/agents/reviewer.md",
+            "---\nname: reviewer\ndescription: Review\nskills: [missing-skill]\n---\n",
+        )
+        self.expect_code(self.box.builder("check"), "HB009")
 
     def test_same_target_and_semantic_key_conflicts_fail_before_writes(self):
         self.box.skill("provider", "conflict")
@@ -218,9 +285,9 @@ class AdapterRejectionCases(HarnessBuilderE2ECase):
 
     def test_secret_literals_rejected_and_environment_references_preserved_without_lock_leak(self):
         self.box.manifest(agents=["claude-code"])
-        self.box.write_json(".harness-builder/agents/claude-code/.mcp.json", {"mcpServers": {"bad": {"api_key": "literal-secret"}}})
+        self.box.write_json(".harness-builder/agents/claude-code/.mcp.json", {"mcpServers": {"bad": {"command": "python3", "api_key": "literal-secret"}}})
         self.expect_code(self.box.builder("check"), "HB011")
-        self.box.write_json(".harness-builder/agents/claude-code/.mcp.json", {"mcpServers": {"safe": {"headers": {"authorization": "${MCP_TOKEN}"}}}})
+        self.box.write_json(".harness-builder/agents/claude-code/.mcp.json", {"mcpServers": {"safe": {"command": "python3", "headers": {"authorization": "${MCP_TOKEN}"}}}})
         self.expect_ok(self.box.builder("build"))
         self.assertIn("${MCP_TOKEN}", (self.box.root / ".mcp.json").read_text(encoding="utf-8"))
         lock_text = (self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8")

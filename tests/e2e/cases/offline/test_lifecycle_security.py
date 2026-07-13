@@ -74,6 +74,28 @@ class OwnershipLifecycleCases(HarnessBuilderE2ECase):
         self.assertIn("VERSION_TWO", (self.box.root / "AGENTS.md").read_text(encoding="utf-8"))
         self.assertNotEqual(old_lock, (self.box.root / ".harness-builder/lock.json").read_bytes())
 
+    def test_deleted_managed_file_and_old_builder_version_converge_on_rebuild(self):
+        self.box.manifest(agents=["codex"])
+        self.expect_ok(self.box.builder("build"))
+        (self.box.root / "AGENTS.md").unlink()
+        lock_path = self.box.root / ".harness-builder/lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        lock["builder"]["version"] = "0.0.0-old"
+        lock["builder"]["digest"] = "sha256:" + "0" * 64
+        for artifact in lock["artifacts"]:
+            artifact.pop("semanticKey", None)
+            artifact.pop("risks", None)
+        for provider in lock["providers"]:
+            provider.pop("resolvedPath", None)
+            provider.pop("snapshot", None)
+        for agent in lock["agents"]:
+            agent.pop("capabilityStatus", None)
+        self.box.write_json(".harness-builder/lock.json", lock)
+        self.expect_ok(self.box.builder("build"))
+        self.assertTrue((self.box.root / "AGENTS.md").is_file())
+        rebuilt = json.loads(lock_path.read_text(encoding="utf-8"))
+        self.assertNotEqual(rebuilt["builder"]["version"], "0.0.0-old")
+
     def test_clean_without_lock_never_guesses_ownership(self):
         self.box.manifest(agents=["codex"])
         self.box.write_text("AGENTS.md", "unowned\n")
@@ -190,12 +212,73 @@ class FilesystemBoundaryCases(HarnessBuilderE2ECase):
         self.box.write_text(".harness-builder/agents/cursor/.cursor/commands/check.md", "two\n")
         self.expect_code(self.box.builder("check"), "HB010")
 
+    def test_unicode_normalization_collisions_and_windows_reserved_names_are_rejected(self):
+        self.box.manifest(agents=["cursor"])
+        self.box.write_text(".harness-builder/agents/cursor/.cursor/commands/caf\u00e9.md", "one\n")
+        self.box.write_text(".harness-builder/agents/cursor/.cursor/commands/cafe\u0301.md", "two\n")
+        self.expect_code(self.box.builder("check"), "HB010")
+
+        self.box.close(); self.box = __import__("support").Sandbox()
+        self.box.manifest(agents=["cursor"])
+        self.box.write_text(".harness-builder/agents/cursor/.cursor/commands/CON.md", "reserved\n")
+        self.expect_code(self.box.builder("check"), "HB011")
+
     def test_invalid_existing_lock_is_not_trusted_or_replaced(self):
         self.box.manifest(agents=["codex"])
         self.box.write_text(".harness-builder/lock.json", "{}\n")
         before = snapshot_tree(self.box.root)
         self.expect_code(self.box.builder("build"), "HB001")
         self.assertEqual(snapshot_tree(self.box.root), before)
+
+    def test_forged_lock_cannot_claim_or_clean_a_human_owned_file(self):
+        self.box.manifest(agents=["codex"])
+        self.box.write_text("user-owned.txt", "keep\n")
+        self.box.write_json(
+            ".harness-builder/lock.json",
+            {
+                "schema": "harnessbuilder-lock.v1",
+                "builder": {"version": "0.1.0", "digest": "sha256:" + "0" * 64},
+                "space": {},
+                "agents": [],
+                "providers": [],
+                "skills": [],
+                "artifacts": [{"target": "user-owned.txt"}],
+            },
+        )
+        before = snapshot_tree(self.box.root)
+        self.expect_code(self.box.builder("clean"), "HB001")
+        self.assertEqual(snapshot_tree(self.box.root), before)
+        self.assertEqual((self.box.root / "user-owned.txt").read_text(encoding="utf-8"), "keep\n")
+
+    def test_builder_state_directory_symlink_is_rejected_before_lock_write(self):
+        self.box.manifest(agents=["codex"])
+        outside = self.box.base / "outside-builder-state"
+        outside.mkdir()
+        os.symlink(outside, self.box.root / ".harness-builder")
+        argv = [sys.executable, str(HARNESSBUILDER), "build", str(self.box.root), "--format", "json"]
+        process = subprocess.Popen(
+            argv,
+            cwd=self.box.root,
+            env=self.box.controlled_env({"HARNESSBUILDER_TEST_HOLD_LOCK_MILLISECONDS": "750"}),
+            text=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        outside_lock = outside / "build.lock"
+        deadline = time.monotonic() + 0.5
+        observed_outside_write = False
+        while process.poll() is None and time.monotonic() < deadline:
+            if outside_lock.exists():
+                observed_outside_write = True
+                break
+            time.sleep(0.01)
+        stdout, stderr = process.communicate(timeout=5)
+        self.box.commands.append(CommandResult(argv, str(self.box.root), process.returncode or 0, stdout, stderr, 0))
+        self.assertEqual(process.returncode, 1, stdout + stderr)
+        self.assertIn("HB011", stdout)
+        self.assertFalse(observed_outside_write, "build.lock was created outside the Harness Space")
+        self.assertEqual(list(outside.iterdir()), [])
 
     def test_provider_cannot_reside_inside_generated_target_namespace(self):
         self.box.skill(".agents/skills", "recursive")

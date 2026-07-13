@@ -77,7 +77,19 @@ class Sandbox:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists():
             shutil.rmtree(destination)
-        shutil.copytree(self.base, destination, symlinks=True)
+
+        def ignore_sensitive(source: str, names: list[str]) -> set[str]:
+            ignored = {name for name in names if name == "auth.json" or name.endswith((".pem", ".key"))}
+            if Path(source) == self.base and "home" in names:
+                ignored.add("home")
+            return ignored
+
+        shutil.copytree(
+            self.base,
+            destination,
+            symlinks=True,
+            ignore=ignore_sensitive,
+        )
         (destination / "commands.json").write_text(
             json.dumps([item.report_record() for item in self.commands], ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
@@ -143,18 +155,14 @@ class Sandbox:
         return self.root / base / name
 
     def controlled_env(self, extra: dict[str, str] | None = None, *, inherit_auth: bool = False) -> dict[str, str]:
+        allow = ("PATH", "SYSTEMROOT", "WINDIR")
         if inherit_auth:
-            env = dict(os.environ)
-        else:
-            env = {
-                "PATH": os.environ.get("PATH", ""),
-                "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-                "WINDIR": os.environ.get("WINDIR", ""),
-            }
-            env["HOME"] = str(self.home)
-            env["USERPROFILE"] = str(self.home)
-            env["APPDATA"] = str(self.home / "AppData" / "Roaming")
-            env["LOCALAPPDATA"] = str(self.home / "AppData" / "Local")
+            allow += ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR")
+        env = {key: os.environ.get(key, "") for key in allow}
+        env["HOME"] = str(self.home)
+        env["USERPROFILE"] = str(self.home)
+        env["APPDATA"] = str(self.home / "AppData" / "Roaming")
+        env["LOCALAPPDATA"] = str(self.home / "AppData" / "Local")
         env.update(
             {
                 "PYTHONIOENCODING": "utf-8",

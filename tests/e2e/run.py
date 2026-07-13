@@ -69,6 +69,9 @@ class RecordingResult(unittest.TextTestResult):
             "durationSeconds": round(time.monotonic() - self.started.get(test.id(), time.monotonic()), 6),
             "commands": getattr(test, "command_records", []),
         }
+        client = getattr(test, "client_record", None)
+        if client:
+            item["client"] = client
         if reason:
             item["reason"] = reason
         self.records.append(item)

@@ -15,7 +15,14 @@ SKILL_SENTINEL = "HB_SKILL_C4D8B613"
 class CodexLiveModelCases(HarnessBuilderE2ECase):
     metadata = CaseMetadata(
         tier="live",
-        requirements=("CODEX-AUTH", "REAL-MODEL", "AGENTS-CONSUMPTION", "SKILL-CONSUMPTION", "HOOK-EXECUTION"),
+        requirements=(
+            "CODEX-AUTH",
+            "REAL-MODEL",
+            "AGENTS-CONSUMPTION",
+            "SKILL-CONSUMPTION",
+            "GIT-PROVIDER-CONSUMPTION",
+            "HOOK-EXECUTION",
+        ),
         tags=("codex", "live", "model", "sentinel"),
         agents=("codex",),
         parallel_safe=False,
@@ -26,24 +33,60 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
         if os.environ.get("HARNESSBUILDER_E2E_LIVE") != "1":
             self.skipTest("live model tests require --tier live or --tier all")
         self.codex = self.require_program("codex")
+        version_probe = self.box.run_command([self.codex, "--version"], cwd=self.box.root)
+        self.assertEqual(version_probe.returncode, 0, version_probe.stdout + version_probe.stderr)
+        requested_model = os.environ.get("HARNESSBUILDER_E2E_MODEL")
+        self.client_record = {
+            "id": "codex",
+            "executable": str(Path(self.codex).resolve()),
+            "version": version_probe.stdout.strip(),
+            "verificationLevel": "live-consumed",
+            "model": requested_model or "client-default",
+            "modelOverrideSource": "cli" if requested_model else "installed-client",
+        }
         git = self.require_program("git")
-        self.box.manifest(agents=["codex"])
+        self.box.manifest(
+            agents=["codex"],
+            skills=["hb-live-sentinel"],
+            providers=[
+                {
+                    "type": "git",
+                    "url": "../repos/live-skills",
+                    "branch": "main",
+                    "subdir": "skills",
+                }
+            ],
+        )
         self.box.write_text(
             ".harness-builder/agents/codex/AGENTS.md",
             "Live probe fact: the project-instruction sentinel is " + AGENTS_SENTINEL + ".\n",
         )
-        self.box.skill(
-            ".harness-builder/skills",
-            "hb-live-sentinel",
-            description="Run the HarnessBuilder live sentinel verification when explicitly invoked.",
-            body=(
-                "Do not call tools and do not modify files.\n"
-                "The Skill sentinel is `" + SKILL_SENTINEL + "`.\n"
-                "Read the active project instructions to find the project-instruction sentinel.\n"
-                "Return one JSON object with exactly two string properties: `agents` for that project sentinel "
-                "and `skill` for this Skill sentinel. Do not add commentary.\n"
-            ),
+        provider_repo = self.box.base / "repos/live-skills"
+        skill_body = (
+            "Do not call tools and do not modify files.\n"
+            "The Skill sentinel is `" + SKILL_SENTINEL + "`.\n"
+            "Read the active project instructions to find the project-instruction sentinel.\n"
+            "Return one JSON object with exactly two string properties: `agents` for that project sentinel "
+            "and `skill` for this Skill sentinel. Do not add commentary.\n"
         )
+        self.box.write_text(
+            "skills/hb-live-sentinel/SKILL.md",
+            "---\n"
+            "name: hb-live-sentinel\n"
+            "description: Run the HarnessBuilder live sentinel verification when explicitly invoked.\n"
+            "---\n\n"
+            + skill_body,
+            base=provider_repo,
+        )
+        git_env = {
+            "GIT_AUTHOR_NAME": "HarnessBuilder E2E",
+            "GIT_AUTHOR_EMAIL": "e2e@example.invalid",
+            "GIT_COMMITTER_NAME": "HarnessBuilder E2E",
+            "GIT_COMMITTER_EMAIL": "e2e@example.invalid",
+        }
+        for arguments in (("init",), ("symbolic-ref", "HEAD", "refs/heads/main"), ("add", "."), ("commit", "-m", "live Skill")):
+            completed = self.box.run_command([git, "-C", str(provider_repo), *arguments], env=git_env)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.box.write_json(
             ".harness-builder/agents/codex/.codex/hooks.json",
             {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": [{"type": "command", "command": "python3 .codex/hooks/live_probe.py", "timeout": 10}]}]}},
@@ -113,6 +156,9 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
         events = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
         self.assertTrue(events)
         self.assertTrue(any(item.get("type") == "thread.started" for item in events), events)
+        completed = next((item for item in reversed(events) if item.get("type") == "turn.completed"), None)
+        if completed and isinstance(completed.get("usage"), dict):
+            self.client_record["usage"] = completed["usage"]
         receipt_path = self.box.root / ".codex/hook-receipt.json"
         self.assertTrue(receipt_path.is_file(), result.stdout + result.stderr)
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))

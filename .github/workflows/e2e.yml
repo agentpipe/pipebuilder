@@ -1,0 +1,41 @@
+name: HarnessBuilder E2E
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: E0 / ${{ matrix.os }} / Python ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11"]
+        include:
+          - os: ubuntu-latest
+            python: "3.13"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile release artifact
+        run: python -m py_compile harnessbuilder.py
+      - name: Run offline E2E
+        run: python tests/e2e/run.py --tier offline --jobs 4
+      - name: Upload E2E report and failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.os }}-py${{ matrix.python }}
+          if-no-files-found: ignore
+          path: |
+            tests/e2e/e2e-report.json
+            tests/e2e/.artifacts/

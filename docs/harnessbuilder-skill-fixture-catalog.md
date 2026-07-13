@@ -539,7 +539,7 @@ live Codex AGENTS + Skill + hook sentinel
 当前 baseline 还包括：
 
 - 动态 multiple Provider、space-local、显式名单、tag 和 shadow 输入；
-- 除保留但不可达的 HB012 外，每个 stable diagnostic 的真实失败路径；
+- 每个 v1 stable diagnostic 的真实失败路径；HB012 仅保留历史编号，不属于 v1 stable contract；
 - 同目录、目录解耦、多 folder 和特殊字符 workspace topology；
 - 四 Agent E0 projection、Codex E1 client report；
 - 一个 Codex release-relevant 组合 live case。

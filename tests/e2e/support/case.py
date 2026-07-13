@@ -58,6 +58,10 @@ class HarnessBuilderE2ECase(unittest.TestCase):
         self.assertEqual(payload["schema"], "harnessbuilder-report.v1")
         self.assertEqual(payload["status"], "error")
         self.assertIn(code, diagnostic_codes(result))
+        for diagnostic in payload["diagnostics"]:
+            self.assertIsInstance(diagnostic.get("sources"), list, diagnostic)
+            self.assertTrue(diagnostic.get("target") or diagnostic.get("semanticKey"), diagnostic)
+            self.assertTrue(diagnostic.get("suggestedAction"), diagnostic)
         return payload
 
     def require_program(self, name: str) -> str:

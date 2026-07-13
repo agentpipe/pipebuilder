@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 from support import HarnessBuilderE2ECase
@@ -54,13 +55,22 @@ class GoldenBuildCases(HarnessBuilderE2ECase):
         self.assertEqual(lock["schema"], "harnessbuilder-lock.v1")
         self.assertEqual(lock["space"]["workspace"], "golden-space.code-workspace")
         self.assertEqual([item["id"] for item in lock["agents"]], ["codex", "cursor", "codebuddy", "claude-code"])
+        self.assertEqual(
+            [item["capabilityStatus"] for item in lock["agents"]],
+            ["client-verified", "generated-only", "generated-only", "generated-only"],
+        )
         self.assertNotIn(str(self.box.base), json.dumps(lock))
         for artifact in lock["artifacts"]:
             path = self.box.root / artifact["target"]
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             self.assertEqual(artifact["digest"], "sha256:" + digest, artifact["target"])
             self.assertTrue(artifact["sources"], artifact["target"])
+            self.assertTrue(artifact["semanticKey"], artifact["target"])
+            self.assertIsInstance(artifact["risks"], list)
             self.assertIn(artifact["operation"], {"copy", "render", "merge-document", "merge-json", "merge-toml"})
+        for provider in lock["providers"]:
+            self.assertIn("resolvedPath", provider)
+            self.assertEqual(provider["snapshot"], provider["digest"])
 
     def test_common_skill_is_identical_for_all_agents_and_excludes_extensions(self):
         self.expect_ok(self.box.builder("build"))
@@ -118,7 +128,26 @@ class CliContractCases(HarnessBuilderE2ECase):
         self.assertEqual(clean["command"], "clean")
         self.assertGreater(clean["summary"]["removed"], 0)
 
+    def test_runner_command_records_redact_credentials(self):
+        secret = "sk-harnessbuilder-secret-123456789"
+        result = self.box.run_command(
+            [str(Path(__import__("sys").executable)), "-c", f"print('authorization=Bearer {secret}')"],
+        )
+        self.assertEqual(result.returncode, 0)
+        serialized = json.dumps(result.report_record())
+        self.assertNotIn(secret, serialized)
+        self.assertIn("<redacted>", serialized)
+
     def test_release_artifact_is_single_python_file_and_compiles(self):
         self.assertTrue(HARNESSBUILDER.is_file())
         result = self.box.run_command([str(Path(__import__("sys").executable)), "-m", "py_compile", str(HARNESSBUILDER)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        release = self.box.base / "standalone-release" / "harnessbuilder.py"
+        release.parent.mkdir()
+        shutil.copy2(HARNESSBUILDER, release)
+        standalone = self.box.run_command(
+            [str(Path(__import__("sys").executable)), str(release), "build", str(self.box.root), "--format", "json"],
+            cwd=self.box.base,
+        )
+        self.assertEqual(standalone.returncode, 0, standalone.stdout + standalone.stderr)
+        self.assertTrue((self.box.root / ".harness-builder/lock.json").is_file())

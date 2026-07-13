@@ -10,6 +10,7 @@
 - [HarnessBuilder 四 Agent Adapter 首版规范](harnessbuilder-agent-adapters.md)：Codex、Cursor、CodeBuddy、Claude Code 四个平台的首版投影规范。
 - [HarnessBuilder Python E2E 集成测试架构](harnessbuilder-test-architecture.md)：黑盒 Harness Space sandbox、golden、ownership、跨平台、真实客户端和真实模型门禁。
 - [HarnessBuilder Skill Fixture Catalog](harnessbuilder-skill-fixture-catalog.md)：五套 Skill fixture pack、四 Agent capability matrix、Harness Space overlay 和 Codex live probes。
+- [THarness Builder 迁移审计](harnessbuilder-tharness-migration-audit.md)：旧能力的迁移、删除边界与真实 shared-skills 兼容结果。
 
 本提案接受后，将取代 `tagent-builder-proposal.md` 中关于中心化 THarness Builder、固定 shared skills 和独立生成 workspace 的设计；`platform-capability-report.md` 继续作为前三个平台的历史调研快照，新增 Claude Code 结论以本文配套 adapter 规范为准。
 
@@ -198,7 +199,7 @@ skills/foo/.harness-agents/<agent>/...
 skillProviders
 ```
 
-首版只实现 `folder` Provider；协议使用 provider type，给 Git、HTTP registry、package 和 artifact provider 留出扩展空间。
+当前实现 `folder` 与 `git` Provider；协议继续使用 provider type，给 HTTP registry、package 和 artifact provider 留出扩展空间。
 
 ### 2.7 显式 Skill 名单优先，tag 匹配补充
 
@@ -409,7 +410,7 @@ HarnessBuilder 根据 workspace 生成中立文件：
 
 越靠前优先级越高。同名 Skill 只选择第一个合法候选；低优先级候选进入 lock 的 `shadowedCandidates`，不做目录树 merge。
 
-### 6.2 首版 folder Provider
+### 6.2 Folder Provider
 
 ```json
 {
@@ -429,7 +430,7 @@ Provider root 的直接子目录是 Skill：
 
 不递归猜测任意深度的 `SKILL.md`。
 
-### 6.3 未来 Git Provider
+### 6.3 Git Provider
 
 协议预留：
 
@@ -437,21 +438,23 @@ Provider root 的直接子目录是 Skill：
 {
   "type": "git",
   "url": "https://example.com/team/skills.git",
-  "ref": "v2.1.0",
+  "tag": "v2.1.0",
   "subdir": "skills"
 }
 ```
 
-首版读到非 `folder` Provider 必须给出 `unsupported provider type`，不能忽略或猜测。
+也可以用 `"branch": "main"` 代替 `tag`。`branch` 与 `tag` 必须严格二选一；不接受语义含混的通用 `ref`。`subdir` 可省略，默认 `.`。
 
-Git Provider 落地时必须：
+Git Provider 行为：
 
 - 使用独立 cache；
-- 将 ref 解析到 immutable commit；
-- lock 记录 URL、ref、commit、subdir 和 Skill digest；
+- 将 branch/tag 解析到 immutable commit；
+- lock 记录 URL、选择器类型和值、commit、subdir、Provider/Skill digest；
 - 不在 Harness Space 目录中维护可变 checkout；
-- offline build 可以复用已锁定 cache；
+- `--offline` 要求并复用匹配 lock 中的 commit 与对应 immutable cache，并校验 snapshot digest；
 - credential 不进入 manifest 或 lock。
+
+默认 cache 位于用户 cache 目录，也可用 `HARNESSBUILDER_CACHE_DIR` 覆盖；覆盖路径仍必须在 Harness Space 外。远程认证由 Git credential helper、SSH agent 或进程环境承担。未知 Provider type 返回 `HB006`，不能忽略或猜测。
 
 ---
 

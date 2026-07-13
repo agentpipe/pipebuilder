@@ -6,6 +6,8 @@
 
 本文定义首版 adapter 的输入结构、目标映射、workspace rule 投影、merge 边界和后续 plugin 演进。平台行为会随产品版本变化，实现时必须用真实客户端 fixture 校验；无法确认的 schema 默认失败，不猜测。
 
+当前 compatibility status：Codex 已有真实客户端 E1，标记为 `client-verified`；Cursor、CodeBuddy、Claude Code 已有 E0 生成与 schema 边界，但在各自 E1 建立前统一标记为 `generated-only`。该状态写入 `explain` 和 `.harness-builder/lock.json`，不等同于删除 adapter。
+
 ---
 
 ## 1. 通用输入

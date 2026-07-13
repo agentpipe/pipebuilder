@@ -84,10 +84,37 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
             ("not-a-list", "HB001"),
             ([{}], "HB001"),
             ([{"type": "folder", "path": "x", "extra": True}], "HB001"),
-            ([{"type": "git", "path": "x"}], "HB006"),
+            ([{"type": "git", "path": "x"}], "HB001"),
+            ([{"type": "registry", "path": "x"}], "HB006"),
             ([{"type": "folder", "path": ""}], "HB001"),
             ([{"type": "folder", "path": str(self.box.root)}], "HB001"),
             ([{"type": "folder", "path": "x"}, {"type": "folder", "path": "./x"}], "HB001"),
+        )
+        for providers, code in cases:
+            item = dict(valid); item["skillProviders"] = providers
+            with self.subTest(providers=providers):
+                self.assert_manifest_error(item, code)
+
+    def test_git_provider_requires_url_and_exactly_one_safe_branch_or_tag(self):
+        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        cases = (
+            ([{"type": "git", "url": "../repo"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "branch": "main", "tag": "v1"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "ref": "main"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "branch": "-main"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "branch": "feature//nested"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "tag": ".hidden"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "tag": "release..one"}], "HB001"),
+            ([{"type": "git", "url": "../repo", "branch": "main", "subdir": "../skills"}], "HB001"),
+            ([{"type": "git", "url": "https://token@example.test/repo.git", "branch": "main"}], "HB011"),
+            ([{"type": "git", "url": "https://example.test/repo.git?token=x", "branch": "main"}], "HB011"),
+            (
+                [
+                    {"type": "git", "url": "../repo", "branch": "main"},
+                    {"type": "git", "url": "../repo", "branch": "main", "subdir": "."},
+                ],
+                "HB001",
+            ),
         )
         for providers, code in cases:
             item = dict(valid); item["skillProviders"] = providers

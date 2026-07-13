@@ -211,7 +211,42 @@ space-local
 
 绝对路径不允许进入 manifest，以保证 Harness Space 可移动。确有本机路径需求时，应通过外部目录布局、symlink 或未来的 local override 机制解决。
 
-### 6.4 Provider 优先级
+### 6.4 Git Provider
+
+分支形式：
+
+```json
+{
+  "type": "git",
+  "url": "https://example.com/team/skills.git",
+  "branch": "main",
+  "subdir": "skills"
+}
+```
+
+tag 形式：
+
+```json
+{
+  "type": "git",
+  "url": "git@example.com:team/skills.git",
+  "tag": "v2.1.0"
+}
+```
+
+约束：
+
+- `url` 为非空 Git URL；开发和离线 fixture 也可使用相对于 Harness Space root 的本地 repository 路径；
+- `branch` 与 `tag` 必须严格二选一，通用 `ref` 不属于 schema；
+- `subdir` 可省略，默认 `.`，必须是安全的相对 POSIX 路径；
+- URL 不得内嵌 HTTP(S) username、password、query credential 或 fragment；认证由 Git credential helper、SSH agent 或环境承担；
+- 默认 cache 位于用户 cache 目录；`HARNESSBUILDER_CACHE_DIR` 可以覆盖，但 cache 必须位于 Harness Space 外；
+- 在线 resolve 会更新 cache mirror，将 branch/tag 解析为 commit，并从该 commit 生成无 symlink 的 immutable snapshot；
+- `--offline` 不访问 origin，且要求存在匹配 lock：复用其中 commit，并校验 cache snapshot digest；lock、cache、commit 或 subdir 不可用时返回 `HB005`，digest 漂移返回 `HB010`；
+- lock 记录 portable URL、`branch`/`tag`、commit、subdir、Provider digest 和每个 Skill digest，不记录 credential 或本机 cache absolute path；
+- Harness Space 内不得出现 Git Provider checkout。
+
+### 6.5 Provider 优先级
 
 从高到低：
 
@@ -495,11 +530,12 @@ HB008 invalid-skill
 HB009 unsupported-agent-artifact
 HB010 target-conflict
 HB011 unsafe-path
-HB012 adapter-not-implemented
 HB013 build-busy
 HB014 stale-build-lock
 HB015 legacy-layout-detected
 ```
+
+`HB012` 作为早期草案编号保留但不属于 `harness-space.v1` stable contract：manifest 只接受四个内置 Agent，未知 Agent 在 adapter dispatch 前由 `HB001` 拒绝，因此不能为 HB012 制造伪失败入口。
 
 `HB015` 用于发现旧 THarness layout，例如 `tagents/`、Space root `.harness-agents/`、`private/`、`.harness-space.yaml`、`.harness-lock.yaml` 或 workspace source template。HarnessBuilder v1 不双读、不自动 merge，也不在 build 中就地改名；迁移由独立工具或 Human 显式完成。
 
@@ -524,6 +560,7 @@ Lock 至少记录：
 - Provider 配置、realpath、snapshot/digest；
 - 每个 Skill 的 provider、source、digest、selectedBy、matchedTags、shadowed candidates；
 - 每个 artifact 的 source、logical type、target、semantic key、operation、digest；
+- Adapter capability status，以及自动执行 hook、Codex rule 等 surface 的结构化 risks；
 - 可选 generated timestamp。
 
 Lock 中的 source path 优先写 Harness Space-relative 或 Provider-relative 路径。不可移植 absolute realpath 可以用于本机诊断，但必须与 portable identity 分开，不参与可复现 digest。
