@@ -75,6 +75,8 @@ Space-level Agent source 位于 `.harness-builder/agents/<agent>/`，Skill-level
     └── rules/
 ```
 
+Codex 的通用 Skill 只投影到 `.agents/skills/`。`.codex/` 不是 Skill 的重复目录；只有 Space 或 Skill 显式提供 Codex 原生 `config.toml`、hooks 或 command rules 时才生成。仅选择普通 Skill 的 Codex Harness Space 不会创建 `.codex/`。
+
 平台 target 均由 Builder 管理。已有 `AGENTS.md`、`CLAUDE.md`、`.mcp.json` 或平台目录配置需要先移动到对应 source 路径；未被当前 plan 或旧 lock 登记的其他文件不会被修改。
 
 ## 测试

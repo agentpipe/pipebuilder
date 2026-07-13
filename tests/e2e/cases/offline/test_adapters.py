@@ -15,6 +15,13 @@ class CodexAdapterCases(HarnessBuilderE2ECase):
         agents=("codex",),
     )
 
+    def test_skill_only_projection_uses_agents_without_creating_codex_config(self):
+        self.box.skill("provider", "portable")
+        self.box.manifest(agents=["codex"], skills=["portable"], providers=[{"type": "folder", "path": "provider"}])
+        self.expect_ok(self.box.builder("build"))
+        self.assertTrue((self.box.root / ".agents/skills/portable/SKILL.md").is_file())
+        self.assertFalse((self.box.root / ".codex").exists())
+
     def test_all_supported_codex_surfaces_merge_in_stable_source_order(self):
         self.box.skill("provider", "codex-cap")
         self.box.write_text(".harness-builder/agents/codex/AGENTS.md", "SPACE_CODEX\n")

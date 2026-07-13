@@ -99,6 +99,8 @@ codex
 
 不同时复制到 `.codex/skills`，避免双发现；如果真实部署仍需要 legacy 路径，应作为显式 adapter compatibility option，而非默认行为。
 
+`.agents/skills` 是 Codex 的 Skill surface；`.codex` 是可选的项目 config/hooks/rules surface。没有显式 `.harness-builder/agents/codex/.codex` 或 `<skill>/.harness-agents/codex/.codex` source 时，adapter 不创建 `.codex`。
+
 ### 4.2 Workspace rule 与 `AGENTS.md`
 
 Codex adapter 读取 core 生成的 `.harness-builder/generated/workspace-rule.md`，并与以下 Builder source 中的原生项目 instructions 合成：
