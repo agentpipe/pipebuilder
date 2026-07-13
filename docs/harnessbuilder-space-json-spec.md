@@ -194,7 +194,8 @@ space-local
 ```json
 {
   "type": "folder",
-  "path": "../../shared-skills"
+  "path": "../../shared-skills",
+  "subdir": "."
 }
 ```
 
@@ -202,12 +203,31 @@ space-local
 
 - `type` 必须为 `folder`；
 - `path` 必须是非空字符串；
+- `subdir` 可选，默认 `.`，是相对 Provider 源根的 Skill 根目录；
 - manifest 中必须使用相对路径；
 - 路径以 Harness Space root 为基准；
 - build 时必须解析为已存在目录；
 - provider root 不得位于 HarnessBuilder generated target 内；
 - provider realpath 和目录内容 digest 写入 lock；
 - provider root 的直接子目录才是 Skill candidate。
+
+Folder 与 Git Provider 都可附加 post command：
+
+```json
+{
+  "type": "folder",
+  "path": "../rounditer",
+  "subdir": "skills",
+  "command": {
+    "cwd": ".",
+    "args": ["node", "build.mjs", "--harness-post", "--output", "{spaceRoot}", "--driver", "webgame"]
+  }
+}
+```
+
+`cwd` 相对 Provider 源根，默认 `.`；`args` 是不经 shell 的非空字符串数组。
+正式 `build` 在 HarnessBuilder 自身产物落地后按 Provider 顺序调用；`check`、`explain` 和
+`build --dry-run` 只展示，不执行。
 
 绝对路径不允许进入 manifest，以保证 Harness Space 可移动。确有本机路径需求时，应通过外部目录布局、symlink 或未来的 local override 机制解决。
 

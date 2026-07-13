@@ -38,12 +38,18 @@ Harness Space 最小输入
 
 外部 Skill Provider 在 harness-space.json.skillProviders 中声明。支持：
     {"type":"folder", "path":"../shared-skills"}
+    {"type":"folder", "path":"../component", "subdir":"skills",
+     "command":{"cwd":".", "args":["node","build.mjs","--output","{spaceRoot}"]}}
     {"type":"git", "url":"https://example/repo.git", "branch":"main", "subdir":"skills"}
     {"type":"git", "url":"https://example/repo.git", "tag":"v1.0.0", "subdir":"skills"}
 
 Git Provider 的 branch/tag 严格二选一；认证交给 Git credential helper 或 SSH agent，
 不得把 credential 写入 manifest。HARNESSBUILDER_CACHE_DIR 可覆盖默认用户 cache，
 但 cache 必须位于 Harness Space 之外。
+
+Folder/Git 的 subdir 是 Skill Provider 根，默认为 .。可选 command 默认在正常 build 后调用；
+cwd 相对 Provider 源根，args 不经 shell，并展开 {spaceRoot}、{sourceRoot}、{providerRoot}。
+check、explain 和 build --dry-run 不调用 command。
 
 所有权与输出
 -----------
@@ -140,6 +146,7 @@ DIAGNOSTIC_ACTIONS = {
     "HB013": "Wait for the active build or clean operation to finish.",
     "HB014": "Confirm the process is gone, then remove the stale build.lock.",
     "HB015": "Migrate the legacy THarness layout before building.",
+    "HB016": "Correct the Provider post command or its runtime dependencies and retry.",
     "HBW001": "Review the selected Provider and shadowed Skill candidates.",
     "HBW002": "Prefer a standard Skill for new Claude Code workflows.",
     "HBW003": "Review the generated platform security surface before use.",
@@ -462,7 +469,7 @@ class Manifest:
     agents: list[str]
     skills: list[str]
     tags: list[str]
-    providers: list[dict[str, str]]
+    providers: list[dict[str, Any]]
 
 
 @dataclasses.dataclass
@@ -482,6 +489,7 @@ class Workspace:
 class Provider:
     provider_id: str
     root: Path
+    source_root: Path
     configured_path: str
     priority: int
     digest: str
@@ -491,6 +499,7 @@ class Provider:
     selector_value: str | None = None
     commit: str | None = None
     subdir: str | None = None
+    command: dict[str, Any] | None = None
 
 
 @dataclasses.dataclass
@@ -546,6 +555,40 @@ def detect_legacy(root: Path) -> None:
         )
 
 
+def validate_provider_subdir(value: Any, index: int) -> str:
+    subdir = value if value is not None else "."
+    if not isinstance(subdir, str) or not subdir.strip():
+        fail("HB001", f"skillProviders[{index}].subdir must be a non-empty relative POSIX path")
+    subdir_path = Path(subdir)
+    if subdir_path.is_absolute() or "\\" in subdir or any(part in {"", ".."} for part in subdir.split("/")):
+        fail("HB001", f"skillProviders[{index}].subdir must be a safe relative POSIX path")
+    return subdir_path.as_posix()
+
+
+def validate_provider_command(value: Any, index: int) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) - {"cwd", "args"} or "args" not in value:
+        fail("HB001", f"skillProviders[{index}].command accepts cwd and required args")
+    cwd = value.get("cwd", ".")
+    if (
+        not isinstance(cwd, str)
+        or not cwd.strip()
+        or Path(cwd).is_absolute()
+        or "\\" in cwd
+        or any(part in {"", ".."} for part in cwd.split("/"))
+    ):
+        fail("HB001", f"skillProviders[{index}].command.cwd must be a safe relative POSIX path")
+    arguments = value.get("args")
+    if (
+        not isinstance(arguments, list)
+        or not arguments
+        or any(not isinstance(argument, str) or not argument or any(ord(char) < 32 for char in argument) for argument in arguments)
+    ):
+        fail("HB001", f"skillProviders[{index}].command.args must be an array of non-empty strings")
+    return {"cwd": Path(cwd).as_posix(), "args": list(arguments)}
+
+
 def load_manifest(root: Path) -> Manifest:
     path = root / "harness-space.json"
     raw = read_json(path, "HB001", "manifest")
@@ -575,25 +618,31 @@ def load_manifest(root: Path) -> Manifest:
     providers_raw = raw.get("skillProviders")
     if not isinstance(providers_raw, list):
         fail("HB001", "manifest.skillProviders must be an array", sources=(path.as_posix(),))
-    providers: list[dict[str, str]] = []
+    providers: list[dict[str, Any]] = []
     seen_provider_specs: set[str] = set()
     for index, item in enumerate(providers_raw):
         if not isinstance(item, dict) or not isinstance(item.get("type"), str):
             fail("HB001", f"skillProviders[{index}] must be an object with a type", sources=(path.as_posix(),))
         kind = item["type"]
         if kind == "folder":
-            if set(item) != {"type", "path"}:
-                fail("HB001", f"skillProviders[{index}] folder must contain only type and path", sources=(path.as_posix(),))
+            allowed = {"type", "path", "subdir", "command"}
+            if set(item) - allowed or not {"type", "path"}.issubset(item):
+                fail("HB001", f"skillProviders[{index}] folder accepts type, path, optional subdir and command", sources=(path.as_posix(),))
             configured = item.get("path")
             if not isinstance(configured, str) or not configured.strip():
                 fail("HB001", f"skillProviders[{index}].path must be a non-empty string", sources=(path.as_posix(),))
             if Path(configured).is_absolute():
                 fail("HB001", f"skillProviders[{index}].path must be relative", sources=(path.as_posix(),))
+            normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
+            command = validate_provider_command(item.get("command"), index)
             normalized_provider_path = Path(os.path.normpath(configured)).as_posix()
-            normalized = {"type": kind, "path": os.path.normcase(normalized_provider_path)}
-            provider = {"type": kind, "path": configured}
+            normalized = {"type": kind, "path": os.path.normcase(normalized_provider_path), "subdir": normalized_subdir}
+            provider = {"type": kind, "path": configured, "subdir": normalized_subdir}
+            if command is not None:
+                normalized["command"] = command
+                provider["command"] = command
         elif kind == "git":
-            allowed = {"type", "url", "branch", "tag", "subdir"}
+            allowed = {"type", "url", "branch", "tag", "subdir", "command"}
             if set(item) - allowed or not {"type", "url"}.issubset(item):
                 fail(
                     "HB001",
@@ -627,13 +676,8 @@ def load_manifest(root: Path) -> Manifest:
                 or any(char.isspace() or ord(char) < 32 or char in "~^:?*[" for char in selector_value)
             ):
                 fail("HB001", f"skillProviders[{index}].{selector_kind} is not a safe Git name", sources=(path.as_posix(),))
-            subdir = item.get("subdir", ".")
-            if not isinstance(subdir, str) or not subdir.strip():
-                fail("HB001", f"skillProviders[{index}].subdir must be a non-empty relative POSIX path", sources=(path.as_posix(),))
-            subdir_path = Path(subdir)
-            if subdir_path.is_absolute() or "\\" in subdir or any(part in {"", ".."} for part in subdir.split("/")):
-                fail("HB001", f"skillProviders[{index}].subdir must be a safe relative POSIX path", sources=(path.as_posix(),))
-            normalized_subdir = subdir_path.as_posix()
+            normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
+            command = validate_provider_command(item.get("command"), index)
             normalized = {
                 "type": kind,
                 "url": url,
@@ -641,6 +685,9 @@ def load_manifest(root: Path) -> Manifest:
                 "subdir": normalized_subdir,
             }
             provider = dict(normalized)
+            if command is not None:
+                normalized["command"] = command
+                provider["command"] = command
         else:
             fail("HB006", f"Unsupported provider type: {kind}", sources=(path.as_posix(),))
         spec = canonical_json(normalized)
@@ -914,7 +961,7 @@ def extract_git_snapshot(archive: bytes, destination: Path) -> None:
 
 def load_git_provider(
     root: Path,
-    item: dict[str, str],
+    item: dict[str, Any],
     priority: int,
     previous: dict[str, Any] | None,
     offline: bool,
@@ -923,9 +970,15 @@ def load_git_provider(
     selector_kind = "branch" if "branch" in item else "tag"
     selector_value = item[selector_kind]
     subdir = item.get("subdir", ".")
-    identity = canonical_json(
-        {"type": "git", "url": url, selector_kind: selector_value, "subdir": subdir}
-    )
+    identity_value: dict[str, Any] = {
+        "type": "git",
+        "url": url,
+        selector_kind: selector_value,
+        "subdir": subdir,
+    }
+    if item.get("command") is not None:
+        identity_value["command"] = item["command"]
+    identity = canonical_json(identity_value)
     identity_hash = hashlib.sha256(identity.encode()).hexdigest()
     provider_id = "git:" + identity_hash[:16]
     cache = provider_cache_root(root) / "git" / hashlib.sha256(url.encode()).hexdigest()
@@ -983,17 +1036,17 @@ def load_git_provider(
         commit = resolved.strip()
         if re.fullmatch(r"[0-9a-f]{40,64}", commit) is None:
             fail("HB005", f"Git Provider returned an invalid commit for {selector_kind} {selector_value}")
+    command = item.get("command")
     subdir_hash = hashlib.sha256(subdir.encode()).hexdigest()[:16]
-    snapshot = cache / "snapshots" / commit / subdir_hash
-    if not snapshot.is_dir():
-        treeish = commit if subdir == "." else f"{commit}:{subdir}"
-        if subdir != ".":
-            kind = run_git(["--git-dir", str(mirror), "cat-file", "-t", treeish])
-            if not isinstance(kind, str) or kind.strip() != "tree":
-                fail("HB005", f"Git Provider subdir is not a directory: {subdir}", sources=(url, subdir))
+    source_snapshot = cache / "snapshots" / commit / ("full" if command is not None else subdir_hash)
+    if not source_snapshot.is_dir():
+        treeish = commit if command is not None or subdir == "." else f"{commit}:{subdir}"
         archive = run_git(["--git-dir", str(mirror), "archive", "--format=tar", treeish], binary=True)
         assert isinstance(archive, bytes)
-        extract_git_snapshot(archive, snapshot)
+        extract_git_snapshot(archive, source_snapshot)
+    snapshot = source_snapshot / subdir if command is not None and subdir != "." else source_snapshot
+    if not snapshot.is_dir():
+        fail("HB005", f"Git Provider subdir is not a directory: {subdir}", sources=(url, subdir))
     snapshot_digest = tree_digest(snapshot)
     if offline and locked is not None and snapshot_digest != locked["digest"]:
         fail(
@@ -1006,6 +1059,7 @@ def load_git_provider(
     return Provider(
         provider_id,
         snapshot,
+        source_snapshot,
         configured_path,
         priority,
         snapshot_digest,
@@ -1015,6 +1069,7 @@ def load_git_provider(
         selector_value,
         commit,
         subdir,
+        command,
     )
 
 
@@ -1027,19 +1082,22 @@ def load_providers(
     providers: list[Provider] = []
     seen_folder_roots: dict[str, str] = {}
     generated_roots = [root / name for name in (".codex", ".cursor", ".codebuddy", ".claude", ".agents")]
-    specs = [{"type": "folder", "path": ".harness-builder/skills"}, *manifest.providers]
+    specs = [{"type": "folder", "path": ".harness-builder/skills", "subdir": "."}, *manifest.providers]
     for priority, item in enumerate(specs):
         if item["type"] == "git":
             providers.append(load_git_provider(root, item, priority, previous, offline))
             continue
         configured = item["path"]
         provider_id = "space-local" if priority == 0 else f"folder:{configured}"
+        subdir = item.get("subdir", ".")
+        command = item.get("command")
         try:
-            provider_root = (root / configured).resolve()
+            source_root = (root / configured).resolve()
+            provider_root = (source_root / subdir).resolve()
         except (OSError, RuntimeError) as exc:
             fail("HB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
         if provider_id == "space-local" and not provider_root.exists():
-            providers.append(Provider(provider_id, provider_root, configured, priority, tree_digest(provider_root)))
+            providers.append(Provider(provider_id, provider_root, source_root, configured, priority, tree_digest(provider_root), subdir=subdir))
             continue
         if not provider_root.is_dir():
             fail("HB005", f"Skill provider directory not found: {configured}", sources=(configured,))
@@ -1055,7 +1113,18 @@ def load_providers(
             generated_resolved = generated.resolve()
             if provider_root == generated_resolved or generated_resolved in provider_root.parents:
                 fail("HB011", f"Provider cannot be inside generated target: {configured}", sources=(configured,))
-        providers.append(Provider(provider_id, provider_root, configured, priority, tree_digest(provider_root)))
+        providers.append(
+            Provider(
+                provider_id,
+                provider_root,
+                source_root,
+                configured,
+                priority,
+                tree_digest(provider_root),
+                subdir=subdir,
+                command=command,
+            )
+        )
     return providers
 
 
@@ -2240,7 +2309,7 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
         assert provider.commit is not None
         assert provider.subdir is not None
         cache_id = hashlib.sha256(provider.url.encode()).hexdigest()
-        subdir_id = hashlib.sha256(provider.subdir.encode()).hexdigest()[:16]
+        subdir_id = "full/" + provider.subdir if provider.command is not None else hashlib.sha256(provider.subdir.encode()).hexdigest()[:16]
         record.update(
             {
                 "url": provider.url,
@@ -2254,9 +2323,12 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
         record.update(
             {
                 "path": provider.configured_path,
+                "subdir": provider.subdir or ".",
                 "resolvedPath": Path(os.path.relpath(provider.root, root)).as_posix(),
             }
         )
+    if provider.command is not None:
+        record["command"] = provider.command
     return record
 
 
@@ -2456,6 +2528,61 @@ def apply_build(model: BuildModel) -> tuple[int, int]:
     return len(model.operations), removed
 
 
+def run_post_commands(model: BuildModel) -> int:
+    executed = 0
+    for provider in model.providers:
+        if provider.command is None:
+            continue
+        replacements = {
+            "{spaceRoot}": str(model.root),
+            "{sourceRoot}": str(provider.source_root),
+            "{providerRoot}": str(provider.root),
+        }
+        arguments = []
+        for argument in provider.command["args"]:
+            for marker, value in replacements.items():
+                argument = argument.replace(marker, value)
+            arguments.append(argument)
+        cwd = (provider.source_root / provider.command.get("cwd", ".")).resolve()
+        if not cwd.is_dir():
+            fail("HB016", f"Provider post command cwd not found: {cwd}", sources=(provider.provider_id,))
+        env = os.environ.copy()
+        env.update(
+            {
+                "HARNESS_SPACE_ROOT": str(model.root),
+                "HARNESS_PROVIDER_SOURCE_ROOT": str(provider.source_root),
+                "HARNESS_PROVIDER_ROOT": str(provider.root),
+            }
+        )
+        try:
+            completed = subprocess.run(
+                arguments,
+                cwd=str(cwd),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=600,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            fail("HB016", f"Provider post command failed to start: {exc}", sources=(provider.provider_id,))
+        if completed.stdout:
+            print(completed.stdout, file=sys.stderr, end="" if completed.stdout.endswith("\n") else "\n")
+        if completed.stderr:
+            print(completed.stderr, file=sys.stderr, end="" if completed.stderr.endswith("\n") else "\n")
+        if completed.returncode != 0:
+            fail(
+                "HB016",
+                f"Provider post command exited with status {completed.returncode}: {arguments[0]}",
+                sources=(provider.provider_id,),
+            )
+        executed += 1
+    return executed
+
+
 def clean(root: Path) -> tuple[int, list[Diagnostic]]:
     previous = load_previous_lock(root)
     if previous is None:
@@ -2488,6 +2615,15 @@ def model_details(model: BuildModel) -> dict[str, Any]:
             "folders": [{"name": item.name, "path": item.path} for item in model.workspace.folders],
         },
         "providers": [provider_lock_record(model.root, item) for item in model.providers],
+        "postCommands": [
+            {
+                "provider": item.provider_id,
+                "cwd": item.command["cwd"],
+                "args": item.command["args"],
+            }
+            for item in model.providers
+            if item.command is not None
+        ],
         "skills": [
             {
                 "name": item.name,
@@ -2616,13 +2752,17 @@ def main(argv: list[str] | None = None) -> int:
             with BuildLock(root):
                 model = plan(root, offline=args.offline)
                 generated, removed = apply_build(model)
+                post_commands = run_post_commands(model)
             value = report(
                 "build",
                 "ok",
                 root,
                 name=model.manifest.name,
                 diagnostics=model.warnings,
-                summary={"generated": generated, "removed": removed, "skills": len(model.skills)},
+                summary={
+                    **{"generated": generated, "removed": removed, "skills": len(model.skills)},
+                    **({"postCommands": post_commands} if post_commands else {}),
+                },
             )
             print_report(value, args.format)
             return 0
@@ -2634,7 +2774,11 @@ def main(argv: list[str] | None = None) -> int:
             root,
             name=model.manifest.name,
             diagnostics=model.warnings,
-            summary={"planned": len(model.operations), "skills": len(model.skills)},
+            summary={
+                "planned": len(model.operations),
+                "skills": len(model.skills),
+                "postCommands": sum(1 for provider in model.providers if provider.command is not None),
+            },
             details=model_details(model) if args.command == "explain" or args.format == "json" else None,
         )
         print_report(value, args.format)

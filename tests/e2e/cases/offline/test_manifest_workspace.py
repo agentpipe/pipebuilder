@@ -88,6 +88,9 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
             ([{"type": "registry", "path": "x"}], "HB006"),
             ([{"type": "folder", "path": ""}], "HB001"),
             ([{"type": "folder", "path": str(self.box.root)}], "HB001"),
+            ([{"type": "folder", "path": "x", "subdir": "../skills"}], "HB001"),
+            ([{"type": "folder", "path": "x", "command": {"args": []}}], "HB001"),
+            ([{"type": "folder", "path": "x", "command": {"cwd": "../escape", "args": ["tool"]}}], "HB001"),
             ([{"type": "folder", "path": "x"}, {"type": "folder", "path": "./x"}], "HB001"),
         )
         for providers, code in cases:

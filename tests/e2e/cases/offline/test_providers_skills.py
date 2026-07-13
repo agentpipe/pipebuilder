@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from support import HarnessBuilderE2ECase, snapshot_tree
@@ -125,6 +126,35 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
         )
         self.expect_ok(self.box.builder("build"))
         self.assertIn("literal", (self.box.root / ".agents/skills/literal-path/SKILL.md").read_text(encoding="utf-8"))
+
+    def test_folder_subdir_is_scanned_and_post_command_runs_only_for_build(self):
+        source = self.box.base / "component"
+        self.box.write_text(
+            "skills/commanded/SKILL.md",
+            "---\nname: commanded\ndescription: Commanded Skill.\n---\n",
+            base=source,
+        )
+        self.box.write_text(
+            "post.py",
+            "import pathlib,sys\npathlib.Path(sys.argv[1], 'post-command.txt').write_text('ran\\n', encoding='utf-8')\n",
+            base=source,
+        )
+        provider = {
+            "type": "folder",
+            "path": "../component",
+            "subdir": "skills",
+            "command": {"cwd": ".", "args": [sys.executable, "post.py", "{spaceRoot}"]},
+        }
+        self.box.manifest(agents=["codex"], skills=["commanded"], providers=[provider])
+        explain = self.expect_ok(self.box.builder("explain"))
+        self.assertEqual(explain["summary"]["postCommands"], 1)
+        self.assertFalse((self.box.root / "post-command.txt").exists())
+        self.expect_ok(self.box.builder("build", "--dry-run"))
+        self.assertFalse((self.box.root / "post-command.txt").exists())
+        built = self.expect_ok(self.box.builder("build"))
+        self.assertEqual(built["summary"]["postCommands"], 1)
+        self.assertEqual((self.box.root / "post-command.txt").read_text(encoding="utf-8"), "ran\n")
+        self.assertTrue((self.box.root / ".agents/skills/commanded/SKILL.md").is_file())
 
 
 class GitProviderCases(HarnessBuilderE2ECase):
@@ -258,6 +288,21 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.git("commit", "-m", "add unsafe symlink")
         self.box.manifest(agents=["codex"], providers=[self.git_provider(branch="main")])
         self.expect_code(self.box.builder("check", env=self.provider_env), "HB011")
+
+    def test_git_post_command_runs_from_full_commit_while_skills_use_subdir(self):
+        self.commit_skill("commanded", "git-command")
+        self.box.write_text(
+            "post.py",
+            "import pathlib,sys\npathlib.Path(sys.argv[1], 'git-post.txt').write_text('git-ran\\n', encoding='utf-8')\n",
+            base=self.repo,
+        )
+        self.git("add", ".")
+        self.git("commit", "-m", "add post command")
+        provider = self.git_provider(branch="main")
+        provider["command"] = {"cwd": ".", "args": [sys.executable, "post.py", "{spaceRoot}"]}
+        self.box.manifest(agents=["codex"], skills=["commanded"], providers=[provider])
+        self.expect_ok(self.box.builder("build", env=self.provider_env))
+        self.assertEqual((self.box.root / "git-post.txt").read_text(encoding="utf-8"), "git-ran\n")
 
     def test_provider_order_and_space_local_priority_also_apply_to_git(self):
         self.commit_skill("same", "git")
