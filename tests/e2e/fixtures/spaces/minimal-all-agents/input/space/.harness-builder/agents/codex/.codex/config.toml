@@ -1,0 +1,6 @@
+developer_instructions = "GOLDEN_CODEX_PROJECT_CONFIG"
+
+[mcp_servers.hb_fixture]
+command = "python3"
+args = ["-m", "hb_fixture_server"]
+enabled = false

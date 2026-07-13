@@ -1,0 +1,4 @@
+__pycache__/
+*.py[cod]
+tests/e2e/e2e-report.json
+tests/e2e/.artifacts/

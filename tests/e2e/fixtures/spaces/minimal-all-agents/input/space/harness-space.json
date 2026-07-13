@@ -1,0 +1,11 @@
+{
+  "schema": "harness-space.v1",
+  "name": "golden-space",
+  "description": "Static all-agent golden fixture",
+  "agents": ["codex", "cursor", "codebuddy", "claude-code"],
+  "skills": ["portable"],
+  "tags": [],
+  "skillProviders": [
+    {"type": "folder", "path": "../providers/portable-pack"}
+  ]
+}

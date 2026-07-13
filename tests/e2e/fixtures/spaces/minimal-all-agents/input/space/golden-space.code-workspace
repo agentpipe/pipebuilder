@@ -1,0 +1,6 @@
+{
+  "folders": [
+    {"name": "harness", "path": "."},
+    {"name": "application", "path": "../projects/application"}
+  ]
+}
