@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import tomllib
 
 from support import HarnessBuilderE2ECase, snapshot_tree
 from support.model import CaseMetadata
@@ -45,9 +44,11 @@ class CodexAdapterCases(HarnessBuilderE2ECase):
         agents = (self.box.root / "AGENTS.md").read_text(encoding="utf-8")
         self.assertLess(agents.index("HarnessBuilder Workspace"), agents.index("SPACE_CODEX"))
         self.assertLess(agents.index("SPACE_CODEX"), agents.index("SKILL_CODEX"))
-        config = tomllib.loads((self.box.root / ".codex/config.toml").read_text(encoding="utf-8"))
-        self.assertEqual(config["mcp_servers"]["team.server"]["args"], ["space.py"])
-        self.assertEqual(config["agents"]["review"]["description"], "Review")
+        config = (self.box.root / ".codex/config.toml").read_text(encoding="utf-8")
+        self.assertIn('[mcp_servers."team.server"]', config)
+        self.assertIn('args = ["space.py"]', config)
+        self.assertIn("[agents.review]", config)
+        self.assertIn('description = "Review"', config)
         groups = json.loads((self.box.root / ".codex/hooks.json").read_text(encoding="utf-8"))["hooks"]["Stop"]
         self.assertEqual([item["hooks"][0]["command"] for item in groups], ["python3 shared.py", "python3 skill.py"])
         self.assertTrue(os.access(self.box.root / ".codex/hooks/space.py", os.X_OK))
@@ -84,7 +85,7 @@ class CodexAdapterCases(HarnessBuilderE2ECase):
         self.expect_ok(self.box.builder("build"))
         self.assertIn("SOURCE_GUIDANCE", (self.box.root / "AGENTS.md").read_text(encoding="utf-8"))
         self.assertNotIn("TARGET_DRIFT", (self.box.root / "AGENTS.md").read_text(encoding="utf-8"))
-        self.assertEqual(tomllib.loads((self.box.root / ".codex/config.toml").read_text())["approval_policy"], "never")
+        self.assertIn('approval_policy = "never"', (self.box.root / ".codex/config.toml").read_text())
 
 
 class OtherAdapterCases(HarnessBuilderE2ECase):

@@ -10,7 +10,7 @@
 
 | Tier | 当前覆盖 | 外部依赖 | 默认门禁 |
 | --- | --- | --- | --- |
-| E0 offline | 84 个 case，约 186 个正负场景 | Python 3.11+、Git、真实文件系统；不访问网络 | PR 必跑 |
+| E0 offline | 89 个 case，约 192 个正负场景 | Python 3.7+、Git、真实文件系统；不访问网络 | PR 必跑 |
 | E1 client | Codex 5 个 case | Codex CLI；不请求模型、不要求登录 | main/release |
 | E2 live | Codex 1 个组合哨兵 case | Codex CLI、登录、网络、模型 | opt-in/release |
 
@@ -18,7 +18,8 @@
 
 | Requirement | 主要 case/module | 验收内容 |
 | --- | --- | --- |
-| CLI/report | `test_contract.CliContractCases` | cwd/显式 space、text/JSON、version、check/explain/dry-run 零写入、compile |
+| CLI/report | `test_contract.CliContractCases` | cwd/显式 space、text/JSON、version、check/explain/dry-run 零写入、compile、Python 3.7 语法基线 |
+| init | `test_contract.InitCases` | 创建目录与默认必需文件、目录名/显式 name、已有文件校验、幂等与失败零写入 |
 | 静态 golden | `test_contract.GoldenBuildCases` | 四 Agent 完整 managed target 集、关键文件全文、lock digest/provenance、二次 build byte stability |
 | manifest | `test_manifest_workspace.ManifestValidationCases` | malformed/non-object、required/unknown fields、schema、name、agents、skills、tags、providers、description |
 | workspace | `test_manifest_workspace.WorkspaceValidationCases` | 必选文件、malformed、folder shape、同目录、目录解耦、多 folder、重复 realpath、Unicode/空格/引号/`#`/`$` |

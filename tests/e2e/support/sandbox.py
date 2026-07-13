@@ -24,6 +24,19 @@ def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _copytree_merge(source: Path, destination: Path) -> None:
+    """Python 3.7-compatible equivalent of copytree(..., dirs_exist_ok=True)."""
+    destination.mkdir(parents=True, exist_ok=True)
+    for item in source.iterdir():
+        target = destination / item.name
+        if item.is_dir() and not item.is_symlink():
+            _copytree_merge(item, target)
+        elif item.is_symlink():
+            target.symlink_to(os.readlink(str(item)), target_is_directory=item.is_dir())
+        else:
+            shutil.copy2(str(item), str(target))
+
+
 def snapshot_tree(root: Path, *, exclude: Iterable[str] = ()) -> list[dict[str, Any]]:
     excluded = tuple(item.rstrip("/") for item in exclude)
     result: list[dict[str, Any]] = []
@@ -68,7 +81,7 @@ class Sandbox:
             source = FIXTURES / "spaces" / fixture / "input"
             if not source.is_dir():
                 raise AssertionError(f"fixture not found: {source}")
-            shutil.copytree(source, self.base, dirs_exist_ok=True)
+            _copytree_merge(source, self.base)
 
     def close(self) -> None:
         self._temporary.cleanup()

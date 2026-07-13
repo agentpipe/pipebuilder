@@ -4,10 +4,11 @@
 发布与运行要求
 ------------
 只需要分发本文件，不依赖本仓库中的 README、docs、tests 或 Python 第三方包。
-运行环境要求 Python 3.11+；只有使用 Git Provider 时才需要系统安装 git。
+运行环境要求 Python 3.7+；只有使用 Git Provider 时才需要系统安装 git。
 
 快速使用
 --------
+    python3 harnessbuilder.py init [SPACE] [--name NAME] [--format text|json]
     python3 harnessbuilder.py check [SPACE] [--format text|json] [--offline]
     python3 harnessbuilder.py explain [SPACE] [--format text|json] [--offline]
     python3 harnessbuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
@@ -74,15 +75,19 @@ import sys
 import tarfile
 import tempfile
 import time
-import tomllib
 import unicodedata
 from pathlib import Path
 from typing import Any, Iterable
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
+try:
+    import tomllib as _tomllib
+except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility parser below.
+    _tomllib = None
 
-VERSION = "0.2.0"
+
+VERSION = "0.3.0"
 REPORT_SCHEMA = "harnessbuilder-report.v1"
 LOCK_SCHEMA = "harnessbuilder-lock.v1"
 SPACE_SCHEMA = "harness-space.v1"
@@ -679,6 +684,72 @@ def load_workspace(root: Path, manifest: Manifest) -> Workspace:
         resolved_keys.add(key)
         folders.append(WorkspaceFolder(name, Path(configured).as_posix(), resolved))
     return Workspace(path, folders)
+
+
+def default_space_name(root: Path) -> str:
+    """Use the Space directory name when init does not receive --name."""
+    return root.name
+
+
+def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest, list[str], list[str]]:
+    """Create missing required inputs and validate required inputs that already exist."""
+    detect_legacy(root)
+    manifest_path = root / "harness-space.json"
+    created: list[str] = []
+    validated: list[str] = []
+
+    if requested_name is not None and not NAME_RE.fullmatch(requested_name):
+        fail("HB002", "--name must match ^[a-z][a-z0-9-]*$", sources=(manifest_path.as_posix(),))
+
+    if manifest_path.exists() or manifest_path.is_symlink():
+        manifest = load_manifest(root)
+        if requested_name is not None and requested_name != manifest.name:
+            fail(
+                "HB002",
+                f"--name {requested_name!r} does not match existing manifest.name {manifest.name!r}",
+                sources=(manifest_path.as_posix(),),
+            )
+        validated.append(manifest_path.name)
+        manifest_content: bytes | None = None
+    else:
+        name = requested_name or default_space_name(root)
+        if not NAME_RE.fullmatch(name):
+            fail(
+                "HB002",
+                f"Space directory name {name!r} is not a valid manifest.name; use --name",
+                sources=(root.as_posix(),),
+                action="Use --name with a lowercase kebab-case name, or rename the Space directory.",
+            )
+        manifest = Manifest(manifest_path, name, None, list(AGENTS), [], [], [])
+        manifest_content = json_bytes(
+            {
+                "schema": SPACE_SCHEMA,
+                "name": name,
+                "agents": list(AGENTS),
+                "skills": [],
+                "tags": [],
+                "skillProviders": [],
+            }
+        )
+
+    workspace_path = root / f"{manifest.name}.code-workspace"
+    if workspace_path.exists() or workspace_path.is_symlink():
+        load_workspace(root, manifest)
+        validated.append(workspace_path.name)
+        workspace_content: bytes | None = None
+    else:
+        workspace_content = json_bytes({"folders": [{"name": "project", "path": "."}]})
+
+    # All existing required inputs have been validated before the first write.
+    for path, content, logical_type in (
+        (manifest_path, manifest_content, "space-manifest"),
+        (workspace_path, workspace_content, "vscode-workspace"),
+    ):
+        if content is None:
+            continue
+        atomic_write(root, Operation(path.name, content, ["core:init"], logical_type, "render"))
+        created.append(path.name)
+    return manifest, created, validated
 
 
 def tree_digest(root: Path, *, exclude_agent_extensions: bool = False) -> str:
@@ -1580,10 +1651,255 @@ def codex_rule_risks(content: bytes, source: str) -> list[dict[str, str]]:
     return risks
 
 
+def _toml_strip_comments(text: str) -> str:
+    output: list[str] = []
+    quote: str | None = None
+    triple = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if quote is not None:
+            output.append(char)
+            if quote == '"' and escaped:
+                escaped = False
+            elif quote == '"' and char == "\\":
+                escaped = True
+            elif triple and text.startswith(quote * 3, i):
+                output.extend((quote, quote))
+                quote = None
+                triple = False
+                i += 2
+            elif not triple and char == quote:
+                quote = None
+        elif text.startswith('"""', i) or text.startswith("'''", i):
+            output.extend((char, char, char))
+            quote = char
+            triple = True
+            i += 2
+        elif char in ('"', "'"):
+            output.append(char)
+            quote = char
+        elif char == "#":
+            newline = text.find("\n", i)
+            if newline < 0:
+                break
+            output.append("\n")
+            i = newline
+        else:
+            output.append(char)
+        i += 1
+    return "".join(output)
+
+
+def _toml_scan(text: str, delimiter: str | None = None) -> tuple[list[str], bool]:
+    """Split at a top-level delimiter and report whether the TOML expression is complete."""
+    text = _toml_strip_comments(text)
+    parts: list[str] = []
+    start = 0
+    square = curly = 0
+    quote: str | None = None
+    triple = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        char = text[i]
+        if quote is not None:
+            if quote == '"' and escaped:
+                escaped = False
+            elif quote == '"' and char == "\\":
+                escaped = True
+            elif triple and text.startswith(quote * 3, i):
+                quote = None
+                triple = False
+                i += 2
+            elif not triple and char == quote:
+                quote = None
+        elif text.startswith('"""', i) or text.startswith("'''", i):
+            quote = char
+            triple = True
+            i += 2
+        elif char in ('"', "'"):
+            quote = char
+        elif char == "[":
+            square += 1
+        elif char == "]":
+            square -= 1
+        elif char == "{":
+            curly += 1
+        elif char == "}":
+            curly -= 1
+        elif delimiter is not None and char == delimiter and square == 0 and curly == 0:
+            parts.append(text[start:i].strip())
+            start = i + 1
+        i += 1
+    if delimiter is not None:
+        parts.append(text[start:].strip())
+    complete = quote is None and square == 0 and curly == 0
+    return parts, complete
+
+
+def _toml_key_parts(text: str) -> list[str]:
+    parts, complete = _toml_scan(text, ".")
+    if not complete or not parts or any(not part for part in parts):
+        raise ValueError("invalid dotted key")
+    result: list[str] = []
+    for part in parts:
+        if part.startswith('"'):
+            value = json.loads(part)
+            if not isinstance(value, str):
+                raise ValueError("invalid quoted key")
+            result.append(value)
+        elif part.startswith("'") and part.endswith("'") and len(part) >= 2:
+            result.append(part[1:-1])
+        elif BARE_TOML_KEY_RE.fullmatch(part):
+            result.append(part)
+        else:
+            raise ValueError("invalid key")
+    return result
+
+
+def _toml_parse_value(text: str) -> Any:
+    text = text.strip()
+    if not text:
+        raise ValueError("missing value")
+    if text.startswith(('"""', "'''")):
+        marker = text[:3]
+        if not text.endswith(marker) or len(text) < 6:
+            raise ValueError("unterminated multiline string")
+        body = text[3:-3]
+        if body.startswith("\n"):
+            body = body[1:]
+        if marker == "'''":
+            return body
+        return json.loads('"' + body.replace("\n", "\\n") + '"')
+    if text.startswith('"'):
+        value = json.loads(text)
+        if not isinstance(value, str):
+            raise ValueError("invalid basic string")
+        return value
+    if text.startswith("'"):
+        if not text.endswith("'") or len(text) < 2:
+            raise ValueError("unterminated literal string")
+        return text[1:-1]
+    if text in {"true", "false"}:
+        return text == "true"
+    if text.startswith("["):
+        if not text.endswith("]"):
+            raise ValueError("unterminated array")
+        body = text[1:-1].strip()
+        if not body:
+            return []
+        items, complete = _toml_scan(body, ",")
+        if not complete or (items and not items[-1] and any(items[:-1])):
+            items = items[:-1]
+        if any(not item for item in items):
+            raise ValueError("invalid array")
+        return [_toml_parse_value(item) for item in items]
+    if text.startswith("{"):
+        if not text.endswith("}"):
+            raise ValueError("unterminated inline table")
+        result: dict[str, Any] = {}
+        body = text[1:-1].strip()
+        if not body:
+            return result
+        items, complete = _toml_scan(body, ",")
+        if not complete or any(not item for item in items):
+            raise ValueError("invalid inline table")
+        for item in items:
+            key, raw_value = _toml_assignment(item)
+            _toml_assign(result, _toml_key_parts(key), _toml_parse_value(raw_value))
+        return result
+    normalized = text.replace("_", "")
+    if re.fullmatch(r"[+-]?0x[0-9A-Fa-f]+", normalized):
+        return int(normalized, 16)
+    if re.fullmatch(r"[+-]?0o[0-7]+", normalized):
+        return int(normalized, 8)
+    if re.fullmatch(r"[+-]?0b[01]+", normalized):
+        return int(normalized, 2)
+    if re.fullmatch(r"[+-]?(?:0|[1-9][0-9]*)", normalized):
+        return int(normalized)
+    if re.fullmatch(r"[+-]?(?:(?:[0-9]+\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|inf|nan)", normalized):
+        return float(normalized)
+    raise ValueError("unsupported or invalid TOML value")
+
+
+def _toml_assignment(statement: str) -> tuple[str, str]:
+    parts, complete = _toml_scan(statement, "=")
+    if not complete or len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError("expected key = value")
+    return parts[0], parts[1]
+
+
+def _toml_assign(root: dict[str, Any], path: list[str], value: Any) -> None:
+    current = root
+    for part in path[:-1]:
+        existing = current.get(part)
+        if existing is None:
+            existing = {}
+            current[part] = existing
+        if not isinstance(existing, dict):
+            raise ValueError("key conflicts with an existing value")
+        current = existing
+    if path[-1] in current:
+        raise ValueError("duplicate key")
+    current[path[-1]] = value
+
+
+def _compat_toml_loads(text: str) -> dict[str, Any]:
+    """Parse the TOML value surface HarnessBuilder can deterministically render."""
+    statements: list[str] = []
+    pending = ""
+    for line in text.splitlines():
+        pending = pending + ("\n" if pending else "") + line
+        stripped = pending.strip()
+        if not stripped:
+            pending = ""
+            continue
+        _, complete = _toml_scan(pending)
+        if complete:
+            statements.append(pending)
+            pending = ""
+    if pending.strip():
+        raise ValueError("unterminated TOML expression")
+
+    result: dict[str, Any] = {}
+    table_path: list[str] = []
+    declared_tables: set[tuple[str, ...]] = set()
+    for raw_statement in statements:
+        statement = _toml_strip_comments(raw_statement).strip()
+        if not statement or statement.startswith("#"):
+            continue
+        if statement.startswith("[["):
+            raise ValueError("array tables are unsupported")
+        if statement.startswith("["):
+            if not statement.endswith("]"):
+                raise ValueError("invalid table header")
+            table_path = _toml_key_parts(statement[1:-1].strip())
+            table_key = tuple(table_path)
+            if table_key in declared_tables:
+                raise ValueError("duplicate table")
+            declared_tables.add(table_key)
+            current = result
+            for part in table_path:
+                existing = current.get(part)
+                if existing is None:
+                    existing = {}
+                    current[part] = existing
+                if not isinstance(existing, dict):
+                    raise ValueError("table conflicts with an existing value")
+                current = existing
+            continue
+        key, raw_value = _toml_assignment(raw_statement)
+        _toml_assign(result, table_path + _toml_key_parts(key), _toml_parse_value(raw_value))
+    return result
+
+
 def parse_toml_document(content: bytes, source: Path) -> dict[str, Any]:
     try:
-        value = tomllib.loads(content.decode())
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        text = content.decode()
+        value = _tomllib.loads(text) if _tomllib is not None else _compat_toml_loads(text)
+    except (UnicodeDecodeError, ValueError) as exc:
         fail("HB009", f"Invalid TOML agent source: {exc}", sources=(source.as_posix(),))
     return value
 
@@ -2055,7 +2371,10 @@ def remove_owned_target(root: Path, target_rel: str) -> None:
     target = root / target_rel
     ensure_safe_parent(root, target)
     if target.is_symlink() or target.is_file():
-        target.unlink(missing_ok=True)
+        try:
+            target.unlink()
+        except FileNotFoundError:
+            pass
     elif target.exists():
         fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
     prune_empty_parents(root, target.parent)
@@ -2150,7 +2469,10 @@ def clean(root: Path) -> tuple[int, list[Diagnostic]]:
     for target in targets:
         remove_owned_target(root, target)
     lock_path = root / ".harness-builder" / "lock.json"
-    lock_path.unlink(missing_ok=True)
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
     prune_empty_parents(root, lock_path.parent)
     return len(targets), []
 
@@ -2251,6 +2573,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--version", action="version", version=f"HarnessBuilder {VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    init_parser = subparsers.add_parser("init", help="Initialize the required Harness Space files")
+    add_common_subcommand(init_parser, offline=False)
+    init_parser.add_argument("--name", help="Space name for a new manifest (default: directory name)")
     add_common_subcommand(subparsers.add_parser("build", help="Build a Harness Space"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
@@ -2262,6 +2587,23 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     root = Path(args.space).resolve()
     try:
+        if args.command == "init":
+            if root.exists() and not root.is_dir():
+                fail("HB001", f"Harness Space root is not a directory: {root}")
+            root.mkdir(parents=True, exist_ok=True)
+            with BuildLock(root):
+                manifest, created, validated = init_space(root, args.name)
+            value = report(
+                "init",
+                "ok",
+                root,
+                name=manifest.name,
+                summary={"created": len(created), "validated": len(validated)},
+                details={"files": [{"path": item, "status": "created"} for item in created]
+                + [{"path": item, "status": "validated"} for item in validated]},
+            )
+            print_report(value, args.format)
+            return 0
         if not root.is_dir():
             fail("HB001", f"Harness Space root is not a directory: {root}")
         if args.command == "clean":

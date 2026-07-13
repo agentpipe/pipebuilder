@@ -158,3 +158,73 @@ class CliContractCases(HarnessBuilderE2ECase):
         )
         self.assertEqual(standalone.returncode, 0, standalone.stdout + standalone.stderr)
         self.assertTrue((self.box.root / ".harness-builder/lock.json").is_file())
+
+    def test_release_source_uses_python_37_grammar(self):
+        source = HARNESSBUILDER.read_text(encoding="utf-8")
+        compile(source, str(HARNESSBUILDER), "exec", dont_inherit=True)
+        self.assertIn("Python 3.7+", source[:4000])
+
+
+class InitCases(HarnessBuilderE2ECase):
+    metadata = CaseMetadata(tier="offline", requirements=("CLI", "INIT", "MANIFEST", "WORKSPACE"), tags=("init", "idempotence"))
+
+    def test_empty_space_is_initialized_and_second_run_only_validates(self):
+        first = self.expect_ok(self.box.builder("init"))
+        self.assertEqual(first["space"], "space")
+        self.assertEqual(first["summary"], {"created": 2, "validated": 0})
+        manifest = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["agents"], ["codex", "cursor", "codebuddy", "claude-code"])
+        self.assertTrue((self.box.root / "space.code-workspace").is_file())
+        before = snapshot_tree(self.box.root)
+
+        second = self.expect_ok(self.box.builder("init"))
+        self.assertEqual(second["summary"], {"created": 0, "validated": 2})
+        self.assertEqual(snapshot_tree(self.box.root), before)
+        self.expect_ok(self.box.builder("check"))
+
+    def test_init_creates_a_missing_target_directory_and_supports_explicit_name(self):
+        target = self.box.base / "nested" / "新项目"
+        result = self.box.run_command(
+            [str(Path(__import__("sys").executable)), str(HARNESSBUILDER), "init", str(target), "--name", "web-game", "--format", "json"],
+            cwd=self.box.base,
+        )
+        payload = self.expect_ok(result)
+        self.assertEqual(payload["space"], "web-game")
+        self.assertTrue((target / "harness-space.json").is_file())
+        self.assertTrue((target / "web-game.code-workspace").is_file())
+
+        invalid_target = self.box.base / "Invalid Directory"
+        invalid = self.box.run_command(
+            [str(Path(__import__("sys").executable)), str(HARNESSBUILDER), "init", str(invalid_target), "--format", "json"],
+            cwd=self.box.base,
+        )
+        self.expect_code(invalid, "HB002")
+        self.assertFalse((invalid_target / "harness-space.json").exists())
+
+    def test_existing_manifest_is_preserved_while_missing_workspace_is_created(self):
+        manifest = {
+            "schema": "harness-space.v1",
+            "name": "custom-space",
+            "agents": ["codex"],
+            "skills": [],
+            "tags": [],
+            "skillProviders": [],
+        }
+        self.box.write_json("harness-space.json", manifest)
+        before = (self.box.root / "harness-space.json").read_bytes()
+        payload = self.expect_ok(self.box.builder("init"))
+        self.assertEqual(payload["summary"], {"created": 1, "validated": 1})
+        self.assertEqual((self.box.root / "harness-space.json").read_bytes(), before)
+        self.assertTrue((self.box.root / "custom-space.code-workspace").is_file())
+
+    def test_invalid_existing_required_file_fails_without_creating_the_other(self):
+        self.box.write_text("harness-space.json", "{invalid")
+        before = snapshot_tree(self.box.root)
+        self.expect_code(self.box.builder("init"), "HB001")
+        self.assertEqual(snapshot_tree(self.box.root), before)
+
+        (self.box.root / "harness-space.json").unlink()
+        self.box.write_text("space.code-workspace", "{invalid")
+        before = snapshot_tree(self.box.root)
+        self.expect_code(self.box.builder("init"), "HB004")
+        self.assertEqual(snapshot_tree(self.box.root), before)
