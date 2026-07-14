@@ -2,9 +2,13 @@
 
 状态：proposal  
 Schema：`harness-space.v1`  
-日期：2026-07-13
+日期：2026-07-14
 
 本文定义 Harness Space identity、`harness-space.json`、workspace、Skill package、Skill Provider、Skill 选择和 lock 的规范行为。
+
+一个 HSpace 作为 Leader 物理包含并管理多个 child HSpaces 时，成员仍分别遵守本文；树关系、
+顺序、聚合 receipt 和恢复语义由 [Leader-rooted HSpace Tree 协议](harnessbuilder-space-tree-spec.md)
+定义，不并入 `harness-space.v1`。
 
 ---
 
@@ -553,11 +557,16 @@ HB011 unsafe-path
 HB013 build-busy
 HB014 stale-build-lock
 HB015 legacy-layout-detected
+HB016 provider-post-command-failed
+HB017 invalid-hspace-tree
 ```
 
 `HB012` 作为早期草案编号保留但不属于 `harness-space.v1` stable contract：manifest 只接受四个内置 Agent，未知 Agent 在 adapter dispatch 前由 `HB001` 拒绝，因此不能为 HB012 制造伪失败入口。
 
 `HB015` 用于发现旧 THarness layout，例如 `tagents/`、Space root `.harness-agents/`、`private/`、`.harness-space.yaml`、`.harness-lock.yaml` 或 workspace source template。HarnessBuilder v1 不双读、不自动 merge，也不在 build 中就地改名；迁移由独立工具或 Human 显式完成。
+
+`HB016` 用于 Provider post command 无法启动、cwd 无效或非零退出；`HB017` 专用于
+`harness-space-tree.v1` 的声明、成员身份、聚合状态和整树一致性错误。
 
 CLI 使用 `--format json` 时，diagnostics 包装在版本化 `harnessbuilder-report.v1` 中；测试与自动化必须依赖 `code` 和结构化字段，不解析人类文案。Report 的 E2E fixture 和 golden 规则见 [HarnessBuilder Python E2E 集成测试架构](harnessbuilder-test-architecture.md)。
 

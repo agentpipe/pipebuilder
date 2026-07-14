@@ -1,8 +1,8 @@
 # HarnessBuilder E2E 覆盖矩阵
 
 状态：implemented
-基线日期：2026-07-13
-最近验证：E0 84/84，Codex E1 5/5，Codex E2 1/1
+基线日期：2026-07-14
+最近验证：完整 E0 101/101（含 HSpace Tree 定向 9/9），Codex E1 5/5，Codex E2 1/1
 
 这里统计的是独立黑盒 test method；一个 method 内的 table/subtest 还会覆盖多个输入变体。所有 case 都执行最终 `harnessbuilder.py`，不 import production。
 
@@ -10,7 +10,7 @@
 
 | Tier | 当前覆盖 | 外部依赖 | 默认门禁 |
 | --- | --- | --- | --- |
-| E0 offline | 89 个 case，约 192 个正负场景 | Python 3.7+、Git、真实文件系统；不访问网络 | PR 必跑 |
+| E0 offline | 101 个 case，200+ 个正负场景 | Python 3.7+、Git、真实文件系统；不访问网络 | PR 必跑 |
 | E1 client | Codex 5 个 case | Codex CLI；不请求模型、不要求登录 | main/release |
 | E2 live | Codex 1 个组合哨兵 case | Codex CLI、登录、网络、模型 | opt-in/release |
 
@@ -35,6 +35,7 @@
 | ownership/clean | `test_lifecycle_security.OwnershipLifecycleCases` | clean 只删 owned、幂等、rebuild、反选 Skill、移除 Agent、source update、managed file 删除、Builder version 变化、无 lock 不猜 ownership |
 | lock/concurrency | `test_lifecycle_security.LockAndInterruptionCases` | 两个真实进程争锁、active/stale/malformed lock、硬崩溃、apply failure、旧 lock 保持、恢复收敛 |
 | filesystem security | `test_lifecycle_security.FilesystemBoundaryCases` | forged lock、unowned target、type drift、Builder state/target symlink escape、NFC/NFD/case collision、Windows reserved name、invalid lock、recursive provider |
+| Leader-rooted HSpace Tree | `test_space_tree.HSpaceTreeCases` | 显式内嵌 children、全树 check/explain/build/verify、单 Space 非递归、反向 clean、独立 ownership/锁、越界/保留路径/symlink/嵌套拒绝、成员身份与顺序漂移、跨成员 stale plan、post/最终验收失败 journal 与重跑收敛 |
 | release/runner | `test_contract.CliContractCases` | 单文件复制后独立执行、SHA256 report、command record credential redaction、失败制品排除 auth/home |
 
 ## Stable diagnostics
@@ -56,6 +57,8 @@
 | HB013 | real concurrent active lock | covered |
 | HB014 | stale dead-pid lock/crash recovery | covered |
 | HB015 | every legacy marker | covered |
+| HB016 | Provider post command start/cwd/exit failure、Tree partial journal | covered |
+| HB017 | Tree schema/path/identity/receipt/stale-plan/member-state | covered |
 | HBW001 | provider shadow | covered |
 | HBW002 | Claude command migration | covered |
 

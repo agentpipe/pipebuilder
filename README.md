@@ -17,6 +17,11 @@ python3 harnessbuilder.py build /path/to/space
 python3 harnessbuilder.py build /path/to/space --offline
 python3 harnessbuilder.py build /path/to/space --dry-run
 python3 harnessbuilder.py clean /path/to/space
+python3 harnessbuilder.py check-tree /path/to/leader
+python3 harnessbuilder.py explain-tree /path/to/leader --format json
+python3 harnessbuilder.py build-tree /path/to/leader
+python3 harnessbuilder.py verify-tree /path/to/leader
+python3 harnessbuilder.py clean-tree /path/to/leader
 ```
 
 `init` 类似 `git init`：目标目录不存在时会创建它，并补齐默认的 `harness-space.json` 与
@@ -77,6 +82,40 @@ Space-level Agent source 位于 `.harness-builder/agents/<agent>/`，Skill-level
 
 Codex 的通用 Skill 只投影到 `.agents/skills/`。`.codex/` 不是 Skill 的重复目录；只有 Space 或 Skill 显式提供 Codex 原生 `config.toml`、hooks 或 command rules 时才生成。仅选择普通 Skill 的 Codex Harness Space 不会创建 `.codex/`。
 
+## Leader-rooted HSpace Tree
+
+当一个 Leader 需要统一管理多个 child HSpaces 时，Leader root 直接包含 child 目录，并额外声明
+`harness-space-tree.json`：
+
+```text
+leader/                         # 普通 Leader HSpace，同时是 Tree root
+├── harness-space.json
+├── leader.code-workspace
+├── harness-space-tree.json
+└── children/
+    ├── worker-01/              # 独立 child HSpace
+    └── worker-02/              # 独立 child HSpace
+```
+
+```json
+{
+  "schema": "harness-space-tree.v1",
+  "children": [
+    {"path": "children/worker-01", "expectName": "worker-01"},
+    {"path": "children/worker-02", "expectName": "worker-02"}
+  ]
+}
+```
+
+Tree v1 只接受显式的一层 children，不扫描目录，也不接受 child tree。每个成员仍有独立
+`harness-space.json`、workspace、`.harness-builder/lock.json` 和并发锁。`build-tree` 先对全树
+plan，再按 Leader → children 声明顺序构建；`clean-tree` 在全树 preflight 后按 children 逆序
+→ Leader 清理。成功构建还写入 Leader 的 `.harness-builder/tree-lock.json`；部分失败保留
+`tree-journal.json`，修正原因后可重新执行整树构建使其收敛。
+
+普通 `build`/`clean` 始终只处理指定的单个 HSpace，不会因为存在 Tree manifest 就隐式递归。
+完整协议见 [docs/harnessbuilder-space-tree-spec.md](docs/harnessbuilder-space-tree-spec.md)。
+
 平台 target 均由 Builder 管理。已有 `AGENTS.md`、`CLAUDE.md`、`.mcp.json` 或平台目录配置需要先移动到对应 source 路径；未被当前 plan 或旧 lock 登记的其他文件不会被修改。
 
 ## 测试
@@ -96,4 +135,6 @@ python3 tests/e2e/run.py --tier live --agent codex --require
 GitHub Actions 在 Linux、Windows、macOS 的 Python 3.11 上运行 E0，Linux 额外覆盖最低支持版本
 Python 3.7 和 Python 3.13。真实客户端和模型测试仍由具备对应客户端/账号的固定 runner 或人工 release job 执行。
 
-协议与实现边界见 [docs/harnessbuilder-architecture-proposal.md](docs/harnessbuilder-architecture-proposal.md)，20 轮落地记录见 [docs/harnessbuilder-implementation-iterations.md](docs/harnessbuilder-implementation-iterations.md)。
+单 Space 协议见 [docs/harnessbuilder-space-json-spec.md](docs/harnessbuilder-space-json-spec.md)，Tree
+协议见 [docs/harnessbuilder-space-tree-spec.md](docs/harnessbuilder-space-tree-spec.md)，实现边界见
+[docs/harnessbuilder-architecture-proposal.md](docs/harnessbuilder-architecture-proposal.md)。

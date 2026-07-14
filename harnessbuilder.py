@@ -13,6 +13,11 @@
     python3 harnessbuilder.py explain [SPACE] [--format text|json] [--offline]
     python3 harnessbuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
     python3 harnessbuilder.py clean [SPACE] [--format text|json]
+    python3 harnessbuilder.py check-tree [PARENT] [--format text|json] [--offline]
+    python3 harnessbuilder.py explain-tree [PARENT] [--format text|json] [--offline]
+    python3 harnessbuilder.py build-tree [PARENT] [--format text|json] [--offline] [--dry-run]
+    python3 harnessbuilder.py verify-tree [PARENT] [--format text|json]
+    python3 harnessbuilder.py clean-tree [PARENT] [--format text|json]
     python3 harnessbuilder.py --version
     python3 harnessbuilder.py --help
 
@@ -31,6 +36,13 @@ Harness Space 最小输入
 
 最小 my-space.code-workspace：
     {"folders":[{"name":"project", "path":"."}]}
+
+可选的一层 HSpace Tree：Parent 仍是普通 Harness Space，并在同一 root 声明显式 children：
+    {"schema":"harness-space-tree.v1",
+     "children":[{"path":"children/worker-01", "expectName":"worker-01"}]}
+
+Tree 命令不会扫描目录。build-tree 在写入前锁定并 plan Parent 与全部 direct children，
+按 Parent → children 顺序 build；clean-tree 按 children 逆序 → Parent 清理。首版不递归。
 
 可选的 Space-level source：
     .harness-builder/agents/<agent>/
@@ -82,6 +94,7 @@ import tarfile
 import tempfile
 import time
 import unicodedata
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, Iterable
 from datetime import datetime, timezone
@@ -93,10 +106,12 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 REPORT_SCHEMA = "harnessbuilder-report.v1"
 LOCK_SCHEMA = "harnessbuilder-lock.v1"
 SPACE_SCHEMA = "harness-space.v1"
+TREE_SCHEMA = "harness-space-tree.v1"
+TREE_LOCK_SCHEMA = "harness-space-tree-lock.v1"
 AGENTS = ("codex", "cursor", "codebuddy", "claude-code")
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 BARE_TOML_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -111,6 +126,15 @@ LEGACY_NAMES = (
     ".harness-space.yaml",
     ".harness-lock.yaml",
 )
+TREE_RESERVED_ROOTS = {
+    ".agents",
+    ".claude",
+    ".codebuddy",
+    ".codex",
+    ".cursor",
+    ".git",
+    ".harness-builder",
+}
 ADAPTER_VERSIONS = {"codex": "2", "cursor": "1", "codebuddy": "2", "claude-code": "2"}
 ADAPTER_STATUS = {
     "codex": "client-verified",
@@ -147,6 +171,7 @@ DIAGNOSTIC_ACTIONS = {
     "HB014": "Confirm the process is gone, then remove the stale build.lock.",
     "HB015": "Migrate the legacy THarness layout before building.",
     "HB016": "Correct the Provider post command or its runtime dependencies and retry.",
+    "HB017": "Correct harness-space-tree.json, its child paths, or the recorded Tree state and retry.",
     "HBW001": "Review the selected Provider and shadowed Skill candidates.",
     "HBW002": "Prefer a standard Skill for new Claude Code workflows.",
     "HBW003": "Review the generated platform security surface before use.",
@@ -472,6 +497,29 @@ class Manifest:
     providers: list[dict[str, Any]]
 
 
+@dataclasses.dataclass(frozen=True)
+class TreeChild:
+    path: str
+    expect_name: str
+    root: Path
+
+
+@dataclasses.dataclass(frozen=True)
+class SpaceTree:
+    root: Path
+    path: Path
+    parent_name: str
+    children: list[TreeChild]
+
+
+@dataclasses.dataclass(frozen=True)
+class TreeMember:
+    kind: str
+    path: str
+    expect_name: str
+    root: Path
+
+
 @dataclasses.dataclass
 class WorkspaceFolder:
     name: str
@@ -699,6 +747,185 @@ def load_manifest(root: Path) -> Manifest:
     if description is not None and not isinstance(description, str):
         fail("HB001", "manifest.description must be a string", sources=(path.as_posix(),))
     return Manifest(path, name, description, agents, skills, tags, providers)
+
+
+def tree_path_key(value: str) -> str:
+    return unicodedata.normalize("NFC", value).casefold()
+
+
+def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Path, index: int) -> Path:
+    parts = configured.split("/")
+    windows_reserved = {"con", "prn", "aux", "nul"} | {
+        f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10)
+    }
+    if (
+        not configured
+        or configured.startswith("/")
+        or re.match(r"^[A-Za-z]:", configured) is not None
+        or Path(configured).is_absolute()
+        or "\\" in configured
+        or any(part in {"", ".", ".."} for part in parts)
+    ):
+        fail(
+            "HB017",
+            f"children[{index}].path must be a safe relative POSIX path below the Parent HSpace",
+            sources=(manifest_path.as_posix(),),
+            semantic_key=f"children[{index}].path",
+        )
+    for part in parts:
+        portable_name = part.rstrip(" .")
+        stem = portable_name.split(".", 1)[0].casefold()
+        if (
+            portable_name != part
+            or stem in windows_reserved
+            or any(character in part for character in '<>:"|?*')
+            or any(ord(character) < 32 for character in part)
+        ):
+            fail(
+                "HB017",
+                f"children[{index}].path is not portable across supported platforms: {configured}",
+                sources=(manifest_path.as_posix(),),
+                semantic_key=f"children[{index}].path",
+            )
+    if tree_path_key(parts[0]) in {tree_path_key(item) for item in TREE_RESERVED_ROOTS}:
+        fail(
+            "HB017",
+            f"children[{index}].path must not use a Builder, Git, or Agent managed root: {parts[0]}",
+            sources=(manifest_path.as_posix(),),
+            semantic_key=f"children[{index}].path",
+        )
+    current = tree_root
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            fail(
+                "HB017",
+                f"Tree child path must not contain a symlink: {configured}",
+                sources=(current.as_posix(),),
+                semantic_key=f"children[{index}].path",
+            )
+        if not current.exists() or not current.is_dir():
+            fail(
+                "HB017",
+                f"Tree child HSpace directory does not exist: {configured}",
+                sources=(current.as_posix(),),
+                semantic_key=f"children[{index}].path",
+            )
+    resolved = current.resolve()
+    try:
+        relative = resolved.relative_to(tree_root)
+    except ValueError:
+        fail(
+            "HB017",
+            f"Tree child escapes Parent HSpace: {configured}",
+            sources=(resolved.as_posix(),),
+            semantic_key=f"children[{index}].path",
+        )
+    if not relative.parts:
+        fail(
+            "HB017",
+            "Tree child must not be the Parent HSpace root",
+            sources=(manifest_path.as_posix(),),
+            semantic_key=f"children[{index}].path",
+        )
+    return resolved
+
+
+def load_space_tree(root: Path) -> SpaceTree:
+    root = root.resolve()
+    path = root / "harness-space-tree.json"
+    if path.is_symlink():
+        fail("HB017", "harness-space-tree.json must not be a symlink", sources=(path.as_posix(),))
+    if path.exists() and not path.is_file():
+        fail("HB017", "harness-space-tree.json must be a regular file", sources=(path.as_posix(),))
+    raw = read_json(path, "HB017", "HSpace Tree manifest")
+    required = {"schema", "children"}
+    if not isinstance(raw, dict) or set(raw) != required:
+        fail(
+            "HB017",
+            "harness-space-tree.json accepts exactly schema and children",
+            sources=(path.as_posix(),),
+        )
+    if raw.get("schema") != TREE_SCHEMA:
+        fail("HB017", f"Tree manifest.schema must be {TREE_SCHEMA}", sources=(path.as_posix(),))
+    children_raw = raw.get("children")
+    if not isinstance(children_raw, list) or not children_raw:
+        fail("HB017", "Tree manifest.children must be a non-empty array", sources=(path.as_posix(),))
+
+    parent = load_manifest(root)
+    children: list[TreeChild] = []
+    path_keys: set[str] = set()
+    real_keys: set[str] = set()
+    name_keys: set[str] = {parent.name.casefold()}
+    for index, item in enumerate(children_raw):
+        if not isinstance(item, dict) or set(item) != {"path", "expectName"}:
+            fail(
+                "HB017",
+                f"children[{index}] accepts exactly path and expectName",
+                sources=(path.as_posix(),),
+                semantic_key=f"children[{index}]",
+            )
+        configured = item.get("path")
+        expect_name = item.get("expectName")
+        if not isinstance(configured, str) or not configured:
+            fail(
+                "HB017",
+                f"children[{index}].path must be a non-empty string",
+                sources=(path.as_posix(),),
+                semantic_key=f"children[{index}].path",
+            )
+        if not isinstance(expect_name, str) or not NAME_RE.fullmatch(expect_name):
+            fail(
+                "HB017",
+                f"children[{index}].expectName must match ^[a-z][a-z0-9-]*$",
+                sources=(path.as_posix(),),
+                semantic_key=f"children[{index}].expectName",
+            )
+        normalized = Path(configured).as_posix()
+        configured_key = tree_path_key(normalized)
+        if configured_key in path_keys:
+            fail("HB017", f"Duplicate portable Tree child path: {configured}", sources=(path.as_posix(),))
+        child_root = validate_tree_child_root(root, normalized, path, index)
+        real_key = os.path.normcase(str(child_root))
+        name_key = expect_name.casefold()
+        if real_key in real_keys:
+            fail("HB017", f"Tree child resolves to a duplicate directory: {configured}", sources=(path.as_posix(),))
+        if name_key in name_keys:
+            fail("HB017", f"Duplicate Tree child expectName: {expect_name}", sources=(path.as_posix(),))
+        if (child_root / "harness-space-tree.json").exists() or (child_root / "harness-space-tree.json").is_symlink():
+            fail(
+                "HB017",
+                f"Nested HSpace Trees are unsupported in {TREE_SCHEMA}: {configured}",
+                sources=((child_root / "harness-space-tree.json").as_posix(),),
+            )
+        child_manifest = load_manifest(child_root)
+        if child_manifest.name != expect_name:
+            fail(
+                "HB017",
+                f"Tree child {configured} expected name {expect_name}, got {child_manifest.name}",
+                sources=(child_manifest.path.as_posix(),),
+                semantic_key=f"children[{index}].expectName",
+            )
+        path_keys.add(configured_key)
+        real_keys.add(real_key)
+        name_keys.add(name_key)
+        children.append(TreeChild(normalized, expect_name, child_root))
+
+    for index, left in enumerate(children):
+        for right in children[index + 1 :]:
+            if left.root in right.root.parents or right.root in left.root.parents:
+                fail(
+                    "HB017",
+                    f"Tree children must not contain one another: {left.path} and {right.path}",
+                    sources=(path.as_posix(),),
+                )
+    return SpaceTree(root, path, parent.name, children)
+
+
+def tree_members(tree: SpaceTree) -> list[TreeMember]:
+    return [TreeMember("parent", ".", tree.parent_name, tree.root)] + [
+        TreeMember("child", item.path, item.expect_name, item.root) for item in tree.children
+    ]
 
 
 def load_workspace(root: Path, manifest: Manifest) -> Workspace:
@@ -2333,9 +2560,10 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
 
 
 class BuildLock:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, filename: str = "build.lock", operation: str = "build or clean"):
         self.root = root
-        self.path = root / ".harness-builder" / "build.lock"
+        self.path = root / ".harness-builder" / filename
+        self.operation = operation
         self.acquired = False
 
     def __enter__(self) -> "BuildLock":
@@ -2350,7 +2578,7 @@ class BuildLock:
         if state_root.exists() and not state_root.is_dir():
             fail("HB011", ".harness-builder must be a directory", sources=(state_root.as_posix(),))
         if self.path.is_symlink():
-            fail("HB011", "build.lock must not be a symlink", sources=(self.path.as_posix(),))
+            fail("HB011", f"{self.path.name} must not be a symlink", sources=(self.path.as_posix(),))
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = json_bytes({"pid": os.getpid(), "host": socket.gethostname(), "startedAt": process_started_marker()})
         try:
@@ -2384,9 +2612,13 @@ class BuildLock:
                 "HB014",
                 f"Stale build lock detected for pid {pid}",
                 sources=(self.path.as_posix(),),
-                action="Confirm the process is gone, then delete .harness-builder/build.lock.",
+                action=f"Confirm the process is gone, then delete {portable_rel(self.root, self.path)}.",
             )
-        fail("HB013", "Another build or clean operation holds .harness-builder/build.lock", sources=(self.path.as_posix(),))
+        fail(
+            "HB013",
+            f"Another {self.operation} operation holds {portable_rel(self.root, self.path)}",
+            sources=(self.path.as_posix(),),
+        )
 
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
         if self.acquired:
@@ -2649,6 +2881,399 @@ def model_details(model: BuildModel) -> dict[str, Any]:
     }
 
 
+def model_fingerprint(model: BuildModel) -> str:
+    lock = make_lock(model.root, model.manifest, model.workspace, model.providers, model.skills, model.operations)
+    return sha256_bytes(json_bytes(lock))
+
+
+def tree_plan(tree: SpaceTree, *, offline: bool) -> tuple[list[TreeMember], list[BuildModel]]:
+    members = tree_members(tree)
+    models = [plan(member.root, offline=offline) for member in members]
+    for member, model in zip(members, models):
+        if model.manifest.name != member.expect_name:
+            fail(
+                "HB017",
+                f"Tree member {member.path} expected name {member.expect_name}, got {model.manifest.name}",
+                sources=(model.manifest.path.as_posix(),),
+            )
+    validate_tree_provider_coherence(members, models)
+    return members, models
+
+
+def validate_tree_provider_coherence(members: list[TreeMember], models: list[BuildModel]) -> None:
+    seen: dict[str, tuple[str, str]] = {}
+    for member, model in zip(members, models):
+        for provider in model.providers:
+            if provider.provider_type == "git":
+                assert provider.url is not None
+                identity = canonical_json(
+                    {
+                        "type": "git",
+                        "url": git_source_url(model.root, provider.url),
+                        "selectorKind": provider.selector_kind,
+                        "selectorValue": provider.selector_value,
+                        "subdir": provider.subdir,
+                    }
+                )
+                resolution = canonical_json({"commit": provider.commit, "digest": provider.digest})
+            else:
+                identity = canonical_json(
+                    {
+                        "type": "folder",
+                        "sourceRoot": str(provider.source_root.resolve()),
+                        "subdir": provider.subdir or ".",
+                    }
+                )
+                resolution = provider.digest
+            previous = seen.get(identity)
+            if previous is not None and previous[0] != resolution:
+                fail(
+                    "HB017",
+                    f"Tree members resolved the same Provider inconsistently: {previous[1]} vs {member.path}",
+                    sources=(previous[1], member.path),
+                    semantic_key="tree.providerResolution",
+                    action="Pin one immutable Provider revision and rerun the full Tree plan before any writes.",
+                )
+            seen[identity] = (resolution, member.path)
+
+
+def tree_lock_path(root: Path) -> Path:
+    return root / ".harness-builder" / "tree-lock.json"
+
+
+def tree_journal_path(root: Path) -> Path:
+    return root / ".harness-builder" / "tree-journal.json"
+
+
+def write_tree_document(root: Path, relative: str, value: dict[str, Any], logical_type: str) -> None:
+    atomic_write(root, Operation(relative, json_bytes(value), ["core:hspace-tree"], logical_type, "render"))
+
+
+def remove_tree_document(root: Path, path: Path) -> None:
+    ensure_safe_parent(root, path)
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        fail("HB017", f"Tree state has an unsafe file type: {portable_rel(root, path)}", sources=(path.as_posix(),))
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    prune_empty_parents(root, path.parent)
+
+
+def new_tree_journal(tree: SpaceTree, members: list[TreeMember], operation: str) -> dict[str, Any]:
+    return {
+        "schema": "harness-space-tree-journal.v1",
+        "operation": operation,
+        "treeManifestDigest": sha256_file(tree.path),
+        "startedAt": process_started_marker(),
+        "status": "in-progress",
+        "members": [
+            {"kind": member.kind, "path": member.path, "name": member.expect_name, "stage": "planned"}
+            for member in members
+        ],
+    }
+
+
+def persist_tree_journal(tree: SpaceTree, journal: dict[str, Any]) -> None:
+    write_tree_document(tree.root, ".harness-builder/tree-journal.json", journal, "tree-journal")
+
+
+def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | None:
+    path = tree_lock_path(root)
+    if not path.exists():
+        if required:
+            fail("HB017", "Tree receipt not found; run build-tree first", sources=(path.as_posix(),))
+        return None
+    if path.is_symlink():
+        fail("HB017", "Tree receipt must not be a symlink", sources=(path.as_posix(),))
+    raw = read_json(path, "HB017", "Tree receipt")
+    required_fields = {"schema", "builder", "tree", "members"}
+    if not isinstance(raw, dict) or set(raw) != required_fields or raw.get("schema") != TREE_LOCK_SCHEMA:
+        fail("HB017", "Invalid .harness-builder/tree-lock.json", sources=(path.as_posix(),))
+    builder = raw.get("builder")
+    tree = raw.get("tree")
+    members = raw.get("members")
+    if (
+        not isinstance(builder, dict)
+        or set(builder) != {"version", "digest"}
+        or not isinstance(builder.get("version"), str)
+        or not valid_digest(builder.get("digest"))
+        or not isinstance(tree, dict)
+        or set(tree) != {"parentName", "manifest", "manifestDigest"}
+        or not isinstance(tree.get("parentName"), str)
+        or tree.get("manifest") != "harness-space-tree.json"
+        or not valid_digest(tree.get("manifestDigest"))
+        or not isinstance(members, list)
+        or not members
+    ):
+        fail("HB017", "Invalid Tree receipt structure", sources=(path.as_posix(),))
+    for index, member in enumerate(members):
+        if (
+            not isinstance(member, dict)
+            or set(member) != {"kind", "path", "name", "lockDigest"}
+            or member.get("kind") not in {"parent", "child"}
+            or not isinstance(member.get("path"), str)
+            or not isinstance(member.get("name"), str)
+            or not valid_digest(member.get("lockDigest"))
+        ):
+            fail("HB017", f"Invalid Tree receipt member at index {index}", sources=(path.as_posix(),))
+    return raw
+
+
+def assert_tree_receipt_matches(tree: SpaceTree, receipt: dict[str, Any]) -> None:
+    path = tree_lock_path(tree.root)
+    if receipt["tree"]["parentName"] != tree.parent_name or receipt["tree"]["manifestDigest"] != sha256_file(tree.path):
+        fail(
+            "HB017",
+            "Tree manifest changed since the recorded build; restore it or clean-tree before changing membership",
+            sources=(tree.path.as_posix(), path.as_posix()),
+        )
+    expected = [(item.kind, item.path, item.expect_name) for item in tree_members(tree)]
+    recorded = [(item["kind"], item["path"], item["name"]) for item in receipt["members"]]
+    if recorded != expected:
+        fail(
+            "HB017",
+            "Tree member order or identity differs from the recorded build",
+            sources=(tree.path.as_posix(), path.as_posix()),
+        )
+
+
+def preflight_member_clean(member: TreeMember) -> int:
+    previous = load_previous_lock(member.root)
+    if previous is None:
+        return 0
+    targets = sorted(owned_targets(previous), reverse=True)
+    for target_rel in targets:
+        target = member.root / target_rel
+        ensure_safe_parent(member.root, target)
+        if target.exists() and not target.is_file() and not target.is_symlink():
+            fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
+    return len(targets)
+
+
+def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
+    lock_path = member.root / ".harness-builder" / "lock.json"
+    lock = load_previous_lock(member.root)
+    if lock is None:
+        fail("HB017", f"Tree member has no ownership lock: {member.path}", sources=(lock_path.as_posix(),))
+    manifest = load_manifest(member.root)
+    workspace = load_workspace(member.root, manifest)
+    space = lock.get("space", {})
+    if (
+        manifest.name != member.expect_name
+        or space.get("name") != member.expect_name
+        or space.get("manifestDigest") != sha256_file(manifest.path)
+        or space.get("workspace") != workspace.path.name
+        or space.get("workspaceDigest") != sha256_file(workspace.path)
+    ):
+        fail(
+            "HB017",
+            f"Tree member inputs drifted from its ownership lock: {member.path}",
+            sources=(manifest.path.as_posix(), workspace.path.as_posix(), lock_path.as_posix()),
+        )
+    for artifact in lock["artifacts"]:
+        target = member.root / normalize_target(artifact["target"])
+        ensure_safe_parent(member.root, target)
+        if target.is_symlink() or not target.is_file():
+            fail(
+                "HB017",
+                f"Tree member artifact is missing or has an unsafe type: {member.path}/{artifact['target']}",
+                sources=(target.as_posix(),),
+            )
+        executable = bool(target.stat().st_mode & stat.S_IXUSR)
+        if sha256_file(target) != artifact["digest"] or executable != artifact["executable"]:
+            fail(
+                "HB017",
+                f"Tree member artifact drifted: {member.path}/{artifact['target']}",
+                sources=(target.as_posix(), lock_path.as_posix()),
+            )
+    return lock, sha256_file(lock_path)
+
+
+def make_tree_lock(tree: SpaceTree, members: list[TreeMember]) -> dict[str, Any]:
+    script = Path(__file__).resolve()
+    records = []
+    for member in members:
+        _, lock_digest = verify_member_state(member)
+        records.append(
+            {
+                "kind": member.kind,
+                "path": member.path,
+                "name": member.expect_name,
+                "lockDigest": lock_digest,
+            }
+        )
+    return {
+        "schema": TREE_LOCK_SCHEMA,
+        "builder": {"version": VERSION, "digest": sha256_file(script)},
+        "tree": {
+            "parentName": tree.parent_name,
+            "manifest": tree.path.name,
+            "manifestDigest": sha256_file(tree.path),
+        },
+        "members": records,
+    }
+
+
+def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> dict[str, Any]:
+    return {
+        "treeManifest": "harness-space-tree.json",
+        "members": [
+            {
+                "kind": member.kind,
+                "path": member.path,
+                "name": member.expect_name,
+                "plan": model_details(model),
+            }
+            for member, model in zip(members, models)
+        ],
+    }
+
+
+def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any], list[Diagnostic]]:
+    with BuildLock(tree.root, "tree-build.lock", "HSpace Tree build"):
+        tree = load_space_tree(tree.root)
+        members = tree_members(tree)
+        with ExitStack() as locks:
+            for member in sorted(members, key=lambda item: os.path.normcase(str(item.root))):
+                locks.enter_context(BuildLock(member.root))
+            existing = load_tree_lock(tree.root)
+            if existing is not None:
+                assert_tree_receipt_matches(tree, existing)
+            members, models = tree_plan(tree, offline=offline)
+            fingerprints = [model_fingerprint(model) for model in models]
+            journal = new_tree_journal(tree, members, "build-tree")
+            persist_tree_journal(tree, journal)
+            if existing is not None:
+                remove_tree_document(tree.root, tree_lock_path(tree.root))
+
+            results: list[dict[str, Any]] = []
+            warnings: list[Diagnostic] = []
+            for index, member in enumerate(members):
+                try:
+                    fresh_model = plan(member.root, offline=offline)
+                except (HarnessError, OSError):
+                    journal["status"] = "partial"
+                    journal["members"][index]["stage"] = "replan-failed"
+                    persist_tree_journal(tree, journal)
+                    raise
+                if model_fingerprint(fresh_model) != fingerprints[index]:
+                    journal["status"] = "partial"
+                    journal["members"][index]["stage"] = "stale-plan"
+                    persist_tree_journal(tree, journal)
+                    fail(
+                        "HB017",
+                        f"Tree member changed after full-tree planning: {member.path}",
+                        sources=(member.root.as_posix(),),
+                        action="Ensure Parent/earlier child post commands do not modify another HSpace, then rerun build-tree.",
+                    )
+                try:
+                    generated, removed = apply_build(fresh_model)
+                except (HarnessError, OSError):
+                    journal["status"] = "partial"
+                    journal["members"][index]["stage"] = "builder-failed"
+                    persist_tree_journal(tree, journal)
+                    raise
+                journal["members"][index]["stage"] = "builder-applied"
+                persist_tree_journal(tree, journal)
+                try:
+                    post_commands = run_post_commands(fresh_model)
+                except (HarnessError, OSError):
+                    journal["status"] = "partial"
+                    journal["members"][index]["stage"] = "post-failed"
+                    persist_tree_journal(tree, journal)
+                    raise
+                journal["members"][index]["stage"] = "post-succeeded"
+                persist_tree_journal(tree, journal)
+                warnings.extend(fresh_model.warnings)
+                results.append(
+                    {
+                        "kind": member.kind,
+                        "path": member.path,
+                        "name": member.expect_name,
+                        "generated": generated,
+                        "removed": removed,
+                        "skills": len(fresh_model.skills),
+                        "postCommands": post_commands,
+                    }
+                )
+
+            try:
+                receipt = make_tree_lock(tree, members)
+            except (HarnessError, OSError):
+                journal["status"] = "partial"
+                persist_tree_journal(tree, journal)
+                raise
+            write_tree_document(tree.root, ".harness-builder/tree-lock.json", receipt, "tree-receipt")
+            journal["status"] = "complete"
+            for item in journal["members"]:
+                item["stage"] = "verified"
+            persist_tree_journal(tree, journal)
+            remove_tree_document(tree.root, tree_journal_path(tree.root))
+            return {"members": results, "receiptDigest": sha256_file(tree_lock_path(tree.root))}, warnings
+
+
+def verify_space_tree(tree: SpaceTree) -> dict[str, Any]:
+    receipt = load_tree_lock(tree.root, required=True)
+    assert receipt is not None
+    assert_tree_receipt_matches(tree, receipt)
+    members = tree_members(tree)
+    results = []
+    for member, recorded in zip(members, receipt["members"]):
+        _, digest = verify_member_state(member)
+        if digest != recorded["lockDigest"]:
+            fail(
+                "HB017",
+                f"Tree member ownership lock changed: {member.path}",
+                sources=((member.root / ".harness-builder" / "lock.json").as_posix(),),
+            )
+        results.append({"kind": member.kind, "path": member.path, "name": member.expect_name, "lockDigest": digest})
+    return {"members": results, "receiptDigest": sha256_file(tree_lock_path(tree.root))}
+
+
+def clean_space_tree(tree: SpaceTree) -> tuple[dict[str, Any], list[Diagnostic]]:
+    with BuildLock(tree.root, "tree-build.lock", "HSpace Tree clean"):
+        tree = load_space_tree(tree.root)
+        members = tree_members(tree)
+        with ExitStack() as locks:
+            for member in sorted(members, key=lambda item: os.path.normcase(str(item.root))):
+                locks.enter_context(BuildLock(member.root))
+            existing = load_tree_lock(tree.root)
+            if existing is not None:
+                assert_tree_receipt_matches(tree, existing)
+            planned = {member.path: preflight_member_clean(member) for member in members}
+            journal = new_tree_journal(tree, members, "clean-tree")
+            persist_tree_journal(tree, journal)
+            if existing is not None:
+                remove_tree_document(tree.root, tree_lock_path(tree.root))
+            results = []
+            warnings: list[Diagnostic] = []
+            for member in reversed(members):
+                try:
+                    removed, member_warnings = clean(member.root)
+                except (HarnessError, OSError):
+                    journal["status"] = "partial"
+                    next(item for item in journal["members"] if item["path"] == member.path)["stage"] = "clean-failed"
+                    persist_tree_journal(tree, journal)
+                    raise
+                next(item for item in journal["members"] if item["path"] == member.path)["stage"] = "cleaned"
+                persist_tree_journal(tree, journal)
+                warnings.extend(member_warnings)
+                results.append(
+                    {
+                        "kind": member.kind,
+                        "path": member.path,
+                        "name": member.expect_name,
+                        "planned": planned[member.path],
+                        "removed": removed,
+                    }
+                )
+            journal["status"] = "complete"
+            persist_tree_journal(tree, journal)
+            remove_tree_document(tree.root, tree_journal_path(tree.root))
+            return {"members": results}, warnings
+
+
 def report(
     command: str,
     status: str,
@@ -2716,6 +3341,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
     add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"), offline=False)
+    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a Parent HSpace and its explicit children"), dry_run=True)
+    add_common_subcommand(subparsers.add_parser("check-tree", help="Validate and plan an HSpace Tree without writes"))
+    add_common_subcommand(subparsers.add_parser("explain-tree", help="Explain every member of an HSpace Tree"))
+    add_common_subcommand(subparsers.add_parser("verify-tree", help="Verify an HSpace Tree receipt and member artifacts"), offline=False)
+    add_common_subcommand(subparsers.add_parser("clean-tree", help="Clean children in reverse order, then the Parent"), offline=False)
     return parser.parse_args(argv)
 
 
@@ -2723,6 +3353,77 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     root = Path(args.space).resolve()
     try:
+        if args.command in {"build-tree", "check-tree", "explain-tree", "verify-tree", "clean-tree"}:
+            if not root.is_dir():
+                fail("HB017", f"HSpace Tree Parent root is not a directory: {root}")
+            tree = load_space_tree(root)
+            if args.command == "verify-tree":
+                details = verify_space_tree(tree)
+                value = report(
+                    "verify-tree",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    summary={"members": len(details["members"]), "verified": len(details["members"])},
+                    details=details,
+                )
+                print_report(value, args.format)
+                return 0
+            if args.command == "clean-tree":
+                details, warnings = clean_space_tree(tree)
+                value = report(
+                    "clean-tree",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    diagnostics=warnings,
+                    summary={
+                        "members": len(details["members"]),
+                        "removed": sum(item["removed"] for item in details["members"]),
+                    },
+                    details=details if args.format == "json" else None,
+                )
+                print_report(value, args.format)
+                return 0
+            if args.command == "build-tree" and not args.dry_run:
+                details, warnings = build_space_tree(tree, offline=args.offline)
+                value = report(
+                    "build-tree",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    diagnostics=warnings,
+                    summary={
+                        "members": len(details["members"]),
+                        "generated": sum(item["generated"] for item in details["members"]),
+                        "removed": sum(item["removed"] for item in details["members"]),
+                        "postCommands": sum(item["postCommands"] for item in details["members"]),
+                    },
+                    details=details if args.format == "json" else None,
+                )
+                print_report(value, args.format)
+                return 0
+            members, models = tree_plan(tree, offline=args.offline)
+            command = "build-tree --dry-run" if args.command == "build-tree" else args.command
+            details = tree_models_details(members, models)
+            value = report(
+                command,
+                "ok",
+                root,
+                name=tree.parent_name,
+                diagnostics=(warning for model in models for warning in model.warnings),
+                summary={
+                    "members": len(members),
+                    "planned": sum(len(model.operations) for model in models),
+                    "skills": sum(len(model.skills) for model in models),
+                    "postCommands": sum(
+                        1 for model in models for provider in model.providers if provider.command is not None
+                    ),
+                },
+                details=details if args.command == "explain-tree" or args.format == "json" else None,
+            )
+            print_report(value, args.format)
+            return 0
         if args.command == "init":
             if root.exists() and not root.is_dir():
                 fail("HB001", f"Harness Space root is not a directory: {root}")

@@ -10,6 +10,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --model <model-id> --require
 python3 tests/e2e/run.py --tier all --agent codex --require
+python3.8 tests/e2e/run.py --tier offline --case HSpaceTreeCases
 ```
 
 `offline` 是无网络门禁；`client` 调用真实客户端但不请求模型；`live` 发起真实 Codex 模型会话。未传 `--model` 时，live 使用已安装 Codex 的默认模型，避免把可能过期的模型名固化在测试中。
