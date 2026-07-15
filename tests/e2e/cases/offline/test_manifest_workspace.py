@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase, snapshot_tree
+from support import PipeBuilderE2ECase, snapshot_tree
 from support.model import CaseMetadata
 
 
-class ManifestValidationCases(HarnessBuilderE2ECase):
+class ManifestValidationCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("MANIFEST", "HB001", "HB002", "HB006"),
+        requirements=("MANIFEST", "PB001", "PB002", "PB006"),
         tags=("manifest", "diagnostics", "no-side-effects"),
     )
 
@@ -18,18 +18,18 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
         super().setUp()
         self.box.manifest(agents=["codex"])
 
-    def assert_manifest_error(self, value, code: str = "HB001") -> None:
-        path = self.box.root / "harness-space.json"
+    def assert_manifest_error(self, value, code: str = "PB001") -> None:
+        path = self.box.root / "pipespace.json"
         if isinstance(value, str):
             path.write_text(value, encoding="utf-8")
         else:
-            self.box.write_json("harness-space.json", value)
+            self.box.write_json("pipespace.json", value)
         before = snapshot_tree(self.box.root)
         self.expect_code(self.box.builder("build"), code)
         self.assertEqual(snapshot_tree(self.box.root), before)
 
     def test_malformed_nonobject_and_missing_required_fields(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         cases = ["{", [], None]
         for field in ("schema", "name", "agents", "skills", "tags", "skillProviders"):
             item = dict(valid)
@@ -40,9 +40,9 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
                 self.assert_manifest_error(value)
 
     def test_schema_unknown_field_and_description_type(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         cases = []
-        item = dict(valid); item["schema"] = "harness-space.v2"; cases.append(item)
+        item = dict(valid); item["schema"] = "pipespace.v2"; cases.append(item)
         item = dict(valid); item["command"] = ["rm", "-rf"]; cases.append(item)
         item = dict(valid); item["description"] = 42; cases.append(item)
         for value in cases:
@@ -50,21 +50,21 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
                 self.assert_manifest_error(value)
 
     def test_space_name_validation_has_dedicated_code(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         for name in ("", "Upper", "-leading", "under_score", "a/escape", 7):
             item = dict(valid); item["name"] = name
             with self.subTest(name=name):
-                self.assert_manifest_error(item, "HB002")
+                self.assert_manifest_error(item, "PB002")
 
     def test_agent_list_shape_duplicates_and_unknown_values(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         for agents in (None, [], ["codex", "codex"], ["unknown"], [""], "codex"):
             item = dict(valid); item["agents"] = agents
             with self.subTest(agents=agents):
                 self.assert_manifest_error(item)
 
     def test_skill_and_tag_lists_reject_invalid_names_types_and_duplicates(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         cases = (
             ("skills", "skill"),
             ("skills", ["Bad"]),
@@ -79,19 +79,19 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
                 self.assert_manifest_error(item)
 
     def test_provider_schema_relative_path_uniqueness_and_supported_type(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         cases = (
-            ("not-a-list", "HB001"),
-            ([{}], "HB001"),
-            ([{"type": "folder", "path": "x", "extra": True}], "HB001"),
-            ([{"type": "git", "path": "x"}], "HB001"),
-            ([{"type": "registry", "path": "x"}], "HB006"),
-            ([{"type": "folder", "path": ""}], "HB001"),
-            ([{"type": "folder", "path": str(self.box.root)}], "HB001"),
-            ([{"type": "folder", "path": "x", "subdir": "../skills"}], "HB001"),
-            ([{"type": "folder", "path": "x", "command": {"args": []}}], "HB001"),
-            ([{"type": "folder", "path": "x", "command": {"cwd": "../escape", "args": ["tool"]}}], "HB001"),
-            ([{"type": "folder", "path": "x"}, {"type": "folder", "path": "./x"}], "HB001"),
+            ("not-a-list", "PB001"),
+            ([{}], "PB001"),
+            ([{"type": "folder", "path": "x", "extra": True}], "PB001"),
+            ([{"type": "git", "path": "x"}], "PB001"),
+            ([{"type": "registry", "path": "x"}], "PB006"),
+            ([{"type": "folder", "path": ""}], "PB001"),
+            ([{"type": "folder", "path": str(self.box.root)}], "PB001"),
+            ([{"type": "folder", "path": "x", "subdir": "../skills"}], "PB001"),
+            ([{"type": "folder", "path": "x", "command": {"args": []}}], "PB001"),
+            ([{"type": "folder", "path": "x", "command": {"cwd": "../escape", "args": ["tool"]}}], "PB001"),
+            ([{"type": "folder", "path": "x"}, {"type": "folder", "path": "./x"}], "PB001"),
         )
         for providers, code in cases:
             item = dict(valid); item["skillProviders"] = providers
@@ -99,24 +99,24 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
                 self.assert_manifest_error(item, code)
 
     def test_git_provider_requires_url_and_exactly_one_safe_branch_or_tag(self):
-        valid = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        valid = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         cases = (
-            ([{"type": "git", "url": "../repo"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "branch": "main", "tag": "v1"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "ref": "main"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "branch": "-main"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "branch": "feature//nested"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "tag": ".hidden"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "tag": "release..one"}], "HB001"),
-            ([{"type": "git", "url": "../repo", "branch": "main", "subdir": "../skills"}], "HB001"),
-            ([{"type": "git", "url": "https://token@example.test/repo.git", "branch": "main"}], "HB011"),
-            ([{"type": "git", "url": "https://example.test/repo.git?token=x", "branch": "main"}], "HB011"),
+            ([{"type": "git", "url": "../repo"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "branch": "main", "tag": "v1"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "ref": "main"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "branch": "-main"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "branch": "feature//nested"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "tag": ".hidden"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "tag": "release..one"}], "PB001"),
+            ([{"type": "git", "url": "../repo", "branch": "main", "subdir": "../skills"}], "PB001"),
+            ([{"type": "git", "url": "https://token@example.test/repo.git", "branch": "main"}], "PB011"),
+            ([{"type": "git", "url": "https://example.test/repo.git?token=x", "branch": "main"}], "PB011"),
             (
                 [
                     {"type": "git", "url": "../repo", "branch": "main"},
                     {"type": "git", "url": "../repo", "branch": "main", "subdir": "."},
                 ],
-                "HB001",
+                "PB001",
             ),
         )
         for providers, code in cases:
@@ -125,10 +125,10 @@ class ManifestValidationCases(HarnessBuilderE2ECase):
                 self.assert_manifest_error(item, code)
 
 
-class WorkspaceValidationCases(HarnessBuilderE2ECase):
+class WorkspaceValidationCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("WORKSPACE", "HB003", "HB004"),
+        requirements=("WORKSPACE", "PB003", "PB004"),
         tags=("workspace", "paths", "multi-folder"),
     )
 
@@ -139,7 +139,7 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
     def test_workspace_is_required_and_selected_by_manifest_name(self):
         (self.box.root / "fixture-space.code-workspace").unlink()
         self.box.write_json("unrelated.code-workspace", {"folders": [{"name": "x", "path": "."}]})
-        self.expect_code(self.box.builder("check"), "HB003")
+        self.expect_code(self.box.builder("check"), "PB003")
 
     def test_workspace_nonobject_malformed_and_invalid_folder_shapes(self):
         path = self.box.root / "fixture-space.code-workspace"
@@ -151,7 +151,7 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
             else:
                 self.box.write_json("fixture-space.code-workspace", value)
             with self.subTest(value=value):
-                self.expect_code(self.box.builder("check"), "HB004")
+                self.expect_code(self.box.builder("check"), "PB004")
 
     def test_folder_name_and_path_validation(self):
         cases = (
@@ -166,7 +166,7 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
         for folders in cases:
             self.box.manifest(agents=["codex"], folders=folders)
             with self.subTest(folders=folders):
-                self.expect_code(self.box.builder("check"), "HB004")
+                self.expect_code(self.box.builder("check"), "PB004")
 
     def test_folder_name_is_optional_and_derived_from_path(self):
         external = self.box.base / "external-project"
@@ -211,7 +211,7 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
         self.expect_ok(self.box.builder("build"))
         guidance = (self.box.root / "AGENTS.md").read_text(encoding="utf-8")
         self.assertLess(guidance.index("`space`"), guidance.index("`unicode shell`"))
-        self.assertIn("same directory as Harness Space", guidance)
+        self.assertIn("same directory as PipeSpace", guidance)
         self.assertIn("directory-decoupled", guidance)
 
     def test_extra_vscode_workspace_fields_are_preserved_and_ignored_by_builder(self):
@@ -225,20 +225,37 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
         self.assertEqual(workspace.read_bytes(), before)
 
 
-class LegacyNamespaceCases(HarnessBuilderE2ECase):
-    metadata = CaseMetadata(tier="offline", requirements=("HB015",), tags=("legacy", "migration"))
+class LegacyNamespaceCases(PipeBuilderE2ECase):
+    metadata = CaseMetadata(tier="offline", requirements=("PB015",), tags=("legacy", "migration"))
 
     def test_each_legacy_marker_and_mixed_layout_is_rejected_without_writes(self):
-        markers = ("tagents", "private", ".harness-agents", ".harness-space.yaml", ".harness-lock.yaml", "legacy.code-workspace.src")
+        markers = (
+            "tagents",
+            "private",
+            "harness-space.json",
+            "harness-space-tree.json",
+            ".harness-builder",
+            ".harness-agents",
+            ".harness-space.yaml",
+            ".harness-lock.yaml",
+            "legacy.code-workspace.src",
+        )
+        file_markers = {
+            "harness-space.json",
+            "harness-space-tree.json",
+            ".harness-space.yaml",
+            ".harness-lock.yaml",
+            "legacy.code-workspace.src",
+        }
         for marker in markers:
             self.box.close(); self.box = __import__("support").Sandbox()
             self.box.manifest(agents=["codex"])
             path = self.box.root / marker
-            if "." in Path(marker).name and not marker == ".harness-agents":
+            if marker in file_markers:
                 path.write_text("legacy\n", encoding="utf-8")
             else:
                 path.mkdir()
             before = snapshot_tree(self.box.root)
             with self.subTest(marker=marker):
-                self.expect_code(self.box.builder("build"), "HB015")
+                self.expect_code(self.box.builder("build"), "PB015")
                 self.assertEqual(snapshot_tree(self.box.root), before)

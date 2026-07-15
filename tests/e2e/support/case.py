@@ -14,7 +14,7 @@ from .sandbox import REPO_ROOT, Sandbox
 ARTIFACTS = REPO_ROOT / "tests" / "e2e" / ".artifacts"
 
 
-class HarnessBuilderE2ECase(unittest.TestCase):
+class PipeBuilderE2ECase(unittest.TestCase):
     metadata = CaseMetadata()
 
     def setUp(self) -> None:
@@ -47,15 +47,15 @@ class HarnessBuilderE2ECase(unittest.TestCase):
     def expect_ok(self, result: CommandResult) -> dict[str, Any]:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = result.json()
-        self.assertEqual(payload["schema"], "harnessbuilder-report.v1")
+        self.assertEqual(payload["schema"], "pipebuilder-report.v1")
         self.assertEqual(payload["status"], "ok")
-        self.assertFalse((self.box.root / ".harness-builder/build.lock").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/build.lock").exists())
         return payload
 
     def expect_code(self, result: CommandResult, code: str, *, returncode: int = 1) -> dict[str, Any]:
         self.assertEqual(result.returncode, returncode, result.stdout + result.stderr)
         payload = result.json()
-        self.assertEqual(payload["schema"], "harnessbuilder-report.v1")
+        self.assertEqual(payload["schema"], "pipebuilder-report.v1")
         self.assertEqual(payload["status"], "error")
         self.assertIn(code, diagnostic_codes(result))
         for diagnostic in payload["diagnostics"]:
@@ -68,7 +68,7 @@ class HarnessBuilderE2ECase(unittest.TestCase):
         found = shutil.which(name)
         if found:
             return found
-        if os.environ.get("HARNESSBUILDER_E2E_REQUIRE") == "1":
+        if os.environ.get("PIPEBUILDER_E2E_REQUIRE") == "1":
             self.fail(f"required client is missing: {name}")
         self.skipTest(f"client is not installed: {name}")
         raise AssertionError("unreachable")

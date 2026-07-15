@@ -1,5 +1,5 @@
 {
-  "schema": "harness-space.v1",
+  "schema": "pipespace.v1",
   "name": "golden-space",
   "description": "Static all-agent golden fixture",
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HarnessBuilder：可独立分发的单文件 Harness Space 编译器。
+"""PipeBuilder：可独立分发的单文件 PipeSpace 编译器。
 
 发布与运行要求
 ------------
@@ -8,70 +8,70 @@
 
 快速使用
 --------
-    python3 harnessbuilder.py init [SPACE] [--name NAME] [--format text|json]
-    python3 harnessbuilder.py check [SPACE] [--format text|json] [--offline]
-    python3 harnessbuilder.py explain [SPACE] [--format text|json] [--offline]
-    python3 harnessbuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
-    python3 harnessbuilder.py clean [SPACE] [--format text|json]
-    python3 harnessbuilder.py check-tree [ROOT] [--format text|json] [--offline]
-    python3 harnessbuilder.py explain-tree [ROOT] [--format text|json] [--offline]
-    python3 harnessbuilder.py build-tree [ROOT] [--format text|json] [--offline] [--dry-run]
-    python3 harnessbuilder.py verify-tree [ROOT] [--format text|json]
-    python3 harnessbuilder.py clean-tree [ROOT] [--format text|json]
-    python3 harnessbuilder.py --version
-    python3 harnessbuilder.py --help
+    python3 pipebuilder.py init [SPACE] [--name NAME] [--format text|json]
+    python3 pipebuilder.py check [SPACE] [--format text|json] [--offline]
+    python3 pipebuilder.py explain [SPACE] [--format text|json] [--offline]
+    python3 pipebuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
+    python3 pipebuilder.py clean [SPACE] [--format text|json]
+    python3 pipebuilder.py check-tree [ROOT] [--format text|json] [--offline]
+    python3 pipebuilder.py explain-tree [ROOT] [--format text|json] [--offline]
+    python3 pipebuilder.py build-tree [ROOT] [--format text|json] [--offline] [--dry-run]
+    python3 pipebuilder.py verify-tree [ROOT] [--format text|json]
+    python3 pipebuilder.py clean-tree [ROOT] [--format text|json]
+    python3 pipebuilder.py --version
+    python3 pipebuilder.py --help
 
 SPACE 省略时使用当前目录。建议先运行 check 或 build --dry-run，再运行 build。
 --offline 只从已有 lock 和本地 immutable Git cache 解析 Git Provider，不访问 origin。
 
-Harness Space 最小输入
+PipeSpace 最小输入
 ---------------------
     <space>/
-    ├── harness-space.json
+    ├── pipespace.json
     └── <manifest.name>.code-workspace
 
-最小 harness-space.json：
-    {"schema":"harness-space.v1", "name":"my-space", "agents":["codex"],
+最小 pipespace.json：
+    {"schema":"pipespace.v1", "name":"my-space", "agents":["codex"],
      "skills":[], "tags":[], "skillProviders":[]}
 
 最小 my-space.code-workspace：
     {"folders":[{"path":"."}]}
 
-可选的一层 HSpace Tree：root 仍是普通 Harness Space，并在自身目录声明显式 children：
-    {"schema":"harness-space-tree.v1",
+可选的一层 PipeSpace Tree：root 仍是普通 PipeSpace，并在自身目录声明显式 children：
+    {"schema":"pipespace-tree.v1",
      "children":[{"path":"children/child-01", "expectName":"child-01"}]}
 
 Tree 命令不会扫描目录。build-tree 在写入前锁定并 plan root 与全部 direct children，
 按 root → children 顺序 build；clean-tree 按 children 逆序 → root 清理。v1 不递归。
 
 可选的 Space-level source：
-    .harness-builder/agents/<agent>/
-    .harness-builder/skills/<skill>/SKILL.md
+    .pipebuilder/agents/<agent>/
+    .pipebuilder/skills/<skill>/SKILL.md
 
-外部 Skill Provider 在 harness-space.json.skillProviders 中声明。支持：
+外部 Skill Provider 在 pipespace.json.skillProviders 中声明。支持：
     {"type":"folder", "path":"../shared-skills"}
     {"type":"folder", "path":"../component", "subdir":"skills",
-     "command":{"cwd":".", "args":["node","build.mjs","--output","{spaceRoot}"]}}
+     "command":{"cwd":".", "args":["node","build.mjs","--output","{pipespaceRoot}"]}}
     {"type":"git", "url":"https://example/repo.git", "branch":"main", "subdir":"skills"}
     {"type":"git", "url":"https://example/repo.git", "tag":"v1.0.0", "subdir":"skills"}
 
 Git Provider 的 branch/tag 严格二选一；认证交给 Git credential helper 或 SSH agent，
 不得把 credential 写入 manifest。Git mirror 与 immutable snapshot 固定缓存在
-<space>/.harness-builder/cache/git/，属于 ignored 的本机 Builder state。
+<space>/.pipebuilder/cache/git/，属于 ignored 的本机 Builder state。
 
 Folder/Git 的 subdir 是 Skill Provider 根，默认为 .。可选 command 默认在正常 build 后调用；
-cwd 相对 Provider 源根，args 不经 shell，并展开 {spaceRoot}、{sourceRoot}、{providerRoot}。
+cwd 相对 Provider 源根，args 不经 shell，并展开 {pipespaceRoot}、{sourceRoot}、{providerRoot}。
 check、explain 和 build --dry-run 不调用 command。
 
 所有权与输出
 -----------
 平台配置和安装后的 Skill 是 Builder-owned target；Human-owned source 只能放在
-.harness-builder/agents、.harness-builder/skills 或外部 Provider 中。build 将 ownership
-写入 .harness-builder/lock.json；clean 只删除有效 lock 证明由 Builder 管理的文件。
+.pipebuilder/agents、.pipebuilder/skills 或外部 Provider 中。build 将 ownership
+写入 .pipebuilder/lock.json；clean 只删除有效 lock 证明由 Builder 管理的文件。
 不要直接维护生成的 AGENTS.md、CLAUDE.md、.codex、.cursor、.codebuddy、.claude 或
 .agents/skills 内容，应修改 source 后重新 build。
 
-自动化应使用 --format json，并依赖 harnessbuilder-report.v1 中稳定的 diagnostic code，
+自动化应使用 --format json，并依赖 pipebuilder-report.v1 中稳定的 diagnostic code，
 不要解析人类可读 message。完整命令说明可随时运行本文件的 --help 查看。
 """
 
@@ -106,12 +106,12 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.4.0"
-REPORT_SCHEMA = "harnessbuilder-report.v1"
-LOCK_SCHEMA = "harnessbuilder-lock.v1"
-SPACE_SCHEMA = "harness-space.v1"
-TREE_SCHEMA = "harness-space-tree.v1"
-TREE_LOCK_SCHEMA = "harness-space-tree-lock.v1"
+VERSION = "0.5.0"
+REPORT_SCHEMA = "pipebuilder-report.v1"
+LOCK_SCHEMA = "pipebuilder-lock.v1"
+SPACE_SCHEMA = "pipespace.v1"
+TREE_SCHEMA = "pipespace-tree.v1"
+TREE_LOCK_SCHEMA = "pipespace-tree-lock.v1"
 AGENTS = ("codex", "cursor", "codebuddy", "claude-code")
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 BARE_TOML_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -122,6 +122,9 @@ SECRET_KEY_RE = re.compile(
 LEGACY_NAMES = (
     "tagents",
     "private",
+    "harness-space.json",
+    "harness-space-tree.json",
+    ".harness-builder",
     ".harness-agents",
     ".harness-space.yaml",
     ".harness-lock.yaml",
@@ -134,6 +137,7 @@ TREE_RESERVED_ROOTS = {
     ".cursor",
     ".git",
     ".harness-builder",
+    ".pipebuilder",
 }
 ADAPTER_VERSIONS = {"codex": "2", "cursor": "1", "codebuddy": "2", "claude-code": "2"}
 ADAPTER_STATUS = {
@@ -155,26 +159,26 @@ CODEX_FORBIDDEN_PROJECT_KEYS = {
     "otel",
 }
 DIAGNOSTIC_ACTIONS = {
-    "HB001": "Correct harness-space.json or the ownership lock to match the documented schema.",
-    "HB002": "Use a lowercase kebab-case Harness Space name.",
-    "HB003": "Create the required <manifest-name>.code-workspace file.",
-    "HB004": "Correct the workspace folders and paths.",
-    "HB005": "Correct the Provider path or create the directory.",
-    "HB006": "Use a supported Skill Provider type.",
-    "HB007": "Add the Skill to a configured Provider or remove it from the explicit selection.",
-    "HB008": "Correct the Skill package and SKILL.md frontmatter.",
-    "HB009": "Use the supported native artifact grammar for this Agent.",
-    "HB010": "Resolve the ownership, target, or semantic conflict and rebuild.",
-    "HB011": "Remove the unsafe path, secret, or configuration and retry.",
-    "HB012": "Use an implemented Agent adapter.",
-    "HB013": "Wait for the active build or clean operation to finish.",
-    "HB014": "Confirm the process is gone, then remove the stale build.lock.",
-    "HB015": "Migrate the legacy THarness layout before building.",
-    "HB016": "Correct the Provider post command or its runtime dependencies and retry.",
-    "HB017": "Correct harness-space-tree.json, its child paths, or the recorded Tree state and retry.",
-    "HBW001": "Review the selected Provider and shadowed Skill candidates.",
-    "HBW002": "Prefer a standard Skill for new Claude Code workflows.",
-    "HBW003": "Review the generated platform security surface before use.",
+    "PB001": "Correct pipespace.json or the ownership lock to match the documented schema.",
+    "PB002": "Use a lowercase kebab-case PipeSpace name.",
+    "PB003": "Create the required <manifest-name>.code-workspace file.",
+    "PB004": "Correct the workspace folders and paths.",
+    "PB005": "Correct the Provider path or create the directory.",
+    "PB006": "Use a supported Skill Provider type.",
+    "PB007": "Add the Skill to a configured Provider or remove it from the explicit selection.",
+    "PB008": "Correct the Skill package and SKILL.md frontmatter.",
+    "PB009": "Use the supported native artifact grammar for this Agent.",
+    "PB010": "Resolve the ownership, target, or semantic conflict and rebuild.",
+    "PB011": "Remove the unsafe path, secret, or configuration and retry.",
+    "PB012": "Use an implemented Agent adapter.",
+    "PB013": "Wait for the active build or clean operation to finish.",
+    "PB014": "Confirm the process is gone, then remove the stale build.lock.",
+    "PB015": "Migrate the legacy HarnessBuilder / THarness layout before building.",
+    "PB016": "Correct the Provider post command or its runtime dependencies and retry.",
+    "PB017": "Correct pipespace-tree.json, its child paths, or the recorded Tree state and retry.",
+    "PBW001": "Review the selected Provider and shadowed Skill candidates.",
+    "PBW002": "Prefer a standard Skill for new Claude Code workflows.",
+    "PBW003": "Review the generated platform security surface before use.",
 }
 
 
@@ -203,12 +207,12 @@ class Diagnostic:
             result["semanticKey"] = self.code
         result["suggestedAction"] = self.suggested_action or DIAGNOSTIC_ACTIONS.get(
             self.code,
-            "Review the diagnostic source and correct the Harness Space input.",
+            "Review the diagnostic source and correct the PipeSpace input.",
         )
         return result
 
 
-class HarnessError(Exception):
+class PipeBuilderError(Exception):
     def __init__(self, diagnostic: Diagnostic):
         super().__init__(diagnostic.message)
         self.diagnostic = diagnostic
@@ -223,7 +227,7 @@ def fail(
     semantic_key: str | None = None,
     action: str | None = None,
 ) -> None:
-    raise HarnessError(
+    raise PipeBuilderError(
         Diagnostic(
             "error",
             code,
@@ -270,11 +274,11 @@ def read_json(path: Path, code: str, label: str) -> Any:
 
 def require_string_list(value: Any, field: str, *, nonempty: bool = False) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
-        fail("HB001", f"manifest.{field} must be an array of non-empty strings")
+        fail("PB001", f"manifest.{field} must be an array of non-empty strings")
     if nonempty and not value:
-        fail("HB001", f"manifest.{field} must contain at least one item")
+        fail("PB001", f"manifest.{field} must contain at least one item")
     if len(set(value)) != len(value):
-        fail("HB001", f"manifest.{field} must not contain duplicates")
+        fail("PB001", f"manifest.{field} must not contain duplicates")
     return list(value)
 
 
@@ -291,7 +295,7 @@ def yaml_scalar(value: str) -> str:
     return value
 
 
-def yaml_inline_list(value: str, path: Path, key: str, code: str = "HB008") -> list[Any]:
+def yaml_inline_list(value: str, path: Path, key: str, code: str = "PB008") -> list[Any]:
     try:
         parsed = json.loads(value)
     except json.JSONDecodeError:
@@ -332,14 +336,14 @@ def parse_frontmatter(path: Path) -> dict[str, Any]:
     try:
         text = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError:
-        fail("HB008", "SKILL.md must be UTF-8", sources=(path.as_posix(),))
+        fail("PB008", "SKILL.md must be UTF-8", sources=(path.as_posix(),))
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        fail("HB008", "SKILL.md is missing YAML frontmatter", sources=(path.as_posix(),))
+        fail("PB008", "SKILL.md is missing YAML frontmatter", sources=(path.as_posix(),))
     try:
         end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
     except StopIteration:
-        fail("HB008", "SKILL.md frontmatter is not closed", sources=(path.as_posix(),))
+        fail("PB008", "SKILL.md frontmatter is not closed", sources=(path.as_posix(),))
     fields: list[tuple[str, str, list[str]]] = []
     i = 1
     while i < end:
@@ -349,12 +353,12 @@ def parse_frontmatter(path: Path) -> dict[str, Any]:
         if not stripped or stripped.startswith("#"):
             continue
         if raw[:1].isspace() or ":" not in raw:
-            fail("HB008", f"Unsupported SKILL.md frontmatter syntax: {stripped}", sources=(path.as_posix(),))
+            fail("PB008", f"Unsupported SKILL.md frontmatter syntax: {stripped}", sources=(path.as_posix(),))
         key, raw_value = raw.split(":", 1)
         key = key.strip()
         value = raw_value.strip()
         if not key:
-            fail("HB008", "Empty SKILL.md frontmatter key", sources=(path.as_posix(),))
+            fail("PB008", "Empty SKILL.md frontmatter key", sources=(path.as_posix(),))
         body: list[str] = []
         while i < end and (not lines[i].strip() or lines[i][:1].isspace() or lines[i].lstrip().startswith("#")):
             body.append(lines[i])
@@ -363,7 +367,7 @@ def parse_frontmatter(path: Path) -> dict[str, Any]:
     data: dict[str, Any] = {}
     for key, value, body in fields:
         if key in data:
-            fail("HB008", f"Duplicate SKILL.md frontmatter key: {key}", sources=(path.as_posix(),))
+            fail("PB008", f"Duplicate SKILL.md frontmatter key: {key}", sources=(path.as_posix(),))
         if key not in {"name", "description", "tags"}:
             continue
         if key == "tags":
@@ -376,15 +380,15 @@ def parse_frontmatter(path: Path) -> dict[str, Any]:
                     if not nested or nested.startswith("#"):
                         continue
                     if not nested.startswith("- "):
-                        fail("HB008", "Skill tags must be a YAML list", sources=(path.as_posix(),))
+                        fail("PB008", "Skill tags must be a YAML list", sources=(path.as_posix(),))
                     items.append(yaml_scalar(nested[2:]))
                 data[key] = items
         elif value.startswith(("|", ">")):
             if not re.fullmatch(r"[>|](?:[+-]?[1-9]?|[1-9][+-]?)", value):
-                fail("HB008", f"Invalid block scalar marker for {key}", sources=(path.as_posix(),))
+                fail("PB008", f"Invalid block scalar marker for {key}", sources=(path.as_posix(),))
             data[key] = yaml_block_scalar(value, body)
         elif any(line.strip() and not line.lstrip().startswith("#") for line in body):
-            fail("HB008", f"{key} must be a scalar", sources=(path.as_posix(),))
+            fail("PB008", f"{key} must be a scalar", sources=(path.as_posix(),))
         else:
             data[key] = yaml_scalar(value)
     return data
@@ -400,26 +404,26 @@ def validate_codebuddy_agent(path: Path) -> None:
     data = parse_frontmatter_generic(path)
     for key in ("name", "description"):
         if not isinstance(data.get(key), str) or not data[key].strip():
-            fail("HB009", f"{path.name} must declare non-empty {key} frontmatter", sources=(path.as_posix(),))
+            fail("PB009", f"{path.name} must declare non-empty {key} frontmatter", sources=(path.as_posix(),))
     if "mode" in data and (not isinstance(data["mode"], str) or not data["mode"].strip()):
-        fail("HB009", "CodeBuddy agent mode must be a non-empty string", sources=(path.as_posix(),))
+        fail("PB009", "CodeBuddy agent mode must be a non-empty string", sources=(path.as_posix(),))
     for key in ("tools", "allowedTools", "disallowedTools"):
         if key in data and not valid_string_or_string_list(data[key]):
-            fail("HB009", f"CodeBuddy agent {key} must be a string or string list", sources=(path.as_posix(),))
+            fail("PB009", f"CodeBuddy agent {key} must be a string or string list", sources=(path.as_posix(),))
 
 
 def validate_claude_agent(path: Path) -> dict[str, Any]:
     data = parse_frontmatter_generic(path)
     for key in ("name", "description"):
         if not isinstance(data.get(key), str) or not data[key].strip():
-            fail("HB009", f"{path.name} must declare non-empty {key} frontmatter", sources=(path.as_posix(),))
+            fail("PB009", f"{path.name} must declare non-empty {key} frontmatter", sources=(path.as_posix(),))
     for key in ("tools", "disallowedTools", "skills"):
         if key in data and not valid_string_or_string_list(data[key]):
-            fail("HB009", f"Claude agent {key} must be a string or string list", sources=(path.as_posix(),))
+            fail("PB009", f"Claude agent {key} must be a string or string list", sources=(path.as_posix(),))
     if "isolation" in data and data["isolation"] != "worktree":
-        fail("HB009", "Claude agent isolation must be worktree", sources=(path.as_posix(),))
+        fail("PB009", "Claude agent isolation must be worktree", sources=(path.as_posix(),))
     if "hooks" in data and not isinstance(data["hooks"], dict):
-        fail("HB009", "Claude agent hooks must be a mapping", sources=(path.as_posix(),))
+        fail("PB009", "Claude agent hooks must be a mapping", sources=(path.as_posix(),))
     return data
 
 
@@ -427,25 +431,25 @@ def validate_claude_rule(path: Path) -> None:
     try:
         first = path.read_text(encoding="utf-8-sig").splitlines()[0]
     except (UnicodeDecodeError, IndexError):
-        fail("HB009", "Claude rule must be UTF-8 and non-empty", sources=(path.as_posix(),))
+        fail("PB009", "Claude rule must be UTF-8 and non-empty", sources=(path.as_posix(),))
     if first.strip() != "---":
         return
     data = parse_frontmatter_generic(path)
     if "paths" in data and not valid_string_or_string_list(data["paths"]):
-        fail("HB009", "Claude rule paths must be a string or string list", sources=(path.as_posix(),))
+        fail("PB009", "Claude rule paths must be a string or string list", sources=(path.as_posix(),))
 
 
 def parse_frontmatter_generic(path: Path) -> dict[str, Any]:
     try:
         lines = path.read_text(encoding="utf-8-sig").splitlines()
     except UnicodeDecodeError:
-        fail("HB009", "Agent Markdown must be UTF-8", sources=(path.as_posix(),))
+        fail("PB009", "Agent Markdown must be UTF-8", sources=(path.as_posix(),))
     if not lines or lines[0].strip() != "---":
-        fail("HB009", "Agent Markdown is missing frontmatter", sources=(path.as_posix(),))
+        fail("PB009", "Agent Markdown is missing frontmatter", sources=(path.as_posix(),))
     try:
         end = next(i for i in range(1, len(lines)) if lines[i].strip() == "---")
     except StopIteration:
-        fail("HB009", "Agent Markdown frontmatter is not closed", sources=(path.as_posix(),))
+        fail("PB009", "Agent Markdown frontmatter is not closed", sources=(path.as_posix(),))
     fields: list[tuple[str, str, list[str]]] = []
     i = 1
     while i < end:
@@ -454,7 +458,7 @@ def parse_frontmatter_generic(path: Path) -> dict[str, Any]:
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         if raw[:1].isspace() or ":" not in raw:
-            fail("HB009", f"Unsupported Agent Markdown frontmatter syntax: {raw.strip()}", sources=(path.as_posix(),))
+            fail("PB009", f"Unsupported Agent Markdown frontmatter syntax: {raw.strip()}", sources=(path.as_posix(),))
         key, value = raw.split(":", 1)
         body: list[str] = []
         while i < end and (not lines[i].strip() or lines[i][:1].isspace() or lines[i].lstrip().startswith("#")):
@@ -464,9 +468,9 @@ def parse_frontmatter_generic(path: Path) -> dict[str, Any]:
     data: dict[str, Any] = {}
     for key, value, body in fields:
         if not key or key in data:
-            fail("HB009", f"Invalid or duplicate Agent Markdown frontmatter key: {key}", sources=(path.as_posix(),))
+            fail("PB009", f"Invalid or duplicate Agent Markdown frontmatter key: {key}", sources=(path.as_posix(),))
         if value.startswith("["):
-            data[key] = yaml_inline_list(value, path, key, "HB009")
+            data[key] = yaml_inline_list(value, path, key, "PB009")
         elif value.startswith(("|", ">")):
             data[key] = yaml_block_scalar(value, body)
         elif not value and body:
@@ -596,20 +600,20 @@ def detect_legacy(root: Path) -> None:
     found.extend(path.name for path in root.glob("*.code-workspace.src"))
     if found:
         fail(
-            "HB015",
+            "PB015",
             "Legacy THarness layout detected: " + ", ".join(sorted(set(found))),
             sources=tuple(sorted(set(found))),
-            action="Migrate sources to harness-space.json and .harness-builder before building.",
+            action="Migrate legacy HarnessBuilder / THarness layout to pipespace.json and .pipebuilder before building.",
         )
 
 
 def validate_provider_subdir(value: Any, index: int) -> str:
     subdir = value if value is not None else "."
     if not isinstance(subdir, str) or not subdir.strip():
-        fail("HB001", f"skillProviders[{index}].subdir must be a non-empty relative POSIX path")
+        fail("PB001", f"skillProviders[{index}].subdir must be a non-empty relative POSIX path")
     subdir_path = Path(subdir)
     if subdir_path.is_absolute() or "\\" in subdir or any(part in {"", ".."} for part in subdir.split("/")):
-        fail("HB001", f"skillProviders[{index}].subdir must be a safe relative POSIX path")
+        fail("PB001", f"skillProviders[{index}].subdir must be a safe relative POSIX path")
     return subdir_path.as_posix()
 
 
@@ -617,7 +621,7 @@ def validate_provider_command(value: Any, index: int) -> dict[str, Any] | None:
     if value is None:
         return None
     if not isinstance(value, dict) or set(value) - {"cwd", "args"} or "args" not in value:
-        fail("HB001", f"skillProviders[{index}].command accepts cwd and required args")
+        fail("PB001", f"skillProviders[{index}].command accepts cwd and required args")
     cwd = value.get("cwd", ".")
     if (
         not isinstance(cwd, str)
@@ -626,61 +630,61 @@ def validate_provider_command(value: Any, index: int) -> dict[str, Any] | None:
         or "\\" in cwd
         or any(part in {"", ".."} for part in cwd.split("/"))
     ):
-        fail("HB001", f"skillProviders[{index}].command.cwd must be a safe relative POSIX path")
+        fail("PB001", f"skillProviders[{index}].command.cwd must be a safe relative POSIX path")
     arguments = value.get("args")
     if (
         not isinstance(arguments, list)
         or not arguments
         or any(not isinstance(argument, str) or not argument or any(ord(char) < 32 for char in argument) for argument in arguments)
     ):
-        fail("HB001", f"skillProviders[{index}].command.args must be an array of non-empty strings")
+        fail("PB001", f"skillProviders[{index}].command.args must be an array of non-empty strings")
     return {"cwd": Path(cwd).as_posix(), "args": list(arguments)}
 
 
 def load_manifest(root: Path) -> Manifest:
-    path = root / "harness-space.json"
-    raw = read_json(path, "HB001", "manifest")
+    path = root / "pipespace.json"
+    raw = read_json(path, "PB001", "manifest")
     if not isinstance(raw, dict):
-        fail("HB001", "harness-space.json must contain a JSON object", sources=(path.as_posix(),))
+        fail("PB001", "pipespace.json must contain a JSON object", sources=(path.as_posix(),))
     required = {"schema", "name", "agents", "skills", "tags", "skillProviders"}
     missing = sorted(required - raw.keys())
     unknown = sorted(raw.keys() - required - {"description"})
     if missing:
-        fail("HB001", "Missing manifest fields: " + ", ".join(missing), sources=(path.as_posix(),))
+        fail("PB001", "Missing manifest fields: " + ", ".join(missing), sources=(path.as_posix(),))
     if unknown:
-        fail("HB001", "Unknown manifest fields: " + ", ".join(unknown), sources=(path.as_posix(),))
+        fail("PB001", "Unknown manifest fields: " + ", ".join(unknown), sources=(path.as_posix(),))
     if raw.get("schema") != SPACE_SCHEMA:
-        fail("HB001", f"manifest.schema must be {SPACE_SCHEMA}", sources=(path.as_posix(),))
+        fail("PB001", f"manifest.schema must be {SPACE_SCHEMA}", sources=(path.as_posix(),))
     name = raw.get("name")
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
-        fail("HB002", "manifest.name must match ^[a-z][a-z0-9-]*$", sources=(path.as_posix(),))
+        fail("PB002", "manifest.name must match ^[a-z][a-z0-9-]*$", sources=(path.as_posix(),))
     agents = require_string_list(raw.get("agents"), "agents", nonempty=True)
     unknown_agents = [agent for agent in agents if agent not in AGENTS]
     if unknown_agents:
-        fail("HB001", "Unknown agents: " + ", ".join(unknown_agents), sources=(path.as_posix(),))
+        fail("PB001", "Unknown agents: " + ", ".join(unknown_agents), sources=(path.as_posix(),))
     skills = require_string_list(raw.get("skills"), "skills")
     for skill in skills:
         if not NAME_RE.fullmatch(skill):
-            fail("HB001", f"Invalid skill name in manifest: {skill}", sources=(path.as_posix(),))
+            fail("PB001", f"Invalid skill name in manifest: {skill}", sources=(path.as_posix(),))
     tags = require_string_list(raw.get("tags"), "tags")
     providers_raw = raw.get("skillProviders")
     if not isinstance(providers_raw, list):
-        fail("HB001", "manifest.skillProviders must be an array", sources=(path.as_posix(),))
+        fail("PB001", "manifest.skillProviders must be an array", sources=(path.as_posix(),))
     providers: list[dict[str, Any]] = []
     seen_provider_specs: set[str] = set()
     for index, item in enumerate(providers_raw):
         if not isinstance(item, dict) or not isinstance(item.get("type"), str):
-            fail("HB001", f"skillProviders[{index}] must be an object with a type", sources=(path.as_posix(),))
+            fail("PB001", f"skillProviders[{index}] must be an object with a type", sources=(path.as_posix(),))
         kind = item["type"]
         if kind == "folder":
             allowed = {"type", "path", "subdir", "command"}
             if set(item) - allowed or not {"type", "path"}.issubset(item):
-                fail("HB001", f"skillProviders[{index}] folder accepts type, path, optional subdir and command", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}] folder accepts type, path, optional subdir and command", sources=(path.as_posix(),))
             configured = item.get("path")
             if not isinstance(configured, str) or not configured.strip():
-                fail("HB001", f"skillProviders[{index}].path must be a non-empty string", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}].path must be a non-empty string", sources=(path.as_posix(),))
             if Path(configured).is_absolute():
-                fail("HB001", f"skillProviders[{index}].path must be relative", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}].path must be relative", sources=(path.as_posix(),))
             normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
             command = validate_provider_command(item.get("command"), index)
             normalized_provider_path = Path(os.path.normpath(configured)).as_posix()
@@ -693,21 +697,21 @@ def load_manifest(root: Path) -> Manifest:
             allowed = {"type", "url", "branch", "tag", "subdir", "command"}
             if set(item) - allowed or not {"type", "url"}.issubset(item):
                 fail(
-                    "HB001",
+                    "PB001",
                     f"skillProviders[{index}] git accepts type, url, exactly one of branch/tag, and optional subdir",
                     sources=(path.as_posix(),),
                 )
             selectors = [key for key in ("branch", "tag") if key in item]
             if len(selectors) != 1:
-                fail("HB001", f"skillProviders[{index}] git requires exactly one of branch or tag", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}] git requires exactly one of branch or tag", sources=(path.as_posix(),))
             url = item.get("url")
             if not isinstance(url, str) or not url.strip() or any(ord(char) < 32 for char in url):
-                fail("HB001", f"skillProviders[{index}].url must be a non-empty string", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}].url must be a non-empty string", sources=(path.as_posix(),))
             parsed_url = urlsplit(url)
             if parsed_url.password is not None or (parsed_url.scheme in {"http", "https"} and parsed_url.username is not None):
-                fail("HB011", f"skillProviders[{index}].url must not contain credentials", sources=(path.as_posix(),))
+                fail("PB011", f"skillProviders[{index}].url must not contain credentials", sources=(path.as_posix(),))
             if parsed_url.scheme in {"http", "https"} and (parsed_url.query or parsed_url.fragment):
-                fail("HB011", f"skillProviders[{index}].url must not contain query credentials or fragments", sources=(path.as_posix(),))
+                fail("PB011", f"skillProviders[{index}].url must not contain query credentials or fragments", sources=(path.as_posix(),))
             selector_kind = selectors[0]
             selector_value = item.get(selector_kind)
             if (
@@ -723,7 +727,7 @@ def load_manifest(root: Path) -> Manifest:
                 or any(part.startswith(".") or part.endswith(".lock") for part in selector_value.split("/"))
                 or any(char.isspace() or ord(char) < 32 or char in "~^:?*[" for char in selector_value)
             ):
-                fail("HB001", f"skillProviders[{index}].{selector_kind} is not a safe Git name", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}].{selector_kind} is not a safe Git name", sources=(path.as_posix(),))
             normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
             command = validate_provider_command(item.get("command"), index)
             normalized = {
@@ -737,15 +741,15 @@ def load_manifest(root: Path) -> Manifest:
                 normalized["command"] = command
                 provider["command"] = command
         else:
-            fail("HB006", f"Unsupported provider type: {kind}", sources=(path.as_posix(),))
+            fail("PB006", f"Unsupported provider type: {kind}", sources=(path.as_posix(),))
         spec = canonical_json(normalized)
         if spec in seen_provider_specs:
-            fail("HB001", f"Duplicate skill provider at index {index}", sources=(path.as_posix(),))
+            fail("PB001", f"Duplicate skill provider at index {index}", sources=(path.as_posix(),))
         seen_provider_specs.add(spec)
         providers.append(provider)
     description = raw.get("description")
     if description is not None and not isinstance(description, str):
-        fail("HB001", "manifest.description must be a string", sources=(path.as_posix(),))
+        fail("PB001", "manifest.description must be a string", sources=(path.as_posix(),))
     return Manifest(path, name, description, agents, skills, tags, providers)
 
 
@@ -767,7 +771,7 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
         or any(part in {"", ".", ".."} for part in parts)
     ):
         fail(
-            "HB017",
+            "PB017",
             f"children[{index}].path must be a safe relative POSIX path below the Tree root",
             sources=(manifest_path.as_posix(),),
             semantic_key=f"children[{index}].path",
@@ -782,14 +786,14 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
             or any(ord(character) < 32 for character in part)
         ):
             fail(
-                "HB017",
+                "PB017",
                 f"children[{index}].path is not portable across supported platforms: {configured}",
                 sources=(manifest_path.as_posix(),),
                 semantic_key=f"children[{index}].path",
             )
     if tree_path_key(parts[0]) in {tree_path_key(item) for item in TREE_RESERVED_ROOTS}:
         fail(
-            "HB017",
+            "PB017",
             f"children[{index}].path must not use a Builder, Git, or Agent managed root: {parts[0]}",
             sources=(manifest_path.as_posix(),),
             semantic_key=f"children[{index}].path",
@@ -799,15 +803,15 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
         current = current / part
         if current.is_symlink():
             fail(
-                "HB017",
+                "PB017",
                 f"Tree child path must not contain a symlink: {configured}",
                 sources=(current.as_posix(),),
                 semantic_key=f"children[{index}].path",
             )
         if not current.exists() or not current.is_dir():
             fail(
-                "HB017",
-                f"Tree child HSpace directory does not exist: {configured}",
+                "PB017",
+                f"Tree child PipeSpace directory does not exist: {configured}",
                 sources=(current.as_posix(),),
                 semantic_key=f"children[{index}].path",
             )
@@ -816,14 +820,14 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
         relative = resolved.relative_to(tree_root)
     except ValueError:
         fail(
-            "HB017",
+            "PB017",
             f"Tree child escapes Tree root: {configured}",
             sources=(resolved.as_posix(),),
             semantic_key=f"children[{index}].path",
         )
     if not relative.parts:
         fail(
-            "HB017",
+            "PB017",
             "Tree child must not be the Tree root",
             sources=(manifest_path.as_posix(),),
             semantic_key=f"children[{index}].path",
@@ -833,24 +837,24 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
 
 def load_space_tree(root: Path) -> SpaceTree:
     root = root.resolve()
-    path = root / "harness-space-tree.json"
+    path = root / "pipespace-tree.json"
     if path.is_symlink():
-        fail("HB017", "harness-space-tree.json must not be a symlink", sources=(path.as_posix(),))
+        fail("PB017", "pipespace-tree.json must not be a symlink", sources=(path.as_posix(),))
     if path.exists() and not path.is_file():
-        fail("HB017", "harness-space-tree.json must be a regular file", sources=(path.as_posix(),))
-    raw = read_json(path, "HB017", "HSpace Tree manifest")
+        fail("PB017", "pipespace-tree.json must be a regular file", sources=(path.as_posix(),))
+    raw = read_json(path, "PB017", "PipeSpace Tree manifest")
     required = {"schema", "children"}
     if not isinstance(raw, dict) or set(raw) != required:
         fail(
-            "HB017",
-            "harness-space-tree.json accepts exactly schema and children",
+            "PB017",
+            "pipespace-tree.json accepts exactly schema and children",
             sources=(path.as_posix(),),
         )
     if raw.get("schema") != TREE_SCHEMA:
-        fail("HB017", f"Tree manifest.schema must be {TREE_SCHEMA}", sources=(path.as_posix(),))
+        fail("PB017", f"Tree manifest.schema must be {TREE_SCHEMA}", sources=(path.as_posix(),))
     children_raw = raw.get("children")
     if not isinstance(children_raw, list) or not children_raw:
-        fail("HB017", "Tree manifest.children must be a non-empty array", sources=(path.as_posix(),))
+        fail("PB017", "Tree manifest.children must be a non-empty array", sources=(path.as_posix(),))
 
     parent = load_manifest(root)
     children: list[TreeChild] = []
@@ -860,7 +864,7 @@ def load_space_tree(root: Path) -> SpaceTree:
     for index, item in enumerate(children_raw):
         if not isinstance(item, dict) or set(item) != {"path", "expectName"}:
             fail(
-                "HB017",
+                "PB017",
                 f"children[{index}] accepts exactly path and expectName",
                 sources=(path.as_posix(),),
                 semantic_key=f"children[{index}]",
@@ -869,14 +873,14 @@ def load_space_tree(root: Path) -> SpaceTree:
         expect_name = item.get("expectName")
         if not isinstance(configured, str) or not configured:
             fail(
-                "HB017",
+                "PB017",
                 f"children[{index}].path must be a non-empty string",
                 sources=(path.as_posix(),),
                 semantic_key=f"children[{index}].path",
             )
         if not isinstance(expect_name, str) or not NAME_RE.fullmatch(expect_name):
             fail(
-                "HB017",
+                "PB017",
                 f"children[{index}].expectName must match ^[a-z][a-z0-9-]*$",
                 sources=(path.as_posix(),),
                 semantic_key=f"children[{index}].expectName",
@@ -884,24 +888,24 @@ def load_space_tree(root: Path) -> SpaceTree:
         normalized = Path(configured).as_posix()
         configured_key = tree_path_key(normalized)
         if configured_key in path_keys:
-            fail("HB017", f"Duplicate portable Tree child path: {configured}", sources=(path.as_posix(),))
+            fail("PB017", f"Duplicate portable Tree child path: {configured}", sources=(path.as_posix(),))
         child_root = validate_tree_child_root(root, normalized, path, index)
         real_key = os.path.normcase(str(child_root))
         name_key = expect_name.casefold()
         if real_key in real_keys:
-            fail("HB017", f"Tree child resolves to a duplicate directory: {configured}", sources=(path.as_posix(),))
+            fail("PB017", f"Tree child resolves to a duplicate directory: {configured}", sources=(path.as_posix(),))
         if name_key in name_keys:
-            fail("HB017", f"Duplicate Tree child expectName: {expect_name}", sources=(path.as_posix(),))
-        if (child_root / "harness-space-tree.json").exists() or (child_root / "harness-space-tree.json").is_symlink():
+            fail("PB017", f"Duplicate Tree child expectName: {expect_name}", sources=(path.as_posix(),))
+        if (child_root / "pipespace-tree.json").exists() or (child_root / "pipespace-tree.json").is_symlink():
             fail(
-                "HB017",
-                f"Nested HSpace Trees are unsupported in {TREE_SCHEMA}: {configured}",
-                sources=((child_root / "harness-space-tree.json").as_posix(),),
+                "PB017",
+                f"Nested PipeSpace Trees are unsupported in {TREE_SCHEMA}: {configured}",
+                sources=((child_root / "pipespace-tree.json").as_posix(),),
             )
         child_manifest = load_manifest(child_root)
         if child_manifest.name != expect_name:
             fail(
-                "HB017",
+                "PB017",
                 f"Tree child {configured} expected name {expect_name}, got {child_manifest.name}",
                 sources=(child_manifest.path.as_posix(),),
                 semantic_key=f"children[{index}].expectName",
@@ -915,7 +919,7 @@ def load_space_tree(root: Path) -> SpaceTree:
         for right in children[index + 1 :]:
             if left.root in right.root.parents or right.root in left.root.parents:
                 fail(
-                    "HB017",
+                    "PB017",
                     f"Tree children must not contain one another: {left.path} and {right.path}",
                     sources=(path.as_posix(),),
                 )
@@ -931,43 +935,43 @@ def tree_members(tree: SpaceTree) -> list[TreeMember]:
 def load_workspace(root: Path, manifest: Manifest) -> Workspace:
     path = root / f"{manifest.name}.code-workspace"
     if not path.exists():
-        fail("HB003", f"workspace not found: {path.name}", sources=(path.as_posix(),))
-    raw = read_json(path, "HB004", "workspace")
+        fail("PB003", f"workspace not found: {path.name}", sources=(path.as_posix(),))
+    raw = read_json(path, "PB004", "workspace")
     if not isinstance(raw, dict) or not isinstance(raw.get("folders"), list) or not raw["folders"]:
-        fail("HB004", "workspace.folders must be a non-empty array", sources=(path.as_posix(),))
+        fail("PB004", "workspace.folders must be a non-empty array", sources=(path.as_posix(),))
     folders: list[WorkspaceFolder] = []
     names: set[str] = set()
     resolved_keys: set[str] = set()
     for index, item in enumerate(raw["folders"]):
         if not isinstance(item, dict):
-            fail("HB004", f"workspace.folders[{index}] must be an object", sources=(path.as_posix(),))
+            fail("PB004", f"workspace.folders[{index}] must be an object", sources=(path.as_posix(),))
         configured = item.get("path")
         if not isinstance(configured, str) or not configured.strip() or Path(configured).is_absolute():
             fail(
-                "HB004",
+                "PB004",
                 f"workspace.folders[{index}].path must be a non-empty relative path",
                 sources=(path.as_posix(),),
             )
         resolved = (root / configured).resolve()
         if not resolved.is_dir():
-            fail("HB004", f"Workspace folder does not exist: {configured}", sources=(path.as_posix(), configured))
+            fail("PB004", f"Workspace folder does not exist: {configured}", sources=(path.as_posix(), configured))
         if "name" not in item:
             name = (root / configured).name
             if not name:
                 fail(
-                    "HB004",
+                    "PB004",
                     f"workspace.folders[{index}].name could not be derived from path: {configured}",
                     sources=(path.as_posix(),),
                 )
         else:
             name = item.get("name")
             if not isinstance(name, str) or not name.strip():
-                fail("HB004", f"workspace.folders[{index}].name must be non-empty", sources=(path.as_posix(),))
+                fail("PB004", f"workspace.folders[{index}].name must be non-empty", sources=(path.as_posix(),))
         if name in names:
-            fail("HB004", f"Duplicate workspace folder name: {name}", sources=(path.as_posix(),))
+            fail("PB004", f"Duplicate workspace folder name: {name}", sources=(path.as_posix(),))
         key = os.path.normcase(str(resolved))
         if key in resolved_keys:
-            fail("HB004", f"Duplicate resolved workspace folder path: {configured}", sources=(path.as_posix(),))
+            fail("PB004", f"Duplicate resolved workspace folder path: {configured}", sources=(path.as_posix(),))
         names.add(name)
         resolved_keys.add(key)
         folders.append(WorkspaceFolder(name, Path(configured).as_posix(), resolved))
@@ -982,18 +986,18 @@ def default_space_name(root: Path) -> str:
 def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest, list[str], list[str]]:
     """Create missing required inputs and validate required inputs that already exist."""
     detect_legacy(root)
-    manifest_path = root / "harness-space.json"
+    manifest_path = root / "pipespace.json"
     created: list[str] = []
     validated: list[str] = []
 
     if requested_name is not None and not NAME_RE.fullmatch(requested_name):
-        fail("HB002", "--name must match ^[a-z][a-z0-9-]*$", sources=(manifest_path.as_posix(),))
+        fail("PB002", "--name must match ^[a-z][a-z0-9-]*$", sources=(manifest_path.as_posix(),))
 
     if manifest_path.exists() or manifest_path.is_symlink():
         manifest = load_manifest(root)
         if requested_name is not None and requested_name != manifest.name:
             fail(
-                "HB002",
+                "PB002",
                 f"--name {requested_name!r} does not match existing manifest.name {manifest.name!r}",
                 sources=(manifest_path.as_posix(),),
             )
@@ -1003,7 +1007,7 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
         name = requested_name or default_space_name(root)
         if not NAME_RE.fullmatch(name):
             fail(
-                "HB002",
+                "PB002",
                 f"Space directory name {name!r} is not a valid manifest.name; use --name",
                 sources=(root.as_posix(),),
                 action="Use --name with a lowercase kebab-case name, or rename the Space directory.",
@@ -1061,33 +1065,33 @@ def walk_tree(root: Path, *, exclude_agent_extensions: bool = False) -> list[Pat
     for current, dirs, files in os.walk(root, followlinks=False):
         current_path = Path(current)
         if exclude_agent_extensions and current_path == root:
-            dirs[:] = [name for name in dirs if name != ".harness-agents"]
+            dirs[:] = [name for name in dirs if name != ".pipe-agents"]
         dirs[:] = sorted(name for name in dirs if name != ".DS_Store")
         for dirname in list(dirs):
             candidate = current_path / dirname
             if candidate.is_symlink():
-                fail("HB011", "Symlinks are not allowed in generated source trees", sources=(candidate.as_posix(),))
+                fail("PB011", "Symlinks are not allowed in generated source trees", sources=(candidate.as_posix(),))
         for filename in sorted(files):
             if filename == ".DS_Store":
                 continue
             path = current_path / filename
             if path.is_symlink():
-                fail("HB011", "Symlinks are not allowed in generated source trees", sources=(path.as_posix(),))
+                fail("PB011", "Symlinks are not allowed in generated source trees", sources=(path.as_posix(),))
             if not path.is_file():
-                fail("HB011", "Unsupported source file kind", sources=(path.as_posix(),))
+                fail("PB011", "Unsupported source file kind", sources=(path.as_posix(),))
             output.append(path)
     return output
 
 
 def provider_cache_root(root: Path) -> Path:
-    cache = root / ".harness-builder" / "cache"
+    cache = root / ".pipebuilder" / "cache"
     try:
         root_resolved = root.resolve()
         resolved = cache.resolve()
     except (OSError, RuntimeError) as exc:
-        fail("HB011", f"Unsafe HarnessBuilder cache path: {exc}")
+        fail("PB011", f"Unsafe PipeBuilder cache path: {exc}")
     if root_resolved not in resolved.parents:
-        fail("HB011", "HarnessBuilder cache must not escape the Harness Space", sources=(str(cache),))
+        fail("PB011", "PipeBuilder cache must not escape the PipeSpace", sources=(str(cache),))
     return resolved
 
 
@@ -1102,7 +1106,7 @@ def git_source_url(root: Path, configured: str) -> str:
 def run_git(arguments: list[str], *, binary: bool = False) -> str | bytes:
     executable = shutil.which("git")
     if executable is None:
-        fail("HB005", "Git Provider requires the git executable", action="Install Git or remove the Git Provider.")
+        fail("PB005", "Git Provider requires the git executable", action="Install Git or remove the Git Provider.")
     try:
         completed = subprocess.run(
             [executable, *arguments],
@@ -1115,11 +1119,11 @@ def run_git(arguments: list[str], *, binary: bool = False) -> str | bytes:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        fail("HB005", f"Git Provider command failed: {exc}", action="Verify Git availability and the Provider URL.")
+        fail("PB005", f"Git Provider command failed: {exc}", action="Verify Git availability and the Provider URL.")
     if completed.returncode != 0:
         stderr = completed.stderr.decode("utf-8", "replace") if binary else completed.stderr
         detail = (stderr or "Git command failed").strip().splitlines()[-1]
-        fail("HB005", f"Git Provider resolution failed: {detail}", action="Verify the URL, branch/tag, credentials, and cache state.")
+        fail("PB005", f"Git Provider resolution failed: {detail}", action="Verify the URL, branch/tag, credentials, and cache state.")
     return completed.stdout
 
 
@@ -1165,20 +1169,20 @@ def extract_git_snapshot(archive: bytes, destination: Path) -> None:
                     continue
                 parts = Path(name).parts
                 if member.name.startswith("/") or any(part in {"", ".", ".."} for part in parts):
-                    fail("HB011", f"Unsafe path in Git Provider archive: {member.name}")
+                    fail("PB011", f"Unsafe path in Git Provider archive: {member.name}")
                 collision_key = unicodedata.normalize("NFC", name).casefold()
                 if collision_key in seen:
-                    fail("HB011", f"Portable path collision in Git Provider archive: {member.name}")
+                    fail("PB011", f"Portable path collision in Git Provider archive: {member.name}")
                 seen.add(collision_key)
                 target = temporary.joinpath(*parts)
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                     continue
                 if not member.isfile():
-                    fail("HB011", f"Git Provider archives may contain only files and directories: {member.name}")
+                    fail("PB011", f"Git Provider archives may contain only files and directories: {member.name}")
                 source = bundle.extractfile(member)
                 if source is None:
-                    fail("HB011", f"Cannot read Git Provider archive member: {member.name}")
+                    fail("PB011", f"Cannot read Git Provider archive member: {member.name}")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with target.open("wb") as output:
                     shutil.copyfileobj(source, output)
@@ -1221,7 +1225,7 @@ def load_git_provider(
     if not mirror.is_dir():
         if offline:
             fail(
-                "HB005",
+                "PB005",
                 f"Offline Git Provider cache is missing: {url}",
                 sources=(url,),
                 action="Run an online build once to populate the Git Provider cache.",
@@ -1255,7 +1259,7 @@ def load_git_provider(
     locked = locked_git_provider(previous, provider_id, url, selector_kind, selector_value, subdir)
     if offline and locked is None:
         fail(
-            "HB005",
+            "PB005",
             f"Offline Git Provider has no matching locked commit: {url}",
             sources=(url,),
             action="Run an online build after configuring this Git Provider, then retry with --offline.",
@@ -1269,7 +1273,7 @@ def load_git_provider(
         assert isinstance(resolved, str)
         commit = resolved.strip()
         if re.fullmatch(r"[0-9a-f]{40,64}", commit) is None:
-            fail("HB005", f"Git Provider returned an invalid commit for {selector_kind} {selector_value}")
+            fail("PB005", f"Git Provider returned an invalid commit for {selector_kind} {selector_value}")
     command = item.get("command")
     subdir_hash = hashlib.sha256(subdir.encode()).hexdigest()[:16]
     source_snapshot = cache / "snapshots" / commit / ("full" if command is not None else subdir_hash)
@@ -1280,11 +1284,11 @@ def load_git_provider(
         extract_git_snapshot(archive, source_snapshot)
     snapshot = source_snapshot / subdir if command is not None and subdir != "." else source_snapshot
     if not snapshot.is_dir():
-        fail("HB005", f"Git Provider subdir is not a directory: {subdir}", sources=(url, subdir))
+        fail("PB005", f"Git Provider subdir is not a directory: {subdir}", sources=(url, subdir))
     snapshot_digest = tree_digest(snapshot)
     if offline and locked is not None and snapshot_digest != locked["digest"]:
         fail(
-            "HB010",
+            "PB010",
             f"Locked Git Provider cache digest changed: {url}",
             sources=(url,),
             action="Delete the affected cache entry and run an online build to restore the immutable snapshot.",
@@ -1316,7 +1320,7 @@ def load_providers(
     providers: list[Provider] = []
     seen_folder_roots: dict[str, str] = {}
     generated_roots = [root / name for name in (".codex", ".cursor", ".codebuddy", ".claude", ".agents")]
-    specs = [{"type": "folder", "path": ".harness-builder/skills", "subdir": "."}, *manifest.providers]
+    specs = [{"type": "folder", "path": ".pipebuilder/skills", "subdir": "."}, *manifest.providers]
     for priority, item in enumerate(specs):
         if item["type"] == "git":
             providers.append(load_git_provider(root, item, priority, previous, offline))
@@ -1329,16 +1333,16 @@ def load_providers(
             source_root = (root / configured).resolve()
             provider_root = (source_root / subdir).resolve()
         except (OSError, RuntimeError) as exc:
-            fail("HB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
+            fail("PB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
         if provider_id == "space-local" and not provider_root.exists():
             providers.append(Provider(provider_id, provider_root, source_root, configured, priority, tree_digest(provider_root), subdir=subdir))
             continue
         if not provider_root.is_dir():
-            fail("HB005", f"Skill provider directory not found: {configured}", sources=(configured,))
+            fail("PB005", f"Skill provider directory not found: {configured}", sources=(configured,))
         resolved_key = os.path.normcase(str(provider_root))
         if resolved_key in seen_folder_roots:
             fail(
-                "HB001",
+                "PB001",
                 f"Folder Providers resolve to the same directory: {seen_folder_roots[resolved_key]} and {configured}",
                 sources=(seen_folder_roots[resolved_key], configured),
             )
@@ -1346,7 +1350,7 @@ def load_providers(
         for generated in generated_roots:
             generated_resolved = generated.resolve()
             if provider_root == generated_resolved or generated_resolved in provider_root.parents:
-                fail("HB011", f"Provider cannot be inside generated target: {configured}", sources=(configured,))
+                fail("PB011", f"Provider cannot be inside generated target: {configured}", sources=(configured,))
         providers.append(
             Provider(
                 provider_id,
@@ -1369,16 +1373,16 @@ def read_skill(provider: Provider, directory: Path) -> Skill:
     description = meta.get("description")
     tags = meta.get("tags", [])
     if not isinstance(name, str) or not NAME_RE.fullmatch(name):
-        fail("HB008", "Skill name must match ^[a-z][a-z0-9-]*$", sources=(skill_md.as_posix(),))
+        fail("PB008", "Skill name must match ^[a-z][a-z0-9-]*$", sources=(skill_md.as_posix(),))
     if name != directory.name:
-        fail("HB008", f"Skill name must match directory name: expected {directory.name}, got {name}", sources=(skill_md.as_posix(),))
+        fail("PB008", f"Skill name must match directory name: expected {directory.name}, got {name}", sources=(skill_md.as_posix(),))
     if not isinstance(description, str) or not description.strip():
-        fail("HB008", "Skill description must be non-empty", sources=(skill_md.as_posix(),))
+        fail("PB008", "Skill description must be non-empty", sources=(skill_md.as_posix(),))
     if not isinstance(tags, list) or any(not isinstance(tag, str) or not tag for tag in tags):
-        fail("HB008", "Skill tags must be an array of non-empty strings", sources=(skill_md.as_posix(),))
+        fail("PB008", "Skill tags must be an array of non-empty strings", sources=(skill_md.as_posix(),))
     if len(set(tags)) != len(tags):
-        fail("HB008", "Skill tags must not contain duplicates", sources=(skill_md.as_posix(),))
-    validate_agent_namespace(directory / ".harness-agents", f"Skill {name}")
+        fail("PB008", "Skill tags must not contain duplicates", sources=(skill_md.as_posix(),))
+    validate_agent_namespace(directory / ".pipe-agents", f"Skill {name}")
     return Skill(name, description, list(tags), directory, provider, tree_digest(directory))
 
 
@@ -1386,17 +1390,17 @@ def validate_agent_namespace(path: Path, label: str) -> None:
     if not path.exists() and not path.is_symlink():
         return
     if path.is_symlink() or not path.is_dir():
-        fail("HB009", f"{label} agent namespace must be a real directory", sources=(path.as_posix(),))
+        fail("PB009", f"{label} agent namespace must be a real directory", sources=(path.as_posix(),))
     for child in sorted(path.iterdir(), key=lambda item: item.name.casefold()):
         if child.name not in AGENTS:
             fail(
-                "HB009",
+                "PB009",
                 f"Unknown Agent namespace {child.name} in {label}",
                 sources=(child.as_posix(),),
                 action="Use one of: " + ", ".join(AGENTS),
             )
         if child.is_symlink() or not child.is_dir():
-            fail("HB009", f"Agent namespace must be a real directory: {child.name}", sources=(child.as_posix(),))
+            fail("PB009", f"Agent namespace must be a real directory: {child.name}", sources=(child.as_posix(),))
 
 
 def resolve_skills(providers: list[Provider], manifest: Manifest, warnings: list[Diagnostic]) -> tuple[list[Skill], dict[str, Skill]]:
@@ -1408,7 +1412,7 @@ def resolve_skills(providers: list[Provider], manifest: Manifest, warnings: list
             if not directory.is_dir() or directory.is_symlink():
                 continue
             if not (directory / "SKILL.md").is_file():
-                fail("HB008", f"Skill provider child is missing SKILL.md: {directory.name}", sources=(directory.as_posix(),))
+                fail("PB008", f"Skill provider child is missing SKILL.md: {directory.name}", sources=(directory.as_posix(),))
             skill = read_skill(provider, directory)
             candidates.setdefault(skill.name, []).append(skill)
     resolved: dict[str, Skill] = {}
@@ -1422,7 +1426,7 @@ def resolve_skills(providers: list[Provider], manifest: Manifest, warnings: list
             warnings.append(
                 Diagnostic(
                     "warn",
-                    "HBW001",
+                    "PBW001",
                     f"Skill {name} shadows {len(winner.shadowed)} lower-priority candidate(s)",
                     tuple(item["path"] for item in winner.shadowed),
                 )
@@ -1434,7 +1438,7 @@ def resolve_skills(providers: list[Provider], manifest: Manifest, warnings: list
     explicit: list[str] = []
     for name in manifest.skills:
         if name not in resolved:
-            fail("HB007", f"Selected skill not found: {name}", sources=(manifest.path.as_posix(),))
+            fail("PB007", f"Selected skill not found: {name}", sources=(manifest.path.as_posix(),))
         explicit.append(name)
     selected_names = set(local_names) | set(explicit)
     tag_names: set[str] = set()
@@ -1460,23 +1464,23 @@ def resolve_skills(providers: list[Provider], manifest: Manifest, warnings: list
 
 def workspace_rule(manifest: Manifest, workspace: Workspace) -> str:
     lines = [
-        "# HarnessBuilder Workspace",
+        "# PipeBuilder Workspace",
         "",
-        f"Harness Space: `{manifest.name}`",
+        f"PipeSpace: `{manifest.name}`",
         f"Workspace: `{workspace.path.name}`",
         "",
         "## Folders (declared order)",
         "",
     ]
     for folder in workspace.folders:
-        topology = "same directory as Harness Space" if folder.path == "." else "directory-decoupled"
+        topology = "same directory as PipeSpace" if folder.path == "." else "directory-decoupled"
         lines.append(f"- `{folder.name}`: `{folder.path}` ({topology})")
     lines.extend(
         [
             "",
             "Folder order does not imply primary/reference, writable/read-only, validation, or commit boundaries.",
             "The .code-workspace file is the source of truth; this file is a generated projection.",
-            "Do not edit platform targets or .harness-builder state directly.",
+            "Do not edit platform targets or .pipebuilder state directly.",
             "",
         ]
     )
@@ -1499,28 +1503,28 @@ class Planner:
         key = unicodedata.normalize("NFC", target).casefold()
         existing = self.case_targets.get(key)
         if existing is not None and existing != target:
-            fail("HB010", f"Portable target path collision: {existing} vs {target}", target=target)
+            fail("PB010", f"Portable target path collision: {existing} vs {target}", target=target)
         self.case_targets[key] = target
         contribution.target = target
         self.contributions.setdefault(target, []).append(contribution)
 
     def build(self) -> list[Operation]:
         rule = workspace_rule(self.manifest, self.workspace).encode()
-        self.add(Contribution(".harness-builder/generated/workspace-rule.md", rule, "core:workspace", "workspace-rule"))
+        self.add(Contribution(".pipebuilder/generated/workspace-rule.md", rule, "core:workspace", "workspace-rule"))
         for agent in self.manifest.agents:
             self.install_common_skills(agent)
             self.add_workspace_projection(agent, rule)
             sources: list[tuple[Path, str]] = []
-            space_source = self.root / ".harness-builder" / "agents" / agent
+            space_source = self.root / ".pipebuilder" / "agents" / agent
             if space_source.exists():
                 sources.append((space_source, f"space:agents/{agent}"))
             for skill in self.skills:
-                skill_source = skill.root / ".harness-agents" / agent
+                skill_source = skill.root / ".pipe-agents" / agent
                 if skill_source.exists():
                     sources.append((skill_source, f"skill:{skill.name}"))
             for source_root, source_id in sources:
                 if not source_root.is_dir() or source_root.is_symlink():
-                    fail("HB009", "Agent source root must be a real directory", sources=(source_root.as_posix(),))
+                    fail("PB009", "Agent source root must be a real directory", sources=(source_root.as_posix(),))
                 validate_agent_source_directories(agent, source_root)
                 self.scan_agent_source(agent, source_root, source_id)
         return self.finalize()
@@ -1551,12 +1555,12 @@ class Planner:
         if agent == "codex":
             self.add(Contribution("AGENTS.md", rule, "core:workspace", "project-instructions", "concat"))
         elif agent == "cursor":
-            prefix = b"---\ndescription: HarnessBuilder workspace folder inventory.\nalwaysApply: true\n---\n\n"
-            self.add(Contribution(".cursor/rules/harnessbuilder-workspace.mdc", prefix + rule, "core:workspace", "workspace-rule"))
+            prefix = b"---\ndescription: PipeBuilder workspace folder inventory.\nalwaysApply: true\n---\n\n"
+            self.add(Contribution(".cursor/rules/pipebuilder-workspace.mdc", prefix + rule, "core:workspace", "workspace-rule"))
         elif agent == "codebuddy":
-            self.add(Contribution(".codebuddy/rules/harnessbuilder-workspace.md", rule, "core:workspace", "workspace-rule"))
+            self.add(Contribution(".codebuddy/rules/pipebuilder-workspace.md", rule, "core:workspace", "workspace-rule"))
         else:
-            self.add(Contribution(".claude/rules/harnessbuilder-workspace.md", rule, "core:workspace", "workspace-rule"))
+            self.add(Contribution(".claude/rules/pipebuilder-workspace.md", rule, "core:workspace", "workspace-rule"))
 
     def scan_agent_source(self, agent: str, source_root: Path, source_id: str) -> None:
         for path in walk_tree(source_root):
@@ -1573,7 +1577,7 @@ class Planner:
                 missing = sorted(set(references) - selected_names) if isinstance(references, list) else []
                 if missing:
                     fail(
-                        "HB009",
+                        "PB009",
                         "Claude agent references unselected or missing Skills: " + ", ".join(missing),
                         sources=(path.as_posix(),),
                         semantic_key="skills",
@@ -1584,7 +1588,7 @@ class Planner:
                 previous_target = self.semantic_targets.get(semantic_key)
                 if previous_target is not None and previous_target != target:
                     fail(
-                        "HB010",
+                        "PB010",
                         f"Conflicting agent semantic key {semantic_key}: {previous_target} vs {target}",
                         sources=(f"{source_id}:{relative}",),
                         target=target,
@@ -1595,7 +1599,7 @@ class Planner:
                 self.warnings.append(
                     Diagnostic(
                         "warn",
-                        "HBW002",
+                        "PBW002",
                         f"Claude Code custom command is a compatibility surface; prefer a Skill: {relative}",
                         (f"{source_id}:{relative}",),
                         target,
@@ -1616,7 +1620,7 @@ class Planner:
                     self.warnings.append(
                         Diagnostic(
                             "warn",
-                            "HBW003",
+                            "PBW003",
                             f"Review {risk['kind']} in {relative}",
                             (risk["source"],),
                             target,
@@ -1642,12 +1646,12 @@ class Planner:
         for target, contributions in sorted(self.contributions.items()):
             merge_types = {item.merge for item in contributions}
             if len(merge_types) != 1:
-                fail("HB010", f"Incompatible contributions for {target}", sources=(item.source for item in contributions), target=target)
+                fail("PB010", f"Incompatible contributions for {target}", sources=(item.source for item in contributions), target=target)
             merge = contributions[0].merge
             if merge == "plain":
                 digests = {sha256_bytes(item.content) for item in contributions}
                 if len(digests) != 1:
-                    fail("HB010", f"Conflicting generated target: {target}", sources=(item.source for item in contributions), target=target)
+                    fail("PB010", f"Conflicting generated target: {target}", sources=(item.source for item in contributions), target=target)
                 content = contributions[0].content
                 operation = "copy" if not contributions[0].source.startswith("core:") else "render"
             elif merge == "concat":
@@ -1707,11 +1711,11 @@ def validate_agent_source_directories(agent: str, source_root: Path) -> None:
             path = current_path / name
             relative = path.relative_to(source_root).as_posix()
             if path.is_symlink():
-                fail("HB011", "Symlinks are not allowed in Agent source trees", sources=(path.as_posix(),))
+                fail("PB011", "Symlinks are not allowed in Agent source trees", sources=(path.as_posix(),))
             allowed = relative == platform_root or any(relative == surface or relative.startswith(surface + "/") for surface in surfaces)
             if not allowed:
                 fail(
-                    "HB009",
+                    "PB009",
                     f"Unsupported {agent} native directory: {relative}",
                     sources=(path.as_posix(),),
                     action="Use a supported path from the agent adapter specification.",
@@ -1721,7 +1725,7 @@ def validate_agent_source_directories(agent: str, source_root: Path) -> None:
 def normalize_target(target: str) -> str:
     path = Path(target)
     if path.is_absolute() or not target or any(part in ("", ".", "..") for part in path.parts):
-        fail("HB011", f"Unsafe generated target: {target}", target=target)
+        fail("PB011", f"Unsafe generated target: {target}", target=target)
     normalized = path.as_posix()
     reserved = {"con", "prn", "aux", "nul"} | {f"com{index}" for index in range(1, 10)} | {f"lpt{index}" for index in range(1, 10)}
     for part in path.parts:
@@ -1733,12 +1737,12 @@ def normalize_target(target: str) -> str:
             or any(character in part for character in '<>:"|?*\\')
             or any(ord(character) < 32 for character in part)
         ):
-            fail("HB011", f"Generated target is not portable: {target}", target=target)
-    forbidden = ("harness-space.json",)
+            fail("PB011", f"Generated target is not portable: {target}", target=target)
+    forbidden = ("pipespace.json",)
     if normalized in forbidden or normalized.endswith(".code-workspace"):
-        fail("HB011", f"Generated target points to Human-owned input: {normalized}", target=normalized)
-    if normalized.startswith(".harness-builder/agents/") or normalized.startswith(".harness-builder/skills/"):
-        fail("HB011", f"Generated target points to Builder source: {normalized}", target=normalized)
+        fail("PB011", f"Generated target points to Human-owned input: {normalized}", target=normalized)
+    if normalized.startswith(".pipebuilder/agents/") or normalized.startswith(".pipebuilder/skills/"):
+        fail("PB011", f"Generated target points to Builder source: {normalized}", target=normalized)
     return normalized
 
 
@@ -1755,7 +1759,7 @@ def classify_agent_path(agent: str, relative: str, source_path: Path) -> tuple[s
         if relative.startswith(".codex/hooks/"):
             return relative, "codex-hook-file", "plain"
         if relative.startswith(".codex/commands/"):
-            fail("HB009", "Codex commands are unsupported; use a Skill", sources=(source_path.as_posix(),))
+            fail("PB009", "Codex commands are unsupported; use a Skill", sources=(source_path.as_posix(),))
     elif agent == "cursor":
         if relative.startswith(".cursor/rules/") and relative.endswith(".mdc"):
             validate_cursor_rule(source_path)
@@ -1775,7 +1779,7 @@ def classify_agent_path(agent: str, relative: str, source_path: Path) -> tuple[s
         if relative.startswith(".codebuddy/hooks/"):
             return relative, "codebuddy-hook-file", "plain"
         if relative.startswith(".codebuddy/rules/"):
-            fail("HB009", "CodeBuddy rules are gated until a client fixture locks the schema", sources=(source_path.as_posix(),))
+            fail("PB009", "CodeBuddy rules are gated until a client fixture locks the schema", sources=(source_path.as_posix(),))
     elif agent == "claude-code":
         if relative == "CLAUDE.md":
             return relative, "project-instructions", "concat"
@@ -1794,7 +1798,7 @@ def classify_agent_path(agent: str, relative: str, source_path: Path) -> tuple[s
         if relative.startswith(".claude/hooks/"):
             return relative, "claude-hook-file", "plain"
     fail(
-        "HB009",
+        "PB009",
         f"Unsupported {agent} native artifact: {relative}",
         sources=(source_path.as_posix(),),
         action="Use a supported path from the agent adapter specification.",
@@ -1820,46 +1824,46 @@ def agent_semantic_key(agent: str, relative: str, source_path: Path) -> str | No
 def validate_cursor_rule(path: Path) -> None:
     data = parse_frontmatter_generic(path)
     if not any(key in data and str(data[key]).strip() for key in ("description", "alwaysApply", "globs")):
-        fail("HB009", "Cursor rule must declare description, alwaysApply, or globs", sources=(path.as_posix(),))
+        fail("PB009", "Cursor rule must declare description, alwaysApply, or globs", sources=(path.as_posix(),))
 
 
 def parse_json_document(content: bytes, source: Path) -> Any:
     try:
         value = json.loads(content.decode())
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        fail("HB009", f"Invalid JSON agent source: {exc}", sources=(source.as_posix(),))
+        fail("PB009", f"Invalid JSON agent source: {exc}", sources=(source.as_posix(),))
     if not isinstance(value, dict):
-        fail("HB009", "Agent JSON document must contain an object", sources=(source.as_posix(),))
+        fail("PB009", "Agent JSON document must contain an object", sources=(source.as_posix(),))
     return value
 
 
 def require_hook_mapping(value: Any, source: Path, *, codex: bool = False) -> None:
     hooks = value.get("hooks") if isinstance(value, dict) else None
     if not isinstance(hooks, dict):
-        fail("HB009", "Hook document must contain a hooks object", sources=(source.as_posix(),))
+        fail("PB009", "Hook document must contain a hooks object", sources=(source.as_posix(),))
     for event, groups in hooks.items():
         if not isinstance(event, str) or not event or not isinstance(groups, list):
-            fail("HB009", f"Hook event {event!r} must contain a list", sources=(source.as_posix(),))
+            fail("PB009", f"Hook event {event!r} must contain a list", sources=(source.as_posix(),))
         for group in groups:
             if not isinstance(group, dict):
-                fail("HB009", f"Hook event {event} contains a non-object group", sources=(source.as_posix(),))
+                fail("PB009", f"Hook event {event} contains a non-object group", sources=(source.as_posix(),))
             if codex:
                 matcher = group.get("matcher")
                 handlers = group.get("hooks")
                 if matcher is not None and not isinstance(matcher, str):
-                    fail("HB009", f"Codex hook matcher for {event} must be a string", sources=(source.as_posix(),))
+                    fail("PB009", f"Codex hook matcher for {event} must be a string", sources=(source.as_posix(),))
                 if not isinstance(handlers, list) or not handlers:
-                    fail("HB009", f"Codex hook group for {event} must contain hooks", sources=(source.as_posix(),))
+                    fail("PB009", f"Codex hook group for {event} must contain hooks", sources=(source.as_posix(),))
             else:
                 handlers = group.get("hooks") if "hooks" in group else [group]
             for handler in handlers:
                 if not isinstance(handler, dict) or not isinstance(handler.get("command"), str) or not handler["command"].strip():
-                    fail("HB009", f"Hook handler for {event} must contain a command", sources=(source.as_posix(),))
+                    fail("PB009", f"Hook handler for {event} must contain a command", sources=(source.as_posix(),))
                 if codex and handler.get("type") != "command":
-                    fail("HB009", f"Codex hook handler for {event} must use type=command", sources=(source.as_posix(),))
+                    fail("PB009", f"Codex hook handler for {event} must use type=command", sources=(source.as_posix(),))
                 timeout = handler.get("timeout")
                 if timeout is not None and (not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0):
-                    fail("HB009", f"Hook timeout for {event} must be positive", sources=(source.as_posix(),))
+                    fail("PB009", f"Hook timeout for {event} must be positive", sources=(source.as_posix(),))
 
 
 def contains_value(value: Any, expected: str) -> bool:
@@ -1873,12 +1877,12 @@ def contains_value(value: Any, expected: str) -> bool:
 def validate_mcp_document(value: dict[str, Any], source: Path) -> None:
     servers = value.get("mcpServers")
     if not isinstance(servers, dict):
-        fail("HB009", "MCP document must contain an mcpServers object", sources=(source.as_posix(),))
+        fail("PB009", "MCP document must contain an mcpServers object", sources=(source.as_posix(),))
     for name, server in servers.items():
         if not isinstance(name, str) or not name or not isinstance(server, dict):
-            fail("HB009", "MCP servers must be named objects", sources=(source.as_posix(),))
+            fail("PB009", "MCP servers must be named objects", sources=(source.as_posix(),))
         if not any(isinstance(server.get(key), str) and server[key].strip() for key in ("command", "url", "type")):
-            fail("HB009", f"MCP server {name} must declare command, url, or type", sources=(source.as_posix(),))
+            fail("PB009", f"MCP server {name} must declare command, url, or type", sources=(source.as_posix(),))
 
 
 def validate_agent_json(logical_type: str, value: dict[str, Any], source: Path) -> None:
@@ -1887,7 +1891,7 @@ def validate_agent_json(logical_type: str, value: dict[str, Any], source: Path) 
     elif logical_type in {"codebuddy-settings", "claude-settings"}:
         if logical_type == "claude-settings" and contains_value(value, "bypassPermissions"):
             fail(
-                "HB011",
+                "PB011",
                 "Claude project settings must not enable bypassPermissions",
                 sources=(source.as_posix(),),
                 semantic_key="permissions.defaultMode",
@@ -1934,7 +1938,7 @@ def lint_embedded_command_secrets(value: Any, source: str) -> None:
                     r"(?i)\bauthorization\s*[:=]\s*(?!bearer\b)(?!\$\{|\$[A-Za-z_])[^\s'\"]+",
                 )
                 if any(re.search(pattern, child) for pattern in patterns):
-                    fail("HB011", "Secret literal is forbidden in hook command", sources=(source,), semantic_key="command")
+                    fail("PB011", "Secret literal is forbidden in hook command", sources=(source,), semantic_key="command")
             lint_embedded_command_secrets(child, source)
     elif isinstance(value, list):
         for child in value:
@@ -1945,7 +1949,7 @@ def codex_rule_risks(content: bytes, source: str) -> list[dict[str, str]]:
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError:
-        fail("HB009", "Codex rule must be UTF-8", sources=(source,))
+        fail("PB009", "Codex rule must be UTF-8", sources=(source,))
     risks = [{"kind": "experimental-platform-surface", "source": source, "semanticKey": "codex.rules"}]
     if re.search(r"decision\s*=\s*[\"']allow[\"']", text):
         risks.append({"kind": "allow-policy", "source": source, "semanticKey": "codex.rules.decision"})
@@ -2150,7 +2154,7 @@ def _toml_assign(root: dict[str, Any], path: list[str], value: Any) -> None:
 
 
 def _compat_toml_loads(text: str) -> dict[str, Any]:
-    """Parse the TOML value surface HarnessBuilder can deterministically render."""
+    """Parse the TOML value surface PipeBuilder can deterministically render."""
     statements: list[str] = []
     pending = ""
     for line in text.splitlines():
@@ -2203,7 +2207,7 @@ def parse_toml_document(content: bytes, source: Path) -> dict[str, Any]:
         text = content.decode()
         value = _tomllib.loads(text) if _tomllib is not None else _compat_toml_loads(text)
     except (UnicodeDecodeError, ValueError) as exc:
-        fail("HB009", f"Invalid TOML agent source: {exc}", sources=(source.as_posix(),))
+        fail("PB009", f"Invalid TOML agent source: {exc}", sources=(source.as_posix(),))
     return value
 
 
@@ -2229,7 +2233,7 @@ def semantic_merge(left: Any, right: Any, target: str, source: str, key: str = "
                 identities.add(identity)
         return result
     fail(
-        "HB010",
+        "PB010",
         f"Semantic conflict in {target} at {key or '<root>'}",
         sources=(source,),
         target=target,
@@ -2245,7 +2249,7 @@ def lint_secrets(value: Any, source: str, key: str = "") -> None:
                 stripped = child.strip()
                 allowed = stripped.startswith(("${", "$", "env:", "keyring:", "credential-helper:"))
                 if not allowed:
-                    fail("HB011", f"Secret literal is forbidden at {child_path}", sources=(source,), semantic_key=child_path)
+                    fail("PB011", f"Secret literal is forbidden at {child_path}", sources=(source,), semantic_key=child_path)
             lint_secrets(child, source, child_path)
     elif isinstance(value, list):
         for index, child in enumerate(value):
@@ -2256,7 +2260,7 @@ def lint_codex_project_config(value: dict[str, Any], source: str) -> None:
     forbidden = sorted(CODEX_FORBIDDEN_PROJECT_KEYS.intersection(value))
     if forbidden:
         fail(
-            "HB011",
+            "PB011",
             "Codex project config contains user/machine-level keys: " + ", ".join(forbidden),
             sources=(source,),
             semantic_key=forbidden[0],
@@ -2265,7 +2269,7 @@ def lint_codex_project_config(value: dict[str, Any], source: str) -> None:
 
 
 def render_instruction_document(target: str, contributions: list[Contribution]) -> bytes:
-    chunks = ["<!-- Generated by HarnessBuilder. Edit .harness-builder/agents or Skill .harness-agents sources. -->", ""]
+    chunks = ["<!-- Generated by PipeBuilder. Edit .pipebuilder/agents or Skill .pipe-agents sources. -->", ""]
     seen: set[str] = set()
     for item in contributions:
         digest = sha256_bytes(item.content)
@@ -2275,7 +2279,7 @@ def render_instruction_document(target: str, contributions: list[Contribution]) 
         try:
             body = item.content.decode().strip()
         except UnicodeDecodeError:
-            fail("HB009", f"{target} source must be UTF-8", sources=(item.source,), target=target)
+            fail("PB009", f"{target} source must be UTF-8", sources=(item.source,), target=target)
         if not body:
             continue
         chunks.extend((f"<!-- source: {item.source} -->", body, ""))
@@ -2295,11 +2299,11 @@ def toml_value(value: Any) -> str:
         return str(value)
     if isinstance(value, float):
         if value != value or value in (float("inf"), float("-inf")):
-            fail("HB009", "Non-finite TOML floats are unsupported")
+            fail("PB009", "Non-finite TOML floats are unsupported")
         return repr(value)
     if isinstance(value, list) and all(not isinstance(item, (dict, list)) for item in value):
         return "[" + ", ".join(toml_value(item) for item in value) + "]"
-    fail("HB009", f"Unsupported TOML value type: {type(value).__name__}")
+    fail("PB009", f"Unsupported TOML value type: {type(value).__name__}")
 
 
 def render_toml(value: dict[str, Any]) -> str:
@@ -2322,29 +2326,29 @@ def render_toml(value: dict[str, Any]) -> str:
 
 
 def load_previous_lock(root: Path) -> dict[str, Any] | None:
-    path = root / ".harness-builder" / "lock.json"
+    path = root / ".pipebuilder" / "lock.json"
     if not path.exists():
         return None
     if path.is_symlink():
-        fail("HB011", "Ownership lock must not be a symlink", sources=(path.as_posix(),))
-    raw = read_json(path, "HB001", "lock")
-    required = {"schema", "builder", "space", "agents", "providers", "skills", "artifacts"}
+        fail("PB011", "Ownership lock must not be a symlink", sources=(path.as_posix(),))
+    raw = read_json(path, "PB001", "lock")
+    required = {"schema", "builder", "pipespace", "agents", "providers", "skills", "artifacts"}
     if (
         not isinstance(raw, dict)
         or not required.issubset(raw)
         or set(raw) - required - {"generatedAt"}
         or raw.get("schema") != LOCK_SCHEMA
     ):
-        fail("HB001", "Invalid .harness-builder/lock.json", sources=(path.as_posix(),))
+        fail("PB001", "Invalid .pipebuilder/lock.json", sources=(path.as_posix(),))
     builder = raw.get("builder")
     if (
         not isinstance(builder, dict)
         or not isinstance(builder.get("version"), str)
         or not valid_digest(builder.get("digest"))
-        or not isinstance(raw.get("space"), dict)
+        or not isinstance(raw.get("pipespace"), dict)
         or any(not isinstance(raw.get(key), list) for key in ("agents", "providers", "skills", "artifacts"))
     ):
-        fail("HB001", "Invalid .harness-builder/lock.json structure", sources=(path.as_posix(),))
+        fail("PB001", "Invalid .pipebuilder/lock.json structure", sources=(path.as_posix(),))
     for index, artifact in enumerate(raw["artifacts"]):
         validate_lock_artifact(artifact, index, path)
     return raw
@@ -2357,10 +2361,10 @@ def valid_digest(value: Any) -> bool:
 def managed_target_matches(logical_type: str, target: str) -> bool:
     exact: dict[str, set[str]] = {
         "workspace-rule": {
-            ".harness-builder/generated/workspace-rule.md",
-            ".cursor/rules/harnessbuilder-workspace.mdc",
-            ".codebuddy/rules/harnessbuilder-workspace.md",
-            ".claude/rules/harnessbuilder-workspace.md",
+            ".pipebuilder/generated/workspace-rule.md",
+            ".cursor/rules/pipebuilder-workspace.mdc",
+            ".codebuddy/rules/pipebuilder-workspace.md",
+            ".claude/rules/pipebuilder-workspace.md",
         },
         "project-instructions": {"AGENTS.md", "CLAUDE.md"},
         "codex-config": {".codex/config.toml"},
@@ -2400,7 +2404,7 @@ def validate_lock_artifact(artifact: Any, index: int, path: Path) -> None:
     required = {"target", "sources", "logicalType", "operation", "digest", "executable"}
     optional = {"semanticKey", "risks"}
     if not isinstance(artifact, dict) or not required.issubset(artifact) or set(artifact) - required - optional:
-        fail("HB001", f"Invalid lock artifact at index {index}", sources=(path.as_posix(),))
+        fail("PB001", f"Invalid lock artifact at index {index}", sources=(path.as_posix(),))
     target = artifact.get("target")
     logical_type = artifact.get("logicalType")
     sources = artifact.get("sources")
@@ -2415,13 +2419,13 @@ def validate_lock_artifact(artifact: Any, index: int, path: Path) -> None:
         or not valid_digest(artifact.get("digest"))
         or not isinstance(artifact.get("executable"), bool)
     ):
-        fail("HB001", f"Invalid lock artifact fields at index {index}", sources=(path.as_posix(),))
+        fail("PB001", f"Invalid lock artifact fields at index {index}", sources=(path.as_posix(),))
     normalized = normalize_target(target)
     if not managed_target_matches(logical_type, normalized):
-        fail("HB001", f"Lock artifact target is not valid for {logical_type}: {target}", sources=(path.as_posix(),))
+        fail("PB001", f"Lock artifact target is not valid for {logical_type}: {target}", sources=(path.as_posix(),))
     risks = artifact.get("risks", [])
     if not isinstance(risks, list) or any(not isinstance(item, dict) for item in risks):
-        fail("HB001", f"Invalid lock artifact risks at index {index}", sources=(path.as_posix(),))
+        fail("PB001", f"Invalid lock artifact risks at index {index}", sources=(path.as_posix(),))
 
 
 def owned_targets(previous: dict[str, Any] | None) -> set[str]:
@@ -2440,39 +2444,39 @@ def check_target_conflicts(root: Path, operations: list[Operation], previous: di
         target = root / operation.target
         ensure_safe_parent(root, target)
         if target.is_symlink():
-            fail("HB011", f"Generated target is a symlink: {operation.target}", target=operation.target)
+            fail("PB011", f"Generated target is a symlink: {operation.target}", target=operation.target)
         if target.exists() and not target.is_file():
-            fail("HB010", f"Generated file target has incompatible kind: {operation.target}", target=operation.target)
+            fail("PB010", f"Generated file target has incompatible kind: {operation.target}", target=operation.target)
         if operation.target in owned or not target.exists():
             continue
         if target.is_file() and not target.is_symlink() and target.read_bytes() == operation.content:
             continue
         fail(
-            "HB010",
+            "PB010",
             f"Generated target already exists but is not owned: {operation.target}",
             target=operation.target,
-            action="Move its content into .harness-builder/agents, then remove the target and rebuild.",
+            action="Move its content into .pipebuilder/agents, then remove the target and rebuild.",
         )
     planned = {operation.target for operation in operations}
     for target_rel in sorted(owned - planned):
         target = root / target_rel
         ensure_safe_parent(root, target)
         if target.exists() and not target.is_file() and not target.is_symlink():
-            fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
+            fail("PB010", f"Owned file target changed type: {target_rel}", target=target_rel)
 
 
 def ensure_safe_parent(root: Path, target: Path) -> None:
     try:
         target.relative_to(root)
     except ValueError:
-        fail("HB011", f"Target escapes Harness Space: {target}", target=target.as_posix())
+        fail("PB011", f"Target escapes PipeSpace: {target}", target=target.as_posix())
     current = root
     for part in target.relative_to(root).parts[:-1]:
         current = current / part
         if current.is_symlink():
-            fail("HB011", f"Target parent is a symlink: {portable_rel(root, current)}", target=portable_rel(root, target))
+            fail("PB011", f"Target parent is a symlink: {portable_rel(root, current)}", target=portable_rel(root, target))
         if current.exists() and not current.is_dir():
-            fail("HB010", f"Target parent is not a directory: {portable_rel(root, current)}", target=portable_rel(root, target))
+            fail("PB010", f"Target parent is not a directory: {portable_rel(root, current)}", target=portable_rel(root, target))
 
 
 def make_lock(
@@ -2487,7 +2491,7 @@ def make_lock(
     return {
         "schema": LOCK_SCHEMA,
         "builder": {"version": VERSION, "digest": sha256_file(script)},
-        "space": {
+        "pipespace": {
             "name": manifest.name,
             "root": ".",
             "manifestDigest": sha256_file(manifest.path),
@@ -2569,7 +2573,7 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
 class BuildLock:
     def __init__(self, root: Path, filename: str = "build.lock", operation: str = "build or clean"):
         self.root = root
-        self.path = root / ".harness-builder" / filename
+        self.path = root / ".pipebuilder" / filename
         self.operation = operation
         self.acquired = False
 
@@ -2577,15 +2581,15 @@ class BuildLock:
         state_root = self.path.parent
         if state_root.is_symlink():
             fail(
-                "HB011",
-                ".harness-builder must not be a symlink",
+                "PB011",
+                ".pipebuilder must not be a symlink",
                 sources=(state_root.as_posix(),),
-                action="Replace it with a real directory inside the Harness Space.",
+                action="Replace it with a real directory inside the PipeSpace.",
             )
         if state_root.exists() and not state_root.is_dir():
-            fail("HB011", ".harness-builder must be a directory", sources=(state_root.as_posix(),))
+            fail("PB011", ".pipebuilder must be a directory", sources=(state_root.as_posix(),))
         if self.path.is_symlink():
-            fail("HB011", f"{self.path.name} must not be a symlink", sources=(self.path.as_posix(),))
+            fail("PB011", f"{self.path.name} must not be a symlink", sources=(self.path.as_posix(),))
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = json_bytes({"pid": os.getpid(), "host": socket.gethostname(), "startedAt": process_started_marker()})
         try:
@@ -2597,7 +2601,7 @@ class BuildLock:
             handle.flush()
             os.fsync(handle.fileno())
         self.acquired = True
-        hold_raw = os.environ.get("HARNESSBUILDER_TEST_HOLD_LOCK_MILLISECONDS")
+        hold_raw = os.environ.get("PIPEBUILDER_TEST_HOLD_LOCK_MILLISECONDS")
         if hold_raw:
             try:
                 hold_seconds = max(0, int(hold_raw)) / 1000
@@ -2616,13 +2620,13 @@ class BuildLock:
         host = raw.get("host") if isinstance(raw, dict) else None
         if host == socket.gethostname() and isinstance(pid, int) and not process_alive(pid):
             fail(
-                "HB014",
+                "PB014",
                 f"Stale build lock detected for pid {pid}",
                 sources=(self.path.as_posix(),),
                 action=f"Confirm the process is gone, then delete {portable_rel(self.root, self.path)}.",
             )
         fail(
-            "HB013",
+            "PB013",
             f"Another {self.operation} operation holds {portable_rel(self.root, self.path)}",
             sources=(self.path.as_posix(),),
         )
@@ -2660,7 +2664,7 @@ def atomic_write(root: Path, operation: Operation) -> None:
     ensure_safe_parent(root, target)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.is_symlink() or (target.exists() and not target.is_file()):
-        fail("HB010", f"Generated file target has incompatible kind: {operation.target}", target=operation.target)
+        fail("PB010", f"Generated file target has incompatible kind: {operation.target}", target=operation.target)
     fd, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
     temporary = Path(temporary_name)
     try:
@@ -2687,16 +2691,16 @@ def remove_owned_target(root: Path, target_rel: str) -> None:
         except FileNotFoundError:
             pass
     elif target.exists():
-        fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
+        fail("PB010", f"Owned file target changed type: {target_rel}", target=target_rel)
     prune_empty_parents(root, target.parent)
 
 
 def prune_empty_parents(root: Path, start: Path) -> None:
     protected = {
         root,
-        root / ".harness-builder",
-        root / ".harness-builder" / "agents",
-        root / ".harness-builder" / "skills",
+        root / ".pipebuilder",
+        root / ".pipebuilder" / "agents",
+        root / ".pipebuilder" / "skills",
     }
     current = start
     while current not in protected and current != root and root in current.parents:
@@ -2722,11 +2726,11 @@ class BuildModel:
 
 def plan(root: Path, *, offline: bool = False) -> BuildModel:
     if not root.is_dir():
-        fail("HB001", f"Harness Space root is not a directory: {root}")
+        fail("PB001", f"PipeSpace root is not a directory: {root}")
     detect_legacy(root)
     manifest = load_manifest(root)
     workspace = load_workspace(root, manifest)
-    validate_agent_namespace(root / ".harness-builder" / "agents", "Harness Space")
+    validate_agent_namespace(root / ".pipebuilder" / "agents", "PipeSpace")
     previous = load_previous_lock(root)
     providers = load_providers(root, manifest, previous, offline)
     warnings: list[Diagnostic] = []
@@ -2739,8 +2743,8 @@ def plan(root: Path, *, offline: bool = False) -> BuildModel:
 def apply_build(model: BuildModel) -> tuple[int, int]:
     new_targets = {operation.target for operation in model.operations}
     old_targets = owned_targets(model.previous)
-    fault_after_raw = os.environ.get("HARNESSBUILDER_TEST_FAIL_AFTER_WRITES")
-    crash_after_raw = os.environ.get("HARNESSBUILDER_TEST_CRASH_AFTER_WRITES")
+    fault_after_raw = os.environ.get("PIPEBUILDER_TEST_FAIL_AFTER_WRITES")
+    crash_after_raw = os.environ.get("PIPEBUILDER_TEST_CRASH_AFTER_WRITES")
     try:
         fault_after = int(fault_after_raw) if fault_after_raw is not None else 0
     except ValueError:
@@ -2762,7 +2766,7 @@ def apply_build(model: BuildModel) -> tuple[int, int]:
         remove_owned_target(model.root, target)
         removed += 1
     lock = make_lock(model.root, model.manifest, model.workspace, model.providers, model.skills, model.operations)
-    lock_operation = Operation(".harness-builder/lock.json", json_bytes(lock), ["core:lock"], "ownership-lock", "render")
+    lock_operation = Operation(".pipebuilder/lock.json", json_bytes(lock), ["core:lock"], "ownership-lock", "render")
     atomic_write(model.root, lock_operation)
     return len(model.operations), removed
 
@@ -2773,7 +2777,7 @@ def run_post_commands(model: BuildModel) -> int:
         if provider.command is None:
             continue
         replacements = {
-            "{spaceRoot}": str(model.root),
+            "{pipespaceRoot}": str(model.root),
             "{sourceRoot}": str(provider.source_root),
             "{providerRoot}": str(provider.root),
         }
@@ -2784,13 +2788,13 @@ def run_post_commands(model: BuildModel) -> int:
             arguments.append(argument)
         cwd = (provider.source_root / provider.command.get("cwd", ".")).resolve()
         if not cwd.is_dir():
-            fail("HB016", f"Provider post command cwd not found: {cwd}", sources=(provider.provider_id,))
+            fail("PB016", f"Provider post command cwd not found: {cwd}", sources=(provider.provider_id,))
         env = os.environ.copy()
         env.update(
             {
-                "HARNESS_SPACE_ROOT": str(model.root),
-                "HARNESS_PROVIDER_SOURCE_ROOT": str(provider.source_root),
-                "HARNESS_PROVIDER_ROOT": str(provider.root),
+                "PIPE_SPACE_ROOT": str(model.root),
+                "PIPE_PROVIDER_SOURCE_ROOT": str(provider.source_root),
+                "PIPE_PROVIDER_ROOT": str(provider.root),
             }
         )
         try:
@@ -2807,14 +2811,14 @@ def run_post_commands(model: BuildModel) -> int:
                 check=False,
             )
         except (OSError, subprocess.SubprocessError) as exc:
-            fail("HB016", f"Provider post command failed to start: {exc}", sources=(provider.provider_id,))
+            fail("PB016", f"Provider post command failed to start: {exc}", sources=(provider.provider_id,))
         if completed.stdout:
             print(completed.stdout, file=sys.stderr, end="" if completed.stdout.endswith("\n") else "\n")
         if completed.stderr:
             print(completed.stderr, file=sys.stderr, end="" if completed.stderr.endswith("\n") else "\n")
         if completed.returncode != 0:
             fail(
-                "HB016",
+                "PB016",
                 f"Provider post command exited with status {completed.returncode}: {arguments[0]}",
                 sources=(provider.provider_id,),
             )
@@ -2831,10 +2835,10 @@ def clean(root: Path) -> tuple[int, list[Diagnostic]]:
         target = root / target_rel
         ensure_safe_parent(root, target)
         if target.exists() and not target.is_file() and not target.is_symlink():
-            fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
+            fail("PB010", f"Owned file target changed type: {target_rel}", target=target_rel)
     for target in targets:
         remove_owned_target(root, target)
-    lock_path = root / ".harness-builder" / "lock.json"
+    lock_path = root / ".pipebuilder" / "lock.json"
     try:
         lock_path.unlink()
     except FileNotFoundError:
@@ -2899,7 +2903,7 @@ def tree_plan(tree: SpaceTree, *, offline: bool) -> tuple[list[TreeMember], list
     for member, model in zip(members, models):
         if model.manifest.name != member.expect_name:
             fail(
-                "HB017",
+                "PB017",
                 f"Tree member {member.path} expected name {member.expect_name}, got {model.manifest.name}",
                 sources=(model.manifest.path.as_posix(),),
             )
@@ -2935,7 +2939,7 @@ def validate_tree_provider_coherence(members: list[TreeMember], models: list[Bui
             previous = seen.get(identity)
             if previous is not None and previous[0] != resolution:
                 fail(
-                    "HB017",
+                    "PB017",
                     f"Tree members resolved the same Provider inconsistently: {previous[1]} vs {member.path}",
                     sources=(previous[1], member.path),
                     semantic_key="tree.providerResolution",
@@ -2945,11 +2949,11 @@ def validate_tree_provider_coherence(members: list[TreeMember], models: list[Bui
 
 
 def tree_lock_path(root: Path) -> Path:
-    return root / ".harness-builder" / "tree-lock.json"
+    return root / ".pipebuilder" / "tree-lock.json"
 
 
 def tree_journal_path(root: Path) -> Path:
-    return root / ".harness-builder" / "tree-journal.json"
+    return root / ".pipebuilder" / "tree-journal.json"
 
 
 def write_tree_document(root: Path, relative: str, value: dict[str, Any], logical_type: str) -> None:
@@ -2959,7 +2963,7 @@ def write_tree_document(root: Path, relative: str, value: dict[str, Any], logica
 def remove_tree_document(root: Path, path: Path) -> None:
     ensure_safe_parent(root, path)
     if path.is_symlink() or (path.exists() and not path.is_file()):
-        fail("HB017", f"Tree state has an unsafe file type: {portable_rel(root, path)}", sources=(path.as_posix(),))
+        fail("PB017", f"Tree state has an unsafe file type: {portable_rel(root, path)}", sources=(path.as_posix(),))
     try:
         path.unlink()
     except FileNotFoundError:
@@ -2969,7 +2973,7 @@ def remove_tree_document(root: Path, path: Path) -> None:
 
 def new_tree_journal(tree: SpaceTree, members: list[TreeMember], operation: str) -> dict[str, Any]:
     return {
-        "schema": "harness-space-tree-journal.v1",
+        "schema": "pipespace-tree-journal.v1",
         "operation": operation,
         "treeManifestDigest": sha256_file(tree.path),
         "startedAt": process_started_marker(),
@@ -2982,21 +2986,21 @@ def new_tree_journal(tree: SpaceTree, members: list[TreeMember], operation: str)
 
 
 def persist_tree_journal(tree: SpaceTree, journal: dict[str, Any]) -> None:
-    write_tree_document(tree.root, ".harness-builder/tree-journal.json", journal, "tree-journal")
+    write_tree_document(tree.root, ".pipebuilder/tree-journal.json", journal, "tree-journal")
 
 
 def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | None:
     path = tree_lock_path(root)
     if not path.exists():
         if required:
-            fail("HB017", "Tree receipt not found; run build-tree first", sources=(path.as_posix(),))
+            fail("PB017", "Tree receipt not found; run build-tree first", sources=(path.as_posix(),))
         return None
     if path.is_symlink():
-        fail("HB017", "Tree receipt must not be a symlink", sources=(path.as_posix(),))
-    raw = read_json(path, "HB017", "Tree receipt")
+        fail("PB017", "Tree receipt must not be a symlink", sources=(path.as_posix(),))
+    raw = read_json(path, "PB017", "Tree receipt")
     required_fields = {"schema", "builder", "tree", "members"}
     if not isinstance(raw, dict) or set(raw) != required_fields or raw.get("schema") != TREE_LOCK_SCHEMA:
-        fail("HB017", "Invalid .harness-builder/tree-lock.json", sources=(path.as_posix(),))
+        fail("PB017", "Invalid .pipebuilder/tree-lock.json", sources=(path.as_posix(),))
     builder = raw.get("builder")
     tree = raw.get("tree")
     members = raw.get("members")
@@ -3008,12 +3012,12 @@ def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | No
         or not isinstance(tree, dict)
         or set(tree) != {"parentName", "manifest", "manifestDigest"}
         or not isinstance(tree.get("parentName"), str)
-        or tree.get("manifest") != "harness-space-tree.json"
+        or tree.get("manifest") != "pipespace-tree.json"
         or not valid_digest(tree.get("manifestDigest"))
         or not isinstance(members, list)
         or not members
     ):
-        fail("HB017", "Invalid Tree receipt structure", sources=(path.as_posix(),))
+        fail("PB017", "Invalid Tree receipt structure", sources=(path.as_posix(),))
     for index, member in enumerate(members):
         if (
             not isinstance(member, dict)
@@ -3023,7 +3027,7 @@ def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | No
             or not isinstance(member.get("name"), str)
             or not valid_digest(member.get("lockDigest"))
         ):
-            fail("HB017", f"Invalid Tree receipt member at index {index}", sources=(path.as_posix(),))
+            fail("PB017", f"Invalid Tree receipt member at index {index}", sources=(path.as_posix(),))
     return raw
 
 
@@ -3031,7 +3035,7 @@ def assert_tree_receipt_matches(tree: SpaceTree, receipt: dict[str, Any]) -> Non
     path = tree_lock_path(tree.root)
     if receipt["tree"]["parentName"] != tree.parent_name or receipt["tree"]["manifestDigest"] != sha256_file(tree.path):
         fail(
-            "HB017",
+            "PB017",
             "Tree manifest changed since the recorded build; restore it or clean-tree before changing membership",
             sources=(tree.path.as_posix(), path.as_posix()),
         )
@@ -3039,7 +3043,7 @@ def assert_tree_receipt_matches(tree: SpaceTree, receipt: dict[str, Any]) -> Non
     recorded = [(item["kind"], item["path"], item["name"]) for item in receipt["members"]]
     if recorded != expected:
         fail(
-            "HB017",
+            "PB017",
             "Tree member order or identity differs from the recorded build",
             sources=(tree.path.as_posix(), path.as_posix()),
         )
@@ -3054,18 +3058,18 @@ def preflight_member_clean(member: TreeMember) -> int:
         target = member.root / target_rel
         ensure_safe_parent(member.root, target)
         if target.exists() and not target.is_file() and not target.is_symlink():
-            fail("HB010", f"Owned file target changed type: {target_rel}", target=target_rel)
+            fail("PB010", f"Owned file target changed type: {target_rel}", target=target_rel)
     return len(targets)
 
 
 def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
-    lock_path = member.root / ".harness-builder" / "lock.json"
+    lock_path = member.root / ".pipebuilder" / "lock.json"
     lock = load_previous_lock(member.root)
     if lock is None:
-        fail("HB017", f"Tree member has no ownership lock: {member.path}", sources=(lock_path.as_posix(),))
+        fail("PB017", f"Tree member has no ownership lock: {member.path}", sources=(lock_path.as_posix(),))
     manifest = load_manifest(member.root)
     workspace = load_workspace(member.root, manifest)
-    space = lock.get("space", {})
+    space = lock.get("pipespace", {})
     if (
         manifest.name != member.expect_name
         or space.get("name") != member.expect_name
@@ -3074,7 +3078,7 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
         or space.get("workspaceDigest") != sha256_file(workspace.path)
     ):
         fail(
-            "HB017",
+            "PB017",
             f"Tree member inputs drifted from its ownership lock: {member.path}",
             sources=(manifest.path.as_posix(), workspace.path.as_posix(), lock_path.as_posix()),
         )
@@ -3083,14 +3087,14 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
         ensure_safe_parent(member.root, target)
         if target.is_symlink() or not target.is_file():
             fail(
-                "HB017",
+                "PB017",
                 f"Tree member artifact is missing or has an unsafe type: {member.path}/{artifact['target']}",
                 sources=(target.as_posix(),),
             )
         executable = bool(target.stat().st_mode & stat.S_IXUSR)
         if sha256_file(target) != artifact["digest"] or executable != artifact["executable"]:
             fail(
-                "HB017",
+                "PB017",
                 f"Tree member artifact drifted: {member.path}/{artifact['target']}",
                 sources=(target.as_posix(), lock_path.as_posix()),
             )
@@ -3124,7 +3128,7 @@ def make_tree_lock(tree: SpaceTree, members: list[TreeMember]) -> dict[str, Any]
 
 def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> dict[str, Any]:
     return {
-        "treeManifest": "harness-space-tree.json",
+        "treeManifest": "pipespace-tree.json",
         "members": [
             {
                 "kind": member.kind,
@@ -3138,7 +3142,7 @@ def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> 
 
 
 def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any], list[Diagnostic]]:
-    with BuildLock(tree.root, "tree-build.lock", "HSpace Tree build"):
+    with BuildLock(tree.root, "tree-build.lock", "PipeSpace Tree build"):
         tree = load_space_tree(tree.root)
         members = tree_members(tree)
         with ExitStack() as locks:
@@ -3159,7 +3163,7 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
             for index, member in enumerate(members):
                 try:
                     fresh_model = plan(member.root, offline=offline)
-                except (HarnessError, OSError):
+                except (PipeBuilderError, OSError):
                     journal["status"] = "partial"
                     journal["members"][index]["stage"] = "replan-failed"
                     persist_tree_journal(tree, journal)
@@ -3169,14 +3173,14 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
                     journal["members"][index]["stage"] = "stale-plan"
                     persist_tree_journal(tree, journal)
                     fail(
-                        "HB017",
+                        "PB017",
                         f"Tree member changed after full-tree planning: {member.path}",
                         sources=(member.root.as_posix(),),
-                        action="Ensure root/earlier child post commands do not modify another HSpace, then rerun build-tree.",
+                        action="Ensure root/earlier child post commands do not modify another PipeSpace, then rerun build-tree.",
                     )
                 try:
                     generated, removed = apply_build(fresh_model)
-                except (HarnessError, OSError):
+                except (PipeBuilderError, OSError):
                     journal["status"] = "partial"
                     journal["members"][index]["stage"] = "builder-failed"
                     persist_tree_journal(tree, journal)
@@ -3185,7 +3189,7 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
                 persist_tree_journal(tree, journal)
                 try:
                     post_commands = run_post_commands(fresh_model)
-                except (HarnessError, OSError):
+                except (PipeBuilderError, OSError):
                     journal["status"] = "partial"
                     journal["members"][index]["stage"] = "post-failed"
                     persist_tree_journal(tree, journal)
@@ -3207,11 +3211,11 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
 
             try:
                 receipt = make_tree_lock(tree, members)
-            except (HarnessError, OSError):
+            except (PipeBuilderError, OSError):
                 journal["status"] = "partial"
                 persist_tree_journal(tree, journal)
                 raise
-            write_tree_document(tree.root, ".harness-builder/tree-lock.json", receipt, "tree-receipt")
+            write_tree_document(tree.root, ".pipebuilder/tree-lock.json", receipt, "tree-receipt")
             journal["status"] = "complete"
             for item in journal["members"]:
                 item["stage"] = "verified"
@@ -3230,16 +3234,16 @@ def verify_space_tree(tree: SpaceTree) -> dict[str, Any]:
         _, digest = verify_member_state(member)
         if digest != recorded["lockDigest"]:
             fail(
-                "HB017",
+                "PB017",
                 f"Tree member ownership lock changed: {member.path}",
-                sources=((member.root / ".harness-builder" / "lock.json").as_posix(),),
+                sources=((member.root / ".pipebuilder" / "lock.json").as_posix(),),
             )
         results.append({"kind": member.kind, "path": member.path, "name": member.expect_name, "lockDigest": digest})
     return {"members": results, "receiptDigest": sha256_file(tree_lock_path(tree.root))}
 
 
 def clean_space_tree(tree: SpaceTree) -> tuple[dict[str, Any], list[Diagnostic]]:
-    with BuildLock(tree.root, "tree-build.lock", "HSpace Tree clean"):
+    with BuildLock(tree.root, "tree-build.lock", "PipeSpace Tree clean"):
         tree = load_space_tree(tree.root)
         members = tree_members(tree)
         with ExitStack() as locks:
@@ -3258,7 +3262,7 @@ def clean_space_tree(tree: SpaceTree) -> tuple[dict[str, Any], list[Diagnostic]]
             for member in reversed(members):
                 try:
                     removed, member_warnings = clean(member.root)
-                except (HarnessError, OSError):
+                except (PipeBuilderError, OSError):
                     journal["status"] = "partial"
                     next(item for item in journal["members"] if item["path"] == member.path)["stage"] = "clean-failed"
                     persist_tree_journal(tree, journal)
@@ -3296,12 +3300,12 @@ def report(
         "builderVersion": VERSION,
         "command": command,
         "status": status,
-        "spaceRoot": str(root),
+        "pipespaceRoot": str(root),
         "diagnostics": [item.as_dict() for item in diagnostics],
         "summary": summary or {},
     }
     if name is not None:
-        value["space"] = name
+        value["pipespace"] = name
     if details is not None:
         value["details"] = details
     return value
@@ -3312,7 +3316,7 @@ def print_report(value: dict[str, Any], output_format: str) -> None:
         print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
         return
     status = value["status"].upper()
-    print(f"{status} {value['command']} {value.get('space', value['spaceRoot'])}")
+    print(f"{status} {value['command']} {value.get('pipespace', value['pipespaceRoot'])}")
     for diagnostic in value["diagnostics"]:
         print(f"{diagnostic['level'].upper()} {diagnostic['code']}: {diagnostic['message']}")
     for key, item in value["summary"].items():
@@ -3325,7 +3329,7 @@ def add_common_subcommand(
     dry_run: bool = False,
     offline: bool = True,
 ) -> None:
-    parser.add_argument("space", nargs="?", default=".", help="Harness Space root (default: cwd)")
+    parser.add_argument("space", nargs="?", default=".", help="PipeSpace root (default: cwd)")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     if offline:
         parser.add_argument("--offline", action="store_true", help="Resolve Git Providers only from the locked local cache")
@@ -3335,23 +3339,23 @@ def add_common_subcommand(
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="harnessbuilder.py",
+        prog="pipebuilder.py",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--version", action="version", version=f"HarnessBuilder {VERSION}")
+    parser.add_argument("--version", action="version", version=f"PipeBuilder {VERSION}")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    init_parser = subparsers.add_parser("init", help="Initialize the required Harness Space files")
+    init_parser = subparsers.add_parser("init", help="Initialize the required PipeSpace files")
     add_common_subcommand(init_parser, offline=False)
     init_parser.add_argument("--name", help="Space name for a new manifest (default: directory name)")
-    add_common_subcommand(subparsers.add_parser("build", help="Build a Harness Space"), dry_run=True)
+    add_common_subcommand(subparsers.add_parser("build", help="Build a PipeSpace"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
     add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"), offline=False)
-    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a root HSpace and its explicit children"), dry_run=True)
-    add_common_subcommand(subparsers.add_parser("check-tree", help="Validate and plan an HSpace Tree without writes"))
-    add_common_subcommand(subparsers.add_parser("explain-tree", help="Explain every member of an HSpace Tree"))
-    add_common_subcommand(subparsers.add_parser("verify-tree", help="Verify an HSpace Tree receipt and member artifacts"), offline=False)
+    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a root PipeSpace and its explicit children"), dry_run=True)
+    add_common_subcommand(subparsers.add_parser("check-tree", help="Validate and plan an PipeSpace Tree without writes"))
+    add_common_subcommand(subparsers.add_parser("explain-tree", help="Explain every member of an PipeSpace Tree"))
+    add_common_subcommand(subparsers.add_parser("verify-tree", help="Verify an PipeSpace Tree receipt and member artifacts"), offline=False)
     add_common_subcommand(subparsers.add_parser("clean-tree", help="Clean children in reverse order, then the root"), offline=False)
     return parser.parse_args(argv)
 
@@ -3362,7 +3366,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command in {"build-tree", "check-tree", "explain-tree", "verify-tree", "clean-tree"}:
             if not root.is_dir():
-                fail("HB017", f"HSpace Tree root is not a directory: {root}")
+                fail("PB017", f"PipeSpace Tree root is not a directory: {root}")
             tree = load_space_tree(root)
             if args.command == "verify-tree":
                 details = verify_space_tree(tree)
@@ -3433,7 +3437,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "init":
             if root.exists() and not root.is_dir():
-                fail("HB001", f"Harness Space root is not a directory: {root}")
+                fail("PB001", f"PipeSpace root is not a directory: {root}")
             root.mkdir(parents=True, exist_ok=True)
             with BuildLock(root):
                 manifest, created, validated = init_space(root, args.name)
@@ -3449,7 +3453,7 @@ def main(argv: list[str] | None = None) -> int:
             print_report(value, args.format)
             return 0
         if not root.is_dir():
-            fail("HB001", f"Harness Space root is not a directory: {root}")
+            fail("PB001", f"PipeSpace root is not a directory: {root}")
         if args.command == "clean":
             with BuildLock(root):
                 removed, warnings = clean(root)
@@ -3491,12 +3495,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         print_report(value, args.format)
         return 0
-    except HarnessError as exc:
+    except PipeBuilderError as exc:
         value = report(args.command, "error", root, diagnostics=(exc.diagnostic,), summary={})
         print_report(value, args.format)
         return 1
     except OSError as exc:
-        diagnostic = Diagnostic("error", "HB011", f"Filesystem error: {exc}")
+        diagnostic = Diagnostic("error", "PB011", f"Filesystem error: {exc}")
         value = report(args.command, "error", root, diagnostics=(diagnostic,), summary={})
         print_report(value, args.format)
         return 1

@@ -16,7 +16,7 @@ from .model import CommandResult
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-HARNESSBUILDER = REPO_ROOT / "harnessbuilder.py"
+PIPEBUILDER = REPO_ROOT / "pipebuilder.py"
 FIXTURES = REPO_ROOT / "tests" / "e2e" / "fixtures"
 
 
@@ -68,7 +68,7 @@ def snapshot_tree(root: Path, *, exclude: Iterable[str] = ()) -> list[dict[str, 
 
 class Sandbox:
     def __init__(self, fixture: str | None = None) -> None:
-        self._temporary = tempfile.TemporaryDirectory(prefix="harnessbuilder-e2e-")
+        self._temporary = tempfile.TemporaryDirectory(prefix="pipebuilder-e2e-")
         self.base = Path(self._temporary.name)
         self.root = self.base / "space"
         self.home = self.base / "home"
@@ -137,7 +137,7 @@ class Sandbox:
         description: str | None = None,
     ) -> None:
         value: dict[str, Any] = {
-            "schema": "harness-space.v1",
+            "schema": "pipespace.v1",
             "name": name,
             "agents": agents if agents is not None else ["codex", "cursor", "codebuddy", "claude-code"],
             "skills": skills or [],
@@ -146,7 +146,7 @@ class Sandbox:
         }
         if description is not None:
             value["description"] = description
-        self.write_json("harness-space.json", value)
+        self.write_json("pipespace.json", value)
         self.write_json(f"{name}.code-workspace", {"folders": folders or [{"name": "project", "path": "."}]})
 
     def skill(
@@ -232,7 +232,7 @@ class Sandbox:
         output_format: str = "json",
         timeout: float = 30,
     ) -> CommandResult:
-        argv = [sys.executable, str(HARNESSBUILDER), command]
+        argv = [sys.executable, str(PIPEBUILDER), command]
         if not from_cwd:
             argv.append(str(self.root))
         argv.extend(("--format", output_format))
@@ -252,10 +252,10 @@ class Sandbox:
             name: snapshot_tree(
                 path,
                 exclude=(
-                    ".harness-builder/cache",
-                    ".harness-builder/generated",
-                    ".harness-builder/lock.json",
-                    ".harness-builder/build.lock",
+                    ".pipebuilder/cache",
+                    ".pipebuilder/generated",
+                    ".pipebuilder/lock.json",
+                    ".pipebuilder/build.lock",
                     ".agents",
                     ".codex",
                     ".cursor",
@@ -268,16 +268,16 @@ class Sandbox:
             )
             for name, path in roots.items()
         }
-        snapshots["space"] = [item for item in snapshots["space"] if item["path"] != ".harness-builder"]
+        snapshots["space"] = [item for item in snapshots["space"] if item["path"] != ".pipebuilder"]
         return snapshots
 
     def managed_tree(self) -> list[dict[str, Any]]:
-        lock_path = self.root / ".harness-builder" / "lock.json"
+        lock_path = self.root / ".pipebuilder" / "lock.json"
         if not lock_path.is_file():
             return []
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
         targets = {item["target"] for item in lock["artifacts"]}
-        targets.add(".harness-builder/lock.json")
+        targets.add(".pipebuilder/lock.json")
         result: list[dict[str, Any]] = []
         for relative in sorted(targets):
             path = self.root / relative

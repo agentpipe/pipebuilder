@@ -1,4 +1,4 @@
-name: HarnessBuilder E2E
+name: PipeBuilder E2E
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Compile release artifact
-        run: python -m py_compile harnessbuilder.py
+        run: python -m py_compile pipebuilder.py
       - name: Run offline E2E
         run: python tests/e2e/run.py --tier offline --jobs 4
       - name: Upload E2E report and failures

@@ -3,7 +3,7 @@
 状态：current baseline  
 日期：2026-07-13
 
-本文只记录旧 THarness Builder 到 HarnessBuilder 的迁移边界。Rounditer 不属于 Builder；它可以作为符合 HarnessBuilder 规范的 Skill 分发。
+本文只记录旧 THarness Builder 到 PipeBuilder 的迁移边界。Rounditer 不属于 Builder；它可以作为符合 PipeBuilder 规范的 Skill 分发。
 
 ## 已迁移
 
@@ -23,7 +23,7 @@
 - generic `files/` escape hatch；
 - nested `skill/SKILL.md` 正式协议。
 
-这些内容不应重新进入 HarnessBuilder core。旧 nested Skill、`tagents`、YAML manifest/lock 的转换由独立迁移工具或 Human 显式完成。
+这些内容不应重新进入 PipeBuilder core。旧 nested Skill、`tagents`、YAML manifest/lock 的转换由独立迁移工具或 Human 显式完成。
 
 ## 真实 Skill catalog 结果
 
@@ -33,7 +33,7 @@
 - `BotAI-Log-Analyzer` 的 name/目录不符合 lowercase canonical name；
 - `ts-local-launch` 的 frontmatter name 为 `tikistar-local-launch`，与目录名不一致。
 
-HarnessBuilder 已支持这些旧 Skill 普遍使用的 `description: >`、`|`、`>-`、未知 block scalar、未知嵌套 metadata、BOM 和 CRLF，并原样复制 common package。剩余两个问题必须显式 rename，Builder 不静默改变 Skill identity。
+PipeBuilder 已支持这些旧 Skill 普遍使用的 `description: >`、`|`、`>-`、未知 block scalar、未知嵌套 metadata、BOM 和 CRLF，并原样复制 common package。剩余两个问题必须显式 rename，Builder 不静默改变 Skill identity。
 
 外部 THarness checkout 不属于仓库 E0 依赖。对应 parser 行为由仓库内 self-contained fixture 固化；迁移时可以额外对目标 catalog 执行一次完整 `check`。
 

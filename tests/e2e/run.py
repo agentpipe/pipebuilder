@@ -18,7 +18,7 @@ from typing import Iterable
 
 E2E_ROOT = Path(__file__).resolve().parent
 ROOT = E2E_ROOT.parents[1]
-TOOL = ROOT / "harnessbuilder.py"
+TOOL = ROOT / "pipebuilder.py"
 ARTIFACTS = E2E_ROOT / ".artifacts"
 
 
@@ -123,7 +123,7 @@ def discover(tiers: Iterable[str]) -> list[unittest.TestCase]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="HarnessBuilder black-box E2E runner")
+    parser = argparse.ArgumentParser(description="PipeBuilder black-box E2E runner")
     parser.add_argument("--tier", choices=("offline", "client", "live", "all"), default="offline")
     parser.add_argument("--case", help="substring filter for the fully qualified unittest id")
     parser.add_argument("--agent", choices=("codex", "cursor", "codebuddy", "claude-code"))
@@ -139,11 +139,11 @@ def main() -> int:
     if not args.keep_artifacts and ARTIFACTS.exists():
         shutil.rmtree(ARTIFACTS)
     if args.require:
-        os.environ["HARNESSBUILDER_E2E_REQUIRE"] = "1"
+        os.environ["PIPEBUILDER_E2E_REQUIRE"] = "1"
     if "live" in tiers:
-        os.environ["HARNESSBUILDER_E2E_LIVE"] = "1"
+        os.environ["PIPEBUILDER_E2E_LIVE"] = "1"
     if args.model:
-        os.environ["HARNESSBUILDER_E2E_MODEL"] = args.model
+        os.environ["PIPEBUILDER_E2E_MODEL"] = args.model
     tests = discover(tiers)
     if args.case:
         tests = [item for item in tests if args.case in item.id()]
@@ -175,7 +175,7 @@ def main() -> int:
     successful = all(item[2] for item in outputs)
     status_counts = {name: sum(1 for item in records if item["status"] == name) for name in ("pass", "fail", "skip")}
     report = {
-        "schema": "harnessbuilder-e2e-report.v1",
+        "schema": "pipebuilder-e2e-report.v1",
         "releaseArtifact": str(TOOL),
         "releaseSha256": hashlib.sha256(TOOL.read_bytes()).hexdigest(),
         "runner": {

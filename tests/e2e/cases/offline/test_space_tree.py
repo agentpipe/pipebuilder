@@ -5,14 +5,14 @@ import os
 import sys
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase, Sandbox, snapshot_tree
+from support import PipeBuilderE2ECase, Sandbox, snapshot_tree
 from support.model import CaseMetadata
 
 
-class HSpaceTreeCases(HarnessBuilderE2ECase):
+class PipeSpaceTreeCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("HSPACE-TREE", "HB017", "TREE-OWNERSHIP", "TREE-RECOVERY"),
+        requirements=("HSPACE-TREE", "PB017", "TREE-OWNERSHIP", "TREE-RECOVERY"),
         tags=("tree", "children", "ownership", "recovery"),
         parallel_safe=False,
     )
@@ -31,9 +31,9 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         root = self.box.root / relative
         root.mkdir(parents=True, exist_ok=True)
         self.box.write_json(
-            f"{relative}/harness-space.json",
+            f"{relative}/pipespace.json",
             {
-                "schema": "harness-space.v1",
+                "schema": "pipespace.v1",
                 "name": name,
                 "agents": ["codex"],
                 "skills": [],
@@ -46,9 +46,9 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
 
     def write_tree(self, children: list[tuple[str, str]]) -> None:
         self.box.write_json(
-            "harness-space-tree.json",
+            "pipespace-tree.json",
             {
-                "schema": "harness-space-tree.v1",
+                "schema": "pipespace-tree.v1",
                 "children": [{"path": path, "expectName": name} for path, name in children],
             },
         )
@@ -59,9 +59,9 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         self.box.manifest(name="root-space", agents=["codex"])
 
     def assert_tree_operation_locks_absent(self) -> None:
-        self.assertFalse((self.box.root / ".harness-builder/tree-build.lock").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-build.lock").exists())
         for root in (self.box.root, *sorted((self.box.root / "children").glob("*"))):
-            self.assertFalse((root / ".harness-builder/build.lock").exists())
+            self.assertFalse((root / ".pipebuilder/build.lock").exists())
 
     def test_check_explain_build_verify_and_reverse_clean(self):
         first = self.add_child("children/child-01", "child-01")
@@ -79,13 +79,13 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
 
         built = self.expect_ok(self.box.builder("build-tree"))
         self.assertEqual(built["summary"]["members"], 3)
-        self.assertTrue((self.box.root / ".harness-builder/tree-lock.json").is_file())
-        self.assertFalse((self.box.root / ".harness-builder/tree-journal.json").exists())
+        self.assertTrue((self.box.root / ".pipebuilder/tree-lock.json").is_file())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-journal.json").exists())
         for root in (self.box.root, first, second):
-            self.assertTrue((root / ".harness-builder/lock.json").is_file())
+            self.assertTrue((root / ".pipebuilder/lock.json").is_file())
             self.assertTrue((root / "AGENTS.md").is_file())
-        receipt = json.loads((self.box.root / ".harness-builder/tree-lock.json").read_text(encoding="utf-8"))
-        self.assertEqual(receipt["schema"], "harness-space-tree-lock.v1")
+        receipt = json.loads((self.box.root / ".pipebuilder/tree-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(receipt["schema"], "pipespace-tree-lock.v1")
         self.assertEqual([item["path"] for item in receipt["members"]], [".", "children/child-01", "children/child-02"])
         self.assert_tree_operation_locks_absent()
 
@@ -94,12 +94,12 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
 
         cleaned = self.expect_ok(self.box.builder("clean-tree"))
         self.assertEqual([item["path"] for item in cleaned["details"]["members"]], ["children/child-02", "children/child-01", "."])
-        self.assertFalse((self.box.root / ".harness-builder/tree-lock.json").exists())
-        self.assertFalse((self.box.root / ".harness-builder/tree-journal.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-journal.json").exists())
         for root in (self.box.root, first, second):
             self.assertFalse((root / "AGENTS.md").exists())
-            self.assertFalse((root / ".harness-builder/lock.json").exists())
-            self.assertTrue((root / "harness-space.json").is_file())
+            self.assertFalse((root / ".pipebuilder/lock.json").exists())
+            self.assertTrue((root / "pipespace.json").is_file())
         self.assert_tree_operation_locks_absent()
 
     def test_single_space_build_remains_root_only(self):
@@ -108,7 +108,7 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         self.expect_ok(self.box.builder("build"))
         self.assertTrue((self.box.root / "AGENTS.md").is_file())
         self.assertFalse((child / "AGENTS.md").exists())
-        self.assertFalse((self.box.root / ".harness-builder/tree-lock.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
 
     def test_tree_manifest_rejects_escape_reserved_nested_and_identity_mismatch(self):
         cases = (
@@ -128,8 +128,8 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
                 outside.mkdir()
                 self.write_tree([("../outside", "outside")])
             elif case == "reserved-root":
-                self.add_child(".harness-builder/child-01", "child-01")
-                self.write_tree([(".harness-builder/child-01", "child-01")])
+                self.add_child(".pipebuilder/child-01", "child-01")
+                self.write_tree([(".pipebuilder/child-01", "child-01")])
             elif case == "reserved-name":
                 self.add_child("children/con", "child-01")
                 self.write_tree([("children/con", "child-01")])
@@ -144,8 +144,8 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
             elif case == "nested-tree":
                 self.add_child("children/child-01", "child-01")
                 self.box.write_json(
-                    "children/child-01/harness-space-tree.json",
-                    {"schema": "harness-space-tree.v1", "children": []},
+                    "children/child-01/pipespace-tree.json",
+                    {"schema": "pipespace-tree.v1", "children": []},
                 )
                 self.write_tree([("children/child-01", "child-01")])
             elif case == "identity":
@@ -156,7 +156,7 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
                 self.write_tree([("children/child-01", "root-space")])
             before = snapshot_tree(self.box.root)
             with self.subTest(case=case):
-                self.expect_code(self.box.builder("check-tree"), "HB017")
+                self.expect_code(self.box.builder("check-tree"), "PB017")
                 self.assertEqual(snapshot_tree(self.box.root), before)
 
     def test_symlink_child_is_rejected_without_writes(self):
@@ -169,7 +169,7 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
             self.skipTest(f"directory symlink unavailable: {exc}")
         self.write_tree([("children/child-01", "child-01")])
         before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("check-tree"), "HB017")
+        self.expect_code(self.box.builder("check-tree"), "PB017")
         self.assertEqual(snapshot_tree(self.box.root), before)
 
     def test_root_post_cannot_stale_a_child_plan(self):
@@ -196,12 +196,12 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         )
         self.write_tree([("children/child-01", "child-01")])
 
-        self.expect_code(self.box.builder("build-tree"), "HB017")
-        self.assertTrue((self.box.root / ".harness-builder/lock.json").is_file())
-        self.assertFalse((child / ".harness-builder/lock.json").exists())
-        journal = json.loads((self.box.root / ".harness-builder/tree-journal.json").read_text(encoding="utf-8"))
+        self.expect_code(self.box.builder("build-tree"), "PB017")
+        self.assertTrue((self.box.root / ".pipebuilder/lock.json").is_file())
+        self.assertFalse((child / ".pipebuilder/lock.json").exists())
+        journal = json.loads((self.box.root / ".pipebuilder/tree-journal.json").read_text(encoding="utf-8"))
         self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "stale-plan"])
-        self.assertFalse((self.box.root / ".harness-builder/tree-lock.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
         self.assert_tree_operation_locks_absent()
 
     def test_post_failure_records_partial_journal_and_rerun_converges(self):
@@ -221,17 +221,17 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         self.box.write_text("children/child-01/provider/fail.py", "raise SystemExit(23)\n")
         self.write_tree([("children/child-01", "child-01")])
 
-        self.expect_code(self.box.builder("build-tree"), "HB016")
-        journal_path = self.box.root / ".harness-builder/tree-journal.json"
+        self.expect_code(self.box.builder("build-tree"), "PB016")
+        journal_path = self.box.root / ".pipebuilder/tree-journal.json"
         journal = json.loads(journal_path.read_text(encoding="utf-8"))
         self.assertEqual(journal["status"], "partial")
         self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "post-failed"])
-        self.assertTrue((child / ".harness-builder/lock.json").is_file())
-        self.assertFalse((self.box.root / ".harness-builder/tree-lock.json").exists())
+        self.assertTrue((child / ".pipebuilder/lock.json").is_file())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
 
-        manifest = json.loads((child / "harness-space.json").read_text(encoding="utf-8"))
+        manifest = json.loads((child / "pipespace.json").read_text(encoding="utf-8"))
         manifest["skillProviders"] = []
-        self.box.write_json("children/child-01/harness-space.json", manifest)
+        self.box.write_json("children/child-01/pipespace.json", manifest)
         self.expect_ok(self.box.builder("build-tree"))
         self.assertFalse(journal_path.exists())
         self.expect_ok(self.box.builder("verify-tree"))
@@ -259,11 +259,11 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         self.add_child("children/child-01", "child-01")
         self.write_tree([("children/child-01", "child-01")])
 
-        self.expect_code(self.box.builder("build-tree"), "HB017")
-        journal = json.loads((self.box.root / ".harness-builder/tree-journal.json").read_text(encoding="utf-8"))
+        self.expect_code(self.box.builder("build-tree"), "PB017")
+        journal = json.loads((self.box.root / ".pipebuilder/tree-journal.json").read_text(encoding="utf-8"))
         self.assertEqual(journal["status"], "partial")
         self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "post-succeeded"])
-        self.assertFalse((self.box.root / ".harness-builder/tree-lock.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
         self.assert_tree_operation_locks_absent()
 
     def test_clean_tree_preflights_every_member_before_deleting(self):
@@ -275,7 +275,7 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         drifted.unlink()
         drifted.mkdir()
         before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("clean-tree"), "HB010")
+        self.expect_code(self.box.builder("clean-tree"), "PB010")
         self.assertEqual(snapshot_tree(self.box.root), before)
         self.assertTrue((self.box.root / "AGENTS.md").is_file())
         self.assertTrue((second / "AGENTS.md").is_file())
@@ -287,6 +287,6 @@ class HSpaceTreeCases(HarnessBuilderE2ECase):
         self.write_tree([("children/child-01", "child-01"), ("children/child-02", "child-02")])
         self.expect_ok(self.box.builder("build-tree"))
         self.write_tree([("children/child-02", "child-02"), ("children/child-01", "child-01")])
-        self.expect_code(self.box.builder("verify-tree"), "HB017")
-        self.expect_code(self.box.builder("build-tree"), "HB017")
-        self.expect_code(self.box.builder("clean-tree"), "HB017")
+        self.expect_code(self.box.builder("verify-tree"), "PB017")
+        self.expect_code(self.box.builder("build-tree"), "PB017")
+        self.expect_code(self.box.builder("clean-tree"), "PB017")

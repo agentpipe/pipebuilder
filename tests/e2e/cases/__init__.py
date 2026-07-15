@@ -1,1 +1,1 @@
-"""Black-box HarnessBuilder E2E cases."""
+"""Black-box PipeBuilder E2E cases."""

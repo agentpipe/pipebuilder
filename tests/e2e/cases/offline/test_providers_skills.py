@@ -5,14 +5,14 @@ import os
 import sys
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase, snapshot_tree
+from support import PipeBuilderE2ECase, snapshot_tree
 from support.model import CaseMetadata
 
 
-class ProviderResolutionCases(HarnessBuilderE2ECase):
+class ProviderResolutionCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("PROVIDERS", "SELECTION", "HB005", "HB007", "HB008", "HBW001"),
+        requirements=("PROVIDERS", "SELECTION", "PB005", "PB007", "PB008", "PBW001"),
         tags=("providers", "selection", "shadowing"),
     )
 
@@ -24,13 +24,13 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
 
     def test_missing_provider_and_missing_explicit_skill_have_stable_codes(self):
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "missing"}])
-        self.expect_code(self.box.builder("check"), "HB005")
+        self.expect_code(self.box.builder("check"), "PB005")
         (self.box.root / "provider").mkdir()
         self.box.manifest(agents=["codex"], skills=["missing"], providers=[{"type": "folder", "path": "provider"}])
-        self.expect_code(self.box.builder("check"), "HB007")
+        self.expect_code(self.box.builder("check"), "PB007")
 
     def test_local_explicit_and_tag_selection_form_a_stable_union(self):
-        self.box.skill(".harness-builder/skills", "local")
+        self.box.skill(".pipebuilder/skills", "local")
         self.box.skill("provider-a", "explicit")
         self.box.skill("provider-a", "tagged", tags=["team", "extra"])
         self.box.skill("provider-a", "unselected", tags=["other"])
@@ -50,7 +50,7 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
         self.assertFalse((self.box.root / ".agents/skills/unselected").exists())
 
     def test_local_and_earlier_provider_shadow_later_candidates_with_provenance(self):
-        self.box.skill(".harness-builder/skills", "shadow", body="local\n")
+        self.box.skill(".pipebuilder/skills", "shadow", body="local\n")
         self.box.skill("provider-a", "shadow", body="first\n")
         self.box.skill("provider-b", "shadow", body="second\n")
         self.box.manifest(
@@ -58,7 +58,7 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
             providers=[{"type": "folder", "path": "provider-a"}, {"type": "folder", "path": "provider-b"}],
         )
         payload = self.expect_ok(self.box.builder("explain"))
-        self.assertIn("HBW001", [item["code"] for item in payload["diagnostics"]])
+        self.assertIn("PBW001", [item["code"] for item in payload["diagnostics"]])
         skill = payload["details"]["skills"][0]
         self.assertEqual(skill["provider"], "space-local")
         self.assertEqual(len(skill["shadowedCandidates"]), 2)
@@ -87,7 +87,7 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
             providers=[{"type": "folder", "path": "provider-link"}],
         )
         self.expect_ok(self.box.builder("build"))
-        first = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))["providers"][1]
+        first = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][1]
         self.assertEqual(first["path"], "provider-link")
         self.assertNotEqual(first["resolvedPath"], "provider-link")
         self.box.write_text(
@@ -96,14 +96,14 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
             base=external,
         )
         self.expect_ok(self.box.builder("build"))
-        second = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))["providers"][1]
+        second = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][1]
         self.assertNotEqual(first["digest"], second["digest"])
         self.assertIn("second", (self.box.root / ".agents/skills/linked/SKILL.md").read_text(encoding="utf-8"))
 
     def test_folder_provider_root_must_be_a_directory(self):
         self.box.write_text("provider-file", "not a directory\n")
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "provider-file"}])
-        self.expect_code(self.box.builder("check"), "HB005")
+        self.expect_code(self.box.builder("check"), "PB005")
 
     def test_folder_provider_aliases_to_the_same_realpath_are_rejected(self):
         external = self.box.base / "shared-provider"
@@ -114,7 +114,7 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
             agents=["codex"],
             providers=[{"type": "folder", "path": "alias-a"}, {"type": "folder", "path": "alias-b"}],
         )
-        self.expect_code(self.box.builder("check"), "HB001")
+        self.expect_code(self.box.builder("check"), "PB001")
 
     def test_folder_provider_path_with_unicode_spaces_and_shell_metacharacters_is_literal(self):
         provider = "skills ü # $'"
@@ -143,7 +143,7 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
             "type": "folder",
             "path": "../component",
             "subdir": "skills",
-            "command": {"cwd": ".", "args": [sys.executable, "post.py", "{spaceRoot}"]},
+            "command": {"cwd": ".", "args": [sys.executable, "post.py", "{pipespaceRoot}"]},
         }
         self.box.manifest(agents=["codex"], skills=["commanded"], providers=[provider])
         explain = self.expect_ok(self.box.builder("explain"))
@@ -157,10 +157,10 @@ class ProviderResolutionCases(HarnessBuilderE2ECase):
         self.assertTrue((self.box.root / ".agents/skills/commanded/SKILL.md").is_file())
 
 
-class GitProviderCases(HarnessBuilderE2ECase):
+class GitProviderCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("GIT-PROVIDER", "GIT-CACHE", "LOCK", "HB005", "HB011"),
+        requirements=("GIT-PROVIDER", "GIT-CACHE", "LOCK", "PB005", "PB011"),
         tags=("providers", "git", "branch", "tag", "offline"),
     )
 
@@ -168,7 +168,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         super().setUp()
         self.repo = self.box.base / "repos" / "catalog"
         self.repo.mkdir(parents=True)
-        self.cache = self.box.root / ".harness-builder" / "cache"
+        self.cache = self.box.root / ".pipebuilder" / "cache"
         self.provider_env: dict[str, str] = {}
         self.git("init")
         self.git("symbolic-ref", "HEAD", "refs/heads/main")
@@ -177,9 +177,9 @@ class GitProviderCases(HarnessBuilderE2ECase):
         result = self.box.run_command(
             ["git", "-C", str(self.repo), *arguments],
             env={
-                "GIT_AUTHOR_NAME": "HarnessBuilder E2E",
+                "GIT_AUTHOR_NAME": "PipeBuilder E2E",
                 "GIT_AUTHOR_EMAIL": "e2e@example.invalid",
-                "GIT_COMMITTER_NAME": "HarnessBuilder E2E",
+                "GIT_COMMITTER_NAME": "PipeBuilder E2E",
                 "GIT_COMMITTER_EMAIL": "e2e@example.invalid",
             },
         )
@@ -200,7 +200,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         return {"type": "git", "url": "../repos/catalog", "subdir": "skills", **selector}
 
     def lock_git_provider(self) -> dict[str, object]:
-        lock = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
         return next(item for item in lock["providers"] if item["type"] == "git")
 
     def test_branch_resolves_to_commit_and_builds_from_space_local_immutable_cache(self):
@@ -255,27 +255,27 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.expect_ok(self.box.builder("build", env=self.provider_env))
         cached_skill = next(self.cache.rglob("cached/SKILL.md"))
         cached_skill.write_text("tampered\n", encoding="utf-8")
-        self.expect_code(self.box.builder("check", "--offline", env=self.provider_env), "HB010")
+        self.expect_code(self.box.builder("check", "--offline", env=self.provider_env), "PB010")
 
     def test_offline_requires_a_matching_lock_even_when_the_url_cache_is_warm(self):
         self.commit_skill("cached", "original")
         self.box.manifest(agents=["codex"], skills=["cached"], providers=[self.git_provider(branch="main")])
         self.expect_ok(self.box.builder("build", env=self.provider_env))
-        (self.box.root / ".harness-builder/lock.json").unlink()
-        self.expect_code(self.box.builder("check", "--offline", env=self.provider_env), "HB005")
+        (self.box.root / ".pipebuilder/lock.json").unlink()
+        self.expect_code(self.box.builder("check", "--offline", env=self.provider_env), "PB005")
 
     def test_missing_cache_branch_and_subdir_are_structured_provider_errors(self):
         self.commit_skill("available", "ok")
         cases = (
-            (self.git_provider(branch="missing"), (), "HB005"),
-            ({**self.git_provider(branch="main"), "subdir": "absent"}, (), "HB005"),
-            (self.git_provider(branch="main"), ("--offline",), "HB005"),
+            (self.git_provider(branch="missing"), (), "PB005"),
+            ({**self.git_provider(branch="main"), "subdir": "absent"}, (), "PB005"),
+            (self.git_provider(branch="main"), ("--offline",), "PB005"),
         )
         for provider, arguments, code in cases:
             self.box.close(); self.box = __import__("support").Sandbox()
             self.repo = self.box.base / "repos" / "catalog"
             self.repo.mkdir(parents=True)
-            self.cache = self.box.root / ".harness-builder" / "cache"
+            self.cache = self.box.root / ".pipebuilder" / "cache"
             self.provider_env = {}
             self.git("init"); self.git("symbolic-ref", "HEAD", "refs/heads/main"); self.commit_skill("available", "ok")
             self.box.manifest(agents=["codex"], providers=[provider])
@@ -288,7 +288,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.git("add", ".")
         self.git("commit", "-m", "add unsafe symlink")
         self.box.manifest(agents=["codex"], providers=[self.git_provider(branch="main")])
-        self.expect_code(self.box.builder("check", env=self.provider_env), "HB011")
+        self.expect_code(self.box.builder("check", env=self.provider_env), "PB011")
 
     def test_git_post_command_runs_from_full_commit_while_skills_use_subdir(self):
         self.commit_skill("commanded", "git-command")
@@ -300,7 +300,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.git("add", ".")
         self.git("commit", "-m", "add post command")
         provider = self.git_provider(branch="main")
-        provider["command"] = {"cwd": ".", "args": [sys.executable, "post.py", "{spaceRoot}"]}
+        provider["command"] = {"cwd": ".", "args": [sys.executable, "post.py", "{pipespaceRoot}"]}
         self.box.manifest(agents=["codex"], skills=["commanded"], providers=[provider])
         self.expect_ok(self.box.builder("build", env=self.provider_env))
         self.assertEqual((self.box.root / "git-post.txt").read_text(encoding="utf-8"), "git-ran\n")
@@ -308,7 +308,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
     def test_provider_order_and_space_local_priority_also_apply_to_git(self):
         self.commit_skill("same", "git")
         self.box.skill("folder", "same", body="folder\n")
-        self.box.skill(".harness-builder/skills", "same", body="local\n")
+        self.box.skill(".pipebuilder/skills", "same", body="local\n")
         self.box.manifest(
             agents=["codex"],
             skills=["same"],
@@ -320,8 +320,8 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.assertEqual(len(skill["shadowedCandidates"]), 2)
 
 
-class SkillPackageCases(HarnessBuilderE2ECase):
-    metadata = CaseMetadata(tier="offline", requirements=("SKILL-PACKAGE", "HB008"), tags=("skill", "copy", "validation"))
+class SkillPackageCases(PipeBuilderE2ECase):
+    metadata = CaseMetadata(tier="offline", requirements=("SKILL-PACKAGE", "PB008"), tags=("skill", "copy", "validation"))
 
     def test_binary_hidden_executable_and_unknown_frontmatter_are_preserved(self):
         self.box.skill("provider", "portable")
@@ -341,10 +341,10 @@ class SkillPackageCases(HarnessBuilderE2ECase):
 
     def test_harness_agents_never_leak_into_common_package(self):
         self.box.skill("provider", "native")
-        self.box.write_text("provider/native/.harness-agents/codex/AGENTS.md", "native only\n")
+        self.box.write_text("provider/native/.pipe-agents/codex/AGENTS.md", "native only\n")
         self.box.manifest(agents=["codex"], skills=["native"], providers=[{"type": "folder", "path": "provider"}])
         self.expect_ok(self.box.builder("build"))
-        self.assertFalse((self.box.root / ".agents/skills/native/.harness-agents").exists())
+        self.assertFalse((self.box.root / ".agents/skills/native/.pipe-agents").exists())
         self.assertIn("native only", (self.box.root / "AGENTS.md").read_text(encoding="utf-8"))
 
     def test_invalid_skill_documents_cover_frontmatter_name_description_and_tags(self):
@@ -361,7 +361,7 @@ class SkillPackageCases(HarnessBuilderE2ECase):
             self.box.write_text(f"provider/{directory}/SKILL.md", content)
             self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "provider"}])
             with self.subTest(directory=directory):
-                self.expect_code(self.box.builder("check"), "HB008")
+                self.expect_code(self.box.builder("check"), "PB008")
 
     def test_yaml_block_scalars_and_unknown_nested_frontmatter_are_valid_and_preserved(self):
         content = """---
@@ -411,22 +411,22 @@ Fixture body.
     def test_every_provider_child_directory_must_be_a_skill_package(self):
         self.box.write_text("provider/not-a-skill/README.md", "missing SKILL.md\n")
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "provider"}])
-        self.expect_code(self.box.builder("check"), "HB008")
+        self.expect_code(self.box.builder("check"), "PB008")
 
     def test_unknown_skill_agent_namespace_is_rejected_even_when_empty(self):
         self.box.skill("provider", "unknown-agent")
-        (self.box.root / "provider/unknown-agent/.harness-agents/not-an-agent").mkdir(parents=True)
+        (self.box.root / "provider/unknown-agent/.pipe-agents/not-an-agent").mkdir(parents=True)
         self.box.manifest(
             agents=["codex"],
             skills=["unknown-agent"],
             providers=[{"type": "folder", "path": "provider"}],
         )
-        self.expect_code(self.box.builder("check"), "HB009")
+        self.expect_code(self.box.builder("check"), "PB009")
 
     def test_provider_symlink_loop_is_a_structured_unsafe_path_error(self):
         os.symlink("loop", self.box.root / "loop")
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "loop"}])
-        self.expect_code(self.box.builder("check"), "HB011")
+        self.expect_code(self.box.builder("check"), "PB011")
 
     def test_skill_source_symlink_is_rejected_without_following_it(self):
         self.box.skill("provider", "linked")
@@ -434,5 +434,5 @@ Fixture body.
         outside.write_text("outside\n", encoding="utf-8")
         os.symlink(outside, self.box.root / "provider/linked/link.txt")
         self.box.manifest(agents=["codex"], skills=["linked"], providers=[{"type": "folder", "path": "provider"}])
-        self.expect_code(self.box.builder("check"), "HB011")
+        self.expect_code(self.box.builder("check"), "PB011")
         self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")

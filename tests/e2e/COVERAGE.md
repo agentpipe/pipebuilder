@@ -1,10 +1,10 @@
-# HarnessBuilder E2E 覆盖矩阵
+# PipeBuilder E2E 覆盖矩阵
 
 状态：implemented
 基线日期：2026-07-14
-最近验证：完整 E0 101/101（含 HSpace Tree 定向 9/9），Codex E1 5/5，Codex E2 1/1
+最近验证：完整 E0 101/101（含 PipeSpace Tree 定向 9/9），Codex E1 5/5，Codex E2 1/1
 
-这里统计的是独立黑盒 test method；一个 method 内的 table/subtest 还会覆盖多个输入变体。所有 case 都执行最终 `harnessbuilder.py`，不 import production。
+这里统计的是独立黑盒 test method；一个 method 内的 table/subtest 还会覆盖多个输入变体。所有 case 都执行最终 `pipebuilder.py`，不 import production。
 
 ## 运行级别
 
@@ -23,10 +23,10 @@
 | 静态 golden | `test_contract.GoldenBuildCases` | 四 Agent 完整 managed target 集、关键文件全文、lock digest/provenance、二次 build byte stability |
 | manifest | `test_manifest_workspace.ManifestValidationCases` | malformed/non-object、required/unknown fields、schema、name、agents、skills、tags、providers、description |
 | workspace | `test_manifest_workspace.WorkspaceValidationCases` | 必选文件、malformed、folder shape、同目录、目录解耦、多 folder、重复 realpath、Unicode/空格/引号/`#`/`$` |
-| legacy namespace | `test_manifest_workspace.LegacyNamespaceCases` | `tagents`、`private`、root `.harness-agents`、旧 YAML/lock/workspace source；零写入 |
+| legacy namespace | `test_manifest_workspace.LegacyNamespaceCases` | `tagents`、`private`、root `.pipe-agents`、旧 YAML/lock/workspace source；零写入 |
 | folder provider/selection | `test_providers_skills.ProviderResolutionCases` | 零/缺失/multiple、同目录/外部/symlink root、file root、realpath alias、Unicode/shell metacharacter、digest 更新、local 优先、显式+tag+local 并集、shadow provenance、provider 顺序 |
-| Git provider | `test_providers_skills.GitProviderCases` | branch/tag、subdir、commit lock、在线推进、离线锁定复用、HSpace-local cache、缺 cache/ref/subdir、digest 篡改、archive symlink、混合优先级 |
-| common Skill | `test_providers_skills.SkillPackageCases` | binary、hidden、executable、YAML block scalar、unknown nested frontmatter、BOM/CRLF、深目录、`.DS_Store`、`.harness-agents` 排除、symlink、invalid/missing Skill |
+| Git provider | `test_providers_skills.GitProviderCases` | branch/tag、subdir、commit lock、在线推进、离线锁定复用、PipeSpace-local cache、缺 cache/ref/subdir、digest 篡改、archive symlink、混合优先级 |
+| common Skill | `test_providers_skills.SkillPackageCases` | binary、hidden、executable、YAML block scalar、unknown nested frontmatter、BOM/CRLF、深目录、`.DS_Store`、`.pipe-agents` 排除、symlink、invalid/missing Skill |
 | Codex adapter | `test_adapters.CodexAdapterCases` | AGENTS、config TOML、native hooks schema、hook files、rules、稳定 merge、target drift、machine key 拒绝 |
 | Cursor adapter | `test_adapters.OtherAdapterCases` | skills、workspace rule、`.mdc` rules、commands、frontmatter |
 | CodeBuddy adapter | `test_adapters.OtherAdapterCases` | skills、workspace rule、commands、agents、settings、MCP、hook files |
@@ -35,32 +35,32 @@
 | ownership/clean | `test_lifecycle_security.OwnershipLifecycleCases` | clean 只删 owned、幂等、rebuild、反选 Skill、移除 Agent、source update、managed file 删除、Builder version 变化、无 lock 不猜 ownership |
 | lock/concurrency | `test_lifecycle_security.LockAndInterruptionCases` | 两个真实进程争锁、active/stale/malformed lock、硬崩溃、apply failure、旧 lock 保持、恢复收敛 |
 | filesystem security | `test_lifecycle_security.FilesystemBoundaryCases` | forged lock、unowned target、type drift、Builder state/target symlink escape、NFC/NFD/case collision、Windows reserved name、invalid lock、recursive provider |
-| 通用 HSpace children Tree | `test_space_tree.HSpaceTreeCases` | 显式内嵌 children、全树 check/explain/build/verify、单 Space 非递归、反向 clean、独立 ownership/锁、越界/保留路径/symlink/嵌套拒绝、成员身份与顺序漂移、跨成员 stale plan、post/最终验收失败 journal 与重跑收敛 |
+| 通用 PipeSpace children Tree | `test_space_tree.PipeSpaceTreeCases` | 显式内嵌 children、全树 check/explain/build/verify、单 Space 非递归、反向 clean、独立 ownership/锁、越界/保留路径/symlink/嵌套拒绝、成员身份与顺序漂移、跨成员 stale plan、post/最终验收失败 journal 与重跑收敛 |
 | release/runner | `test_contract.CliContractCases` | 单文件复制后独立执行、SHA256 report、command record credential redaction、失败制品排除 auth/home |
 
 ## Stable diagnostics
 
 | Code | E2E 入口 | 状态 |
 | --- | --- | --- |
-| HB001 | malformed/shape/schema/unknown manifest、invalid lock | covered |
-| HB002 | invalid space name table | covered |
-| HB003 | exact workspace missing/name mismatch | covered |
-| HB004 | malformed workspace、folder/path table | covered |
-| HB005 | missing folder/Git cache/branch/tag/subdir | covered |
-| HB006 | unsupported provider type | covered |
-| HB007 | missing explicitly selected Skill | covered |
-| HB008 | invalid Skill/frontmatter table | covered |
-| HB009 | gated/unknown/malformed agent artifact table | covered |
-| HB010 | semantic/path/ownership/type conflict | covered |
-| HB011 | secret、symlink、machine config、injected filesystem failure | covered |
-| HB012 | `adapter-not-implemented` | retired/reserved number；不属于 v1 stable contract，未知 Agent 由 HB001 拒绝 |
-| HB013 | real concurrent active lock | covered |
-| HB014 | stale dead-pid lock/crash recovery | covered |
-| HB015 | every legacy marker | covered |
-| HB016 | Provider post command start/cwd/exit failure、Tree partial journal | covered |
-| HB017 | Tree schema/path/identity/receipt/stale-plan/member-state | covered |
-| HBW001 | provider shadow | covered |
-| HBW002 | Claude command migration | covered |
+| PB001 | malformed/shape/schema/unknown manifest、invalid lock | covered |
+| PB002 | invalid space name table | covered |
+| PB003 | exact workspace missing/name mismatch | covered |
+| PB004 | malformed workspace、folder/path table | covered |
+| PB005 | missing folder/Git cache/branch/tag/subdir | covered |
+| PB006 | unsupported provider type | covered |
+| PB007 | missing explicitly selected Skill | covered |
+| PB008 | invalid Skill/frontmatter table | covered |
+| PB009 | gated/unknown/malformed agent artifact table | covered |
+| PB010 | semantic/path/ownership/type conflict | covered |
+| PB011 | secret、symlink、machine config、injected filesystem failure | covered |
+| PB012 | `adapter-not-implemented` | retired/reserved number；不属于 v1 stable contract，未知 Agent 由 PB001 拒绝 |
+| PB013 | real concurrent active lock | covered |
+| PB014 | stale dead-pid lock/crash recovery | covered |
+| PB015 | every legacy marker | covered |
+| PB016 | Provider post command start/cwd/exit failure、Tree partial journal | covered |
+| PB017 | Tree schema/path/identity/receipt/stale-plan/member-state | covered |
+| PBW001 | provider shadow | covered |
+| PBW002 | Claude command migration | covered |
 
 ## E1：真实 Codex 客户端
 

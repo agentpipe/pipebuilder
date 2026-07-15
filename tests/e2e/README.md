@@ -1,6 +1,6 @@
-# HarnessBuilder E2E
+# PipeBuilder E2E
 
-这里是对发布文件 `harnessbuilder.py` 的黑盒验收。测试 helper 不 import production；每个 case 都在独立临时 Harness Space 中以 argv list、`shell=False` 启动同一个 release artifact。
+这里是对发布文件 `pipebuilder.py` 的黑盒验收。测试 helper 不 import production；每个 case 都在独立临时 PipeSpace 中以 argv list、`shell=False` 启动同一个 release artifact。
 
 运行方式：
 
@@ -10,7 +10,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --model <model-id> --require
 python3 tests/e2e/run.py --tier all --agent codex --require
-python3.8 tests/e2e/run.py --tier offline --case HSpaceTreeCases
+python3.8 tests/e2e/run.py --tier offline --case PipeSpaceTreeCases
 ```
 
 `offline` 是无网络门禁；`client` 调用真实客户端但不请求模型；`live` 发起真实 Codex 模型会话。未传 `--model` 时，live 使用已安装 Codex 的默认模型，避免把可能过期的模型名固化在测试中。

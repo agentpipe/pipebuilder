@@ -5,11 +5,11 @@ import os
 import re
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase
+from support import PipeBuilderE2ECase
 from support.model import CaseMetadata
 
 
-class CodexClientCases(HarnessBuilderE2ECase):
+class CodexClientCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="client",
         requirements=("CODEX-INSTALLED", "AGENTS-DISCOVERY", "SKILL-DISCOVERY", "CONFIG-DISCOVERY", "EXECPOLICY"),
@@ -66,10 +66,10 @@ class CodexClientCases(HarnessBuilderE2ECase):
         serialized = json.dumps(prompt, ensure_ascii=False)
         self.assertIn("GOLDEN_CODEX_SPACE_GUIDANCE", serialized)
         self.assertIn("GOLDEN_CODEX_SKILL_GUIDANCE", serialized)
-        self.assertIn("Harness Space: `golden-space`", serialized)
+        self.assertIn("PipeSpace: `golden-space`", serialized)
         self.assertIn("- portable: Golden portable fixture", serialized)
         self.assertIn(str(self.box.root / ".agents/skills/portable/SKILL.md"), serialized)
-        self.assertNotIn(".harness-agents/codex", serialized)
+        self.assertNotIn(".pipe-agents/codex", serialized)
 
     def test_real_prompt_assembly_loads_trusted_generated_project_config(self):
         prompt = self.prompt_input("Return project config sentinel.")
@@ -86,10 +86,10 @@ class CodexClientCases(HarnessBuilderE2ECase):
 
     def test_real_client_parses_current_nested_project_hook_schema(self):
         self.box.write_json(
-            ".harness-builder/agents/codex/.codex/hooks.json",
+            ".pipebuilder/agents/codex/.codex/hooks.json",
             {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": [{"type": "command", "command": "python3 .codex/hooks/probe.py", "timeout": 10}]}]}},
         )
-        self.box.write_text(".harness-builder/agents/codex/.codex/hooks/probe.py", "import sys\nsys.stdin.read()\n")
+        self.box.write_text(".pipebuilder/agents/codex/.codex/hooks/probe.py", "import sys\nsys.stdin.read()\n")
         self.expect_ok(self.box.builder("build"))
         result = self.client("-C", str(self.box.root), "debug", "prompt-input", "hook parse probe")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

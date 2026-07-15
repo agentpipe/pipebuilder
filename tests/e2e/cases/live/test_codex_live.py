@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase, snapshot_tree
+from support import PipeBuilderE2ECase, snapshot_tree
 from support.model import CaseMetadata
 
 
@@ -12,7 +12,7 @@ AGENTS_SENTINEL = "HB_AGENTS_7F1C9A2E"
 SKILL_SENTINEL = "HB_SKILL_C4D8B613"
 
 
-class CodexLiveModelCases(HarnessBuilderE2ECase):
+class CodexLiveModelCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="live",
         requirements=(
@@ -30,12 +30,12 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
 
     def setUp(self) -> None:
         super().setUp()
-        if os.environ.get("HARNESSBUILDER_E2E_LIVE") != "1":
+        if os.environ.get("PIPEBUILDER_E2E_LIVE") != "1":
             self.skipTest("live model tests require --tier live or --tier all")
         self.codex = self.require_program("codex")
         version_probe = self.box.run_command([self.codex, "--version"], cwd=self.box.root)
         self.assertEqual(version_probe.returncode, 0, version_probe.stdout + version_probe.stderr)
-        requested_model = os.environ.get("HARNESSBUILDER_E2E_MODEL")
+        requested_model = os.environ.get("PIPEBUILDER_E2E_MODEL")
         self.client_record = {
             "id": "codex",
             "executable": str(Path(self.codex).resolve()),
@@ -58,7 +58,7 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
             ],
         )
         self.box.write_text(
-            ".harness-builder/agents/codex/AGENTS.md",
+            ".pipebuilder/agents/codex/AGENTS.md",
             "Live probe fact: the project-instruction sentinel is " + AGENTS_SENTINEL + ".\n",
         )
         provider_repo = self.box.base / "repos/live-skills"
@@ -73,26 +73,26 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
             "skills/hb-live-sentinel/SKILL.md",
             "---\n"
             "name: hb-live-sentinel\n"
-            "description: Run the HarnessBuilder live sentinel verification when explicitly invoked.\n"
+            "description: Run the PipeBuilder live sentinel verification when explicitly invoked.\n"
             "---\n\n"
             + skill_body,
             base=provider_repo,
         )
         git_env = {
-            "GIT_AUTHOR_NAME": "HarnessBuilder E2E",
+            "GIT_AUTHOR_NAME": "PipeBuilder E2E",
             "GIT_AUTHOR_EMAIL": "e2e@example.invalid",
-            "GIT_COMMITTER_NAME": "HarnessBuilder E2E",
+            "GIT_COMMITTER_NAME": "PipeBuilder E2E",
             "GIT_COMMITTER_EMAIL": "e2e@example.invalid",
         }
         for arguments in (("init",), ("symbolic-ref", "HEAD", "refs/heads/main"), ("add", "."), ("commit", "-m", "live Skill")):
             completed = self.box.run_command([git, "-C", str(provider_repo), *arguments], env=git_env)
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.box.write_json(
-            ".harness-builder/agents/codex/.codex/hooks.json",
+            ".pipebuilder/agents/codex/.codex/hooks.json",
             {"hooks": {"SessionStart": [{"matcher": "startup", "hooks": [{"type": "command", "command": "python3 .codex/hooks/live_probe.py", "timeout": 10}]}]}},
         )
         self.box.write_text(
-            ".harness-builder/agents/codex/.codex/hooks/live_probe.py",
+            ".pipebuilder/agents/codex/.codex/hooks/live_probe.py",
             "import json\nimport pathlib\nimport sys\ndata = json.load(sys.stdin)\npathlib.Path('.codex/hook-receipt.json').write_text(json.dumps({'event': data.get('hook_event_name'), 'cwd': data.get('cwd')}) + '\\n', encoding='utf-8')\n",
         )
         initialized = self.box.run_command([git, "init", "-q"], cwd=self.box.root)
@@ -103,7 +103,7 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
         real_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
         auth = real_home / "auth.json"
         if not auth.is_file():
-            if os.environ.get("HARNESSBUILDER_E2E_REQUIRE") == "1":
+            if os.environ.get("PIPEBUILDER_E2E_REQUIRE") == "1":
                 self.fail(f"Codex login is required; auth file not found at {auth}")
             self.skipTest(f"Codex login is not configured: {auth}")
         os.symlink(auth, self.codex_home / "auth.json")
@@ -138,10 +138,10 @@ class CodexLiveModelCases(HarnessBuilderE2ECase):
             "--output-schema", str(schema),
             "--output-last-message", str(output),
         ]
-        model = os.environ.get("HARNESSBUILDER_E2E_MODEL")
+        model = os.environ.get("PIPEBUILDER_E2E_MODEL")
         if model:
             argv.extend(("--model", model))
-        argv.append("$hb-live-sentinel Run the generated HarnessBuilder sentinel verification exactly as instructed.")
+        argv.append("$hb-live-sentinel Run the generated PipeBuilder sentinel verification exactly as instructed.")
         result = self.box.run_command(
             argv,
             cwd=self.box.root,

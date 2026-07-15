@@ -5,12 +5,12 @@ import json
 import shutil
 from pathlib import Path
 
-from support import HarnessBuilderE2ECase
+from support import PipeBuilderE2ECase
 from support.model import CaseMetadata
-from support.sandbox import FIXTURES, HARNESSBUILDER, snapshot_tree
+from support.sandbox import FIXTURES, PIPEBUILDER, snapshot_tree
 
 
-class GoldenBuildCases(HarnessBuilderE2ECase):
+class GoldenBuildCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
         requirements=("BUILD", "WORKSPACE", "ADAPTERS", "LOCK", "GOLDEN"),
@@ -27,12 +27,12 @@ class GoldenBuildCases(HarnessBuilderE2ECase):
         before = self.box.snapshot_inputs()
         payload = self.expect_ok(self.box.builder("build"))
         self.assertEqual(payload["summary"], {"generated": 25, "removed": 0, "skills": 1})
-        lock = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
         actual_targets = sorted(item["target"] for item in lock["artifacts"])
         expected_targets = json.loads((self.expected / "managed-targets.json").read_text(encoding="utf-8"))
         self.assertEqual(actual_targets, expected_targets)
         self.assertEqual(
-            (self.box.root / ".harness-builder/generated/workspace-rule.md").read_text(encoding="utf-8"),
+            (self.box.root / ".pipebuilder/generated/workspace-rule.md").read_text(encoding="utf-8"),
             (self.expected / "files/workspace-rule.md").read_text(encoding="utf-8"),
         )
         self.assertEqual(
@@ -51,9 +51,9 @@ class GoldenBuildCases(HarnessBuilderE2ECase):
 
     def test_lock_digests_sources_adapters_and_paths_match_actual_outputs(self):
         self.expect_ok(self.box.builder("build"))
-        lock = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))
-        self.assertEqual(lock["schema"], "harnessbuilder-lock.v1")
-        self.assertEqual(lock["space"]["workspace"], "golden-space.code-workspace")
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(lock["schema"], "pipebuilder-lock.v1")
+        self.assertEqual(lock["pipespace"]["workspace"], "golden-space.code-workspace")
         self.assertEqual([item["id"] for item in lock["agents"]], ["codex", "cursor", "codebuddy", "claude-code"])
         self.assertEqual(
             [item["capabilityStatus"] for item in lock["agents"]],
@@ -82,11 +82,11 @@ class GoldenBuildCases(HarnessBuilderE2ECase):
         ]
         snapshots = [snapshot_tree(path) for path in targets]
         self.assertTrue(all(item == snapshots[0] for item in snapshots[1:]))
-        self.assertFalse(any((path / ".harness-agents").exists() for path in targets))
+        self.assertFalse(any((path / ".pipe-agents").exists() for path in targets))
         self.assertIn("custom-field: preserved", (targets[0] / "SKILL.md").read_text(encoding="utf-8"))
 
 
-class CliContractCases(HarnessBuilderE2ECase):
+class CliContractCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(tier="offline", requirements=("CLI", "REPORT"), tags=("cli", "report"))
 
     def setUp(self) -> None:
@@ -115,21 +115,21 @@ class CliContractCases(HarnessBuilderE2ECase):
         text = self.box.builder("check", output_format="text")
         self.assertEqual(text.returncode, 0, text.stdout + text.stderr)
         self.assertIn("OK check fixture-space", text.stdout)
-        version = self.box.run_command([str(Path(__import__("sys").executable)), str(HARNESSBUILDER), "--version"])
+        version = self.box.run_command([str(Path(__import__("sys").executable)), str(PIPEBUILDER), "--version"])
         self.assertEqual(version.returncode, 0)
-        self.assertRegex(version.stdout.strip(), r"^HarnessBuilder \d+\.\d+\.\d+$")
+        self.assertRegex(version.stdout.strip(), r"^PipeBuilder \d+\.\d+\.\d+$")
 
     def test_json_report_contract_for_build_and_clean(self):
         build = self.expect_ok(self.box.builder("build"))
         self.assertEqual(build["command"], "build")
-        self.assertEqual(build["space"], "fixture-space")
-        self.assertEqual(Path(build["spaceRoot"]), self.box.root.resolve())
+        self.assertEqual(build["pipespace"], "fixture-space")
+        self.assertEqual(Path(build["pipespaceRoot"]), self.box.root.resolve())
         clean = self.expect_ok(self.box.builder("clean"))
         self.assertEqual(clean["command"], "clean")
         self.assertGreater(clean["summary"]["removed"], 0)
 
     def test_runner_command_records_redact_credentials(self):
-        secret = "sk-harnessbuilder-secret-123456789"
+        secret = "sk-pipebuilder-secret-123456789"
         result = self.box.run_command(
             [str(Path(__import__("sys").executable)), "-c", f"print('authorization=Bearer {secret}')"],
         )
@@ -139,40 +139,40 @@ class CliContractCases(HarnessBuilderE2ECase):
         self.assertIn("<redacted>", serialized)
 
     def test_release_artifact_is_single_python_file_and_compiles(self):
-        self.assertTrue(HARNESSBUILDER.is_file())
-        first_hundred_lines = "\n".join(HARNESSBUILDER.read_text(encoding="utf-8").splitlines()[:100])
-        for expected in ("可独立分发的单文件", "快速使用", "harness-space.json", "branch/tag", "所有权与输出"):
+        self.assertTrue(PIPEBUILDER.is_file())
+        first_hundred_lines = "\n".join(PIPEBUILDER.read_text(encoding="utf-8").splitlines()[:100])
+        for expected in ("可独立分发的单文件", "快速使用", "pipespace.json", "branch/tag", "所有权与输出"):
             self.assertIn(expected, first_hundred_lines)
-        result = self.box.run_command([str(Path(__import__("sys").executable)), "-m", "py_compile", str(HARNESSBUILDER)])
+        result = self.box.run_command([str(Path(__import__("sys").executable)), "-m", "py_compile", str(PIPEBUILDER)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        release = self.box.base / "standalone-release" / "harnessbuilder.py"
+        release = self.box.base / "standalone-release" / "pipebuilder.py"
         release.parent.mkdir()
-        shutil.copy2(HARNESSBUILDER, release)
+        shutil.copy2(PIPEBUILDER, release)
         help_result = self.box.run_command([str(Path(__import__("sys").executable)), str(release), "--help"], cwd=self.box.base)
         self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
-        for expected in ("快速使用", "Git Provider", ".harness-builder/lock.json", "--offline"):
+        for expected in ("快速使用", "Git Provider", ".pipebuilder/lock.json", "--offline"):
             self.assertIn(expected, help_result.stdout)
         standalone = self.box.run_command(
             [str(Path(__import__("sys").executable)), str(release), "build", str(self.box.root), "--format", "json"],
             cwd=self.box.base,
         )
         self.assertEqual(standalone.returncode, 0, standalone.stdout + standalone.stderr)
-        self.assertTrue((self.box.root / ".harness-builder/lock.json").is_file())
+        self.assertTrue((self.box.root / ".pipebuilder/lock.json").is_file())
 
     def test_release_source_uses_python_37_grammar(self):
-        source = HARNESSBUILDER.read_text(encoding="utf-8")
-        compile(source, str(HARNESSBUILDER), "exec", dont_inherit=True)
+        source = PIPEBUILDER.read_text(encoding="utf-8")
+        compile(source, str(PIPEBUILDER), "exec", dont_inherit=True)
         self.assertIn("Python 3.7+", source[:4000])
 
 
-class InitCases(HarnessBuilderE2ECase):
+class InitCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(tier="offline", requirements=("CLI", "INIT", "MANIFEST", "WORKSPACE"), tags=("init", "idempotence"))
 
     def test_empty_space_is_initialized_and_second_run_only_validates(self):
         first = self.expect_ok(self.box.builder("init"))
-        self.assertEqual(first["space"], "space")
+        self.assertEqual(first["pipespace"], "space")
         self.assertEqual(first["summary"], {"created": 2, "validated": 0})
-        manifest = json.loads((self.box.root / "harness-space.json").read_text(encoding="utf-8"))
+        manifest = json.loads((self.box.root / "pipespace.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["agents"], ["codex", "cursor", "codebuddy", "claude-code"])
         self.assertTrue((self.box.root / "space.code-workspace").is_file())
         before = snapshot_tree(self.box.root)
@@ -185,46 +185,46 @@ class InitCases(HarnessBuilderE2ECase):
     def test_init_creates_a_missing_target_directory_and_supports_explicit_name(self):
         target = self.box.base / "nested" / "新项目"
         result = self.box.run_command(
-            [str(Path(__import__("sys").executable)), str(HARNESSBUILDER), "init", str(target), "--name", "web-game", "--format", "json"],
+            [str(Path(__import__("sys").executable)), str(PIPEBUILDER), "init", str(target), "--name", "web-game", "--format", "json"],
             cwd=self.box.base,
         )
         payload = self.expect_ok(result)
-        self.assertEqual(payload["space"], "web-game")
-        self.assertTrue((target / "harness-space.json").is_file())
+        self.assertEqual(payload["pipespace"], "web-game")
+        self.assertTrue((target / "pipespace.json").is_file())
         self.assertTrue((target / "web-game.code-workspace").is_file())
 
         invalid_target = self.box.base / "Invalid Directory"
         invalid = self.box.run_command(
-            [str(Path(__import__("sys").executable)), str(HARNESSBUILDER), "init", str(invalid_target), "--format", "json"],
+            [str(Path(__import__("sys").executable)), str(PIPEBUILDER), "init", str(invalid_target), "--format", "json"],
             cwd=self.box.base,
         )
-        self.expect_code(invalid, "HB002")
-        self.assertFalse((invalid_target / "harness-space.json").exists())
+        self.expect_code(invalid, "PB002")
+        self.assertFalse((invalid_target / "pipespace.json").exists())
 
     def test_existing_manifest_is_preserved_while_missing_workspace_is_created(self):
         manifest = {
-            "schema": "harness-space.v1",
+            "schema": "pipespace.v1",
             "name": "custom-space",
             "agents": ["codex"],
             "skills": [],
             "tags": [],
             "skillProviders": [],
         }
-        self.box.write_json("harness-space.json", manifest)
-        before = (self.box.root / "harness-space.json").read_bytes()
+        self.box.write_json("pipespace.json", manifest)
+        before = (self.box.root / "pipespace.json").read_bytes()
         payload = self.expect_ok(self.box.builder("init"))
         self.assertEqual(payload["summary"], {"created": 1, "validated": 1})
-        self.assertEqual((self.box.root / "harness-space.json").read_bytes(), before)
+        self.assertEqual((self.box.root / "pipespace.json").read_bytes(), before)
         self.assertTrue((self.box.root / "custom-space.code-workspace").is_file())
 
     def test_invalid_existing_required_file_fails_without_creating_the_other(self):
-        self.box.write_text("harness-space.json", "{invalid")
+        self.box.write_text("pipespace.json", "{invalid")
         before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("init"), "HB001")
+        self.expect_code(self.box.builder("init"), "PB001")
         self.assertEqual(snapshot_tree(self.box.root), before)
 
-        (self.box.root / "harness-space.json").unlink()
+        (self.box.root / "pipespace.json").unlink()
         self.box.write_text("space.code-workspace", "{invalid")
         before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("init"), "HB004")
+        self.expect_code(self.box.builder("init"), "PB004")
         self.assertEqual(snapshot_tree(self.box.root), before)

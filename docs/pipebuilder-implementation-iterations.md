@@ -1,4 +1,4 @@
-# HarnessBuilder v0.2.0 落地与迭代记录
+# PipeBuilder v0.2.0 落地与迭代记录
 
 日期：2026-07-13
 验证解释器：CPython 3.11.9（隔离构建，仅用于测试）
@@ -33,12 +33,12 @@ Git Provider 与 folder 边界补强后：E0 84/84、Codex E1 5/5、Codex E2 1/1
 | 19 | runner `--case` 拼错导致 0 tests 假绿 | 发现并修复 runner bug；无匹配返回 2，单 case passed |
 | 20 | 未选择 Agent 的 Space/Skill source 不读取；最终 py_compile + 全量回归 | 40/40 passed |
 
-测试均通过 `tests/e2e/support/` 以 `shell=False` 子进程执行最终 `harnessbuilder.py`。轮次 13、14、15 以及后续真实并发 case 使用受测脚本内仅供 E2E 的 `HARNESSBUILDER_TEST_*` 故障/时序注入变量验证 apply failure、crash 与锁竞争；正常环境未设置时不影响构建路径。
+测试均通过 `tests/e2e/support/` 以 `shell=False` 子进程执行最终 `pipebuilder.py`。轮次 13、14、15 以及后续真实并发 case 使用受测脚本内仅供 E2E 的 `PIPEBUILDER_TEST_*` 故障/时序注入变量验证 apply failure、crash 与锁竞争；正常环境未设置时不影响构建路径。
 
 后续全面重写把测试拆成 case/fixture/golden/support，并补齐结构化报告、失败制品、并行安全 metadata 和 `COVERAGE.md`。本机 Codex CLI 0.144.1 已完成 E1 真实 prompt assembly/config/execpolicy/hook schema 验证，并用一次真实模型请求同时通过 generated AGENTS、Skill 与 SessionStart hook 哨兵。其他三个平台仍只声称 E0 projection 覆盖。
 
 20 轮完成后的交付前 hardening 继续增加了 3 个 case：Codex machine/user-level key 拒绝、Cursor 跨目录 slash command semantic collision、Claude Code legacy command migration warning。它们不计入上述 20 轮循环，最终全量为 43/43。
 
-第二次审计 hardening 修复了伪造 lock 越权 clean、`.harness-builder` symlink 写锁、YAML block scalar/unknown nested frontmatter、Unicode normalization 与 Windows reserved name 等问题；补充 Adapter schema、hook command secret、risk/semantic lock、standalone release copy 和 runner redaction。原 THarness 45 个真实 shared Skills 中 43 个通过新解析器，剩余两个需要显式 canonical rename。最终本机验证为 E0 71/71、Codex E1 5/5、Codex E2 1/1。
+第二次审计 hardening 修复了伪造 lock 越权 clean、`.pipebuilder` symlink 写锁、YAML block scalar/unknown nested frontmatter、Unicode normalization 与 Windows reserved name 等问题；补充 Adapter schema、hook command secret、risk/semantic lock、standalone release copy 和 runner redaction。原 THarness 45 个真实 shared Skills 中 43 个通过新解析器，剩余两个需要显式 canonical rename。最终本机验证为 E0 71/71、Codex E1 5/5、Codex E2 1/1。
 
 Provider follow-up 实现了 `url + branch/tag` Git Provider、独立 mirror/snapshot cache、commit lock、subdir 和 `--offline` digest 校验，并补充 folder symlink root、realpath alias、特殊字符路径、root kind 与内容变更覆盖。新增 13 个黑盒 case 后 E0 为 84/84；Codex E2 哨兵 Skill 也改为从真实本地 Git branch Provider 构建后交给模型消费。原安全 P0 继续由 forged lock、Builder state symlink、THarness-compatible frontmatter 与 unknown nested frontmatter 回归用例守护。
