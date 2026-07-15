@@ -136,24 +136,45 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
         )
         self.box.write_text(
             "post.py",
-            "import pathlib,sys\npathlib.Path(sys.argv[1], 'post-command.txt').write_text('ran\\n', encoding='utf-8')\n",
+            "import json,pathlib,sys\n"
+            "pathlib.Path(sys.argv[1], 'post-command.json').write_text(\n"
+            "    json.dumps({\n"
+            "        'pipespaceRoot': sys.argv[1],\n"
+            "        'sourceRoot': sys.argv[2],\n"
+            "        'providerRoot': sys.argv[3],\n"
+            "    }),\n"
+            "    encoding='utf-8',\n"
+            ")\n",
             base=source,
         )
         provider = {
             "type": "folder",
             "path": "../component",
             "subdir": "skills",
-            "command": {"cwd": ".", "args": [sys.executable, "post.py", "{pipespaceRoot}"]},
+            "command": {
+                "cwd": ".",
+                "args": [
+                    sys.executable,
+                    "post.py",
+                    "{pipespaceRoot}",
+                    "{sourceRoot}",
+                    "{providerRoot}",
+                ],
+            },
         }
         self.box.manifest(agents=["codex"], skills=["commanded"], providers=[provider])
         explain = self.expect_ok(self.box.builder("explain"))
         self.assertEqual(explain["summary"]["postCommands"], 1)
-        self.assertFalse((self.box.root / "post-command.txt").exists())
+        self.assertFalse((self.box.root / "post-command.json").exists())
         self.expect_ok(self.box.builder("build", "--dry-run"))
-        self.assertFalse((self.box.root / "post-command.txt").exists())
+        self.assertFalse((self.box.root / "post-command.json").exists())
         built = self.expect_ok(self.box.builder("build"))
         self.assertEqual(built["summary"]["postCommands"], 1)
-        self.assertEqual((self.box.root / "post-command.txt").read_text(encoding="utf-8"), "ran\n")
+        post_result = json.loads((self.box.root / "post-command.json").read_text(encoding="utf-8"))
+        self.assertEqual(Path(post_result["pipespaceRoot"]), self.box.root.resolve())
+        self.assertEqual(Path(post_result["sourceRoot"]), source.resolve())
+        self.assertEqual(Path(post_result["providerRoot"]), (source / "skills").resolve())
+        self.assertNotEqual(post_result["sourceRoot"], post_result["providerRoot"])
         self.assertTrue((self.box.root / ".agents/skills/commanded/SKILL.md").is_file())
 
 
@@ -341,7 +362,7 @@ class SkillPackageCases(PipeBuilderE2ECase):
         self.assertFalse((target / ".DS_Store").exists())
         self.assertEqual(snapshot_tree(self.box.root / "provider"), source_before)
 
-    def test_harness_agents_never_leak_into_common_package(self):
+    def test_pipe_agents_never_leak_into_common_package(self):
         self.box.skill("provider", "native")
         self.box.write_text("provider/native/.pipe-agents/codex/AGENTS.md", "native only\n")
         self.box.manifest(agents=["codex"], skills=["native"], providers=[{"type": "folder", "path": "provider"}])
@@ -374,7 +395,7 @@ description: >-
 tags:
   - migration
 metadata:
-  owner: harness-team
+  owner: pipe-team
   nested:
     maturity: stable
 trigger_condition: |

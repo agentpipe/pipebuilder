@@ -124,7 +124,7 @@ The workspace file is the sole source of truth for project names, paths, and ord
 ```json
 {
   "schema": "pipespace.v1",
-  "name": "my-harness-space",
+  "name": "my-pipe-space",
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],
   "skills": [],
   "tags": [],
@@ -132,7 +132,7 @@ The workspace file is the sole source of truth for project names, paths, and ord
 }
 ```
 
-The basename of the PipeSpace root is only the name of the physical container. It does not participate in identity derivation and does not need to match `name`. For example, the following directory still represents `my-harness-space`:
+The basename of the PipeSpace root is only the name of the physical container. It does not participate in identity derivation and does not need to match `name`. For example, the following directory still represents `my-pipe-space`:
 
 ```text
 /work/spaces/local-checkout-17/
@@ -141,7 +141,7 @@ The basename of the PipeSpace root is only the name of the physical container. I
 The workspace filename is derived from `name` in the manifest and must therefore be:
 
 ```text
-my-harness-space.code-workspace
+my-pipe-space.code-workspace
 ```
 
 Consequently, moving or renaming the PipeSpace directory does not change its logical identity, and copying the directory does not automatically create a new identity. To fork or rename a PipeSpace, explicitly change `pipespace.json.name` and rename the workspace file accordingly. A folder name identifies a project within the workspace file and has no binding to the PipeSpace name.
@@ -237,7 +237,7 @@ The root `AGENTS.md`, `CLAUDE.md`, and all planned platform files under `.codex/
 ```text
 local-checkout-17/                         # PipeSpace root; basename has no protocol semantics
 ├── pipespace.json                         # Required; PipeSpace identity/config
-├── my-harness-space.code-workspace           # Required; filename derived from manifest name, Human-owned
+├── my-pipe-space.code-workspace              # Required; filename derived from manifest name, Human-owned
 ├── .pipebuilder/
 │   ├── agents/                           # Space-level agent-specific source, native layout
 │   │   ├── codex/
@@ -286,7 +286,7 @@ Every PipeSpace must commit `pipespace.json`. The minimal configuration explicit
 ```json
 {
   "schema": "pipespace.v1",
-  "name": "my-harness-space",
+  "name": "my-pipe-space",
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],
   "skills": [],
   "tags": [],
@@ -307,7 +307,7 @@ All valid Skills in this Provider are selected.
 ```json
 {
   "schema": "pipespace.v1",
-  "name": "my-harness-space",
+  "name": "my-pipe-space",
   "agents": [
     "codex",
     "cursor",
@@ -564,10 +564,10 @@ Example:
     "digest": "sha256:..."
   },
   "space": {
-    "name": "my-harness-space",
+    "name": "my-pipe-space",
     "root": ".",
     "manifestDigest": "sha256:...",
-    "workspace": "my-harness-space.code-workspace",
+    "workspace": "my-pipe-space.code-workspace",
     "workspaceDigest": "sha256:..."
   },
   "agents": [
@@ -593,7 +593,7 @@ For deterministic builds, `generatedAt` may be recorded but must not participate
 python3 pipebuilder.py build
 
 # Build a specified PipeSpace
-python3 pipebuilder.py build /path/to/my-harness-space
+python3 pipebuilder.py build /path/to/my-pipe-space
 
 # Parse, validate, and print the plan without writing files
 python3 pipebuilder.py check

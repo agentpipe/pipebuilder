@@ -23,7 +23,7 @@ Its `pipespace.json` is:
 ```json
 {
   "schema": "pipespace.v1",
-  "name": "my-harness-space",
+  "name": "my-pipe-space",
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],
   "skills": [],
   "tags": [],
@@ -35,7 +35,7 @@ Its `pipespace.json` is:
 The canonical logical name is:
 
 ```text
-my-harness-space
+my-pipe-space
 ```
 
 `pipespace.json.name` is the sole source of truth for PipeSpace identity and must match:
@@ -47,7 +47,7 @@ my-harness-space
 The following workspace file must exist:
 
 ```text
-my-harness-space.code-workspace
+my-pipe-space.code-workspace
 ```
 
 The directory basename neither contributes to identity derivation nor is compared with `name`. Moving or renaming the PipeSpace root does not change its logical identity. To create a new PipeSpace by copying the directory, explicitly change `name` and rename the workspace file accordingly. Workspace folder names do not have to match the PipeSpace name.
@@ -79,7 +79,7 @@ An explicit empty array means that there is currently no configuration of that k
 {
   "schema": "pipespace.v1",
   "name": "ue-gameplay",
-  "description": "UE gameplay development harness space",
+  "description": "UE gameplay development PipeSpace",
   "agents": [
     "codex",
     "cursor",
@@ -255,12 +255,12 @@ Both Folder Providers and Git Providers may include a post command:
   "subdir": "skills",
   "command": {
     "cwd": ".",
-    "args": ["node", "build.mjs", "--pipe-post", "--output", "{spaceRoot}", "--driver", "webgame"]
+    "args": ["node", "build.mjs", "--pipe-post", "--output", "{pipespaceRoot}", "--driver", "webgame"]
   }
 }
 ```
 
-`cwd` is relative to the Provider source root and defaults to `.`. `args` is a non-empty string array that is executed without a shell. A normal `build` invokes post commands in Provider order after PipeBuilder's own outputs have been written. `check`, `explain`, and `build --dry-run` only display them and do not execute them.
+`cwd` is relative to the Provider source root and defaults to `.`. `args` is a non-empty string array that is executed without a shell. PipeBuilder expands `{pipespaceRoot}`, `{sourceRoot}`, and `{providerRoot}` in every argument and exposes the same paths as `PIPE_SPACE_ROOT`, `PIPE_PROVIDER_SOURCE_ROOT`, and `PIPE_PROVIDER_ROOT`. A normal `build` invokes post commands in Provider order after PipeBuilder's own outputs have been written. `check`, `explain`, and `build --dry-run` only display them and do not execute them.
 
 Absolute paths are not allowed in the manifest, which keeps the PipeSpace movable. A genuine need for a machine-local path should be addressed through the external directory layout, a symlink, or a future local-override mechanism.
 
@@ -537,8 +537,8 @@ Intermediate representation:
 
 ```json
 {
-  "space": "my-harness-space",
-  "workspace": "my-harness-space.code-workspace",
+  "space": "my-pipe-space",
+  "workspace": "my-pipe-space.code-workspace",
   "folders": [
     {
       "name": "game-project",

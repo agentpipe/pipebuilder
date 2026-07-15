@@ -7,6 +7,7 @@ from pathlib import Path
 
 from support import PipeBuilderE2ECase, Sandbox, snapshot_tree, try_symlink
 from support.model import CaseMetadata
+from support.sandbox import PIPEBUILDER
 
 
 class PipeSpaceTreeCases(PipeBuilderE2ECase):
@@ -60,6 +61,11 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
         self.assertFalse((self.box.root / ".pipebuilder/tree-build.lock").exists())
         for path in self.box.root.rglob(".pipebuilder/build.lock"):
             self.fail(f"operation lock leaked: {path}")
+
+    def test_tree_document_source_uses_pipespace_namespace(self):
+        source = PIPEBUILDER.read_text(encoding="utf-8")
+        self.assertIn('["core:pipespace-tree"]', source)
+        self.assertNotIn('["core:hspace-tree"]', source)
 
     def test_unified_commands_discover_build_verify_and_reverse_clean(self):
         first = self.add_child("children/child-01", "child-01")

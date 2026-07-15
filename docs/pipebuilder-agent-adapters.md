@@ -28,7 +28,7 @@ The PipeSpace provides:
 The adapter consumes the IR resolved by the core and does not traverse Providers itself:
 
 ```text
-HarnessSpaceContext
+PipeSpaceContext
 WorkspaceRule
 SelectedSkills[]
 AgentArtifacts[]

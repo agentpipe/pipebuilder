@@ -2902,7 +2902,7 @@ def tree_journal_path(root: Path) -> Path:
 
 
 def write_tree_document(root: Path, relative: str, value: dict[str, Any], logical_type: str) -> None:
-    atomic_write(root, Operation(relative, json_bytes(value), ["core:hspace-tree"], logical_type, "render"))
+    atomic_write(root, Operation(relative, json_bytes(value), ["core:pipespace-tree"], logical_type, "render"))
 
 
 def remove_tree_document(root: Path, path: Path) -> None:
