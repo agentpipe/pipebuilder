@@ -491,14 +491,14 @@ Workspace 支持三种常见 topology：
 ```json
 {
   "folders": [
-    {"name": "same-directory-project", "path": "."},
-    {"name": "decoupled-project", "path": "../project"},
-    {"name": "another-project", "path": "../another-project"}
+    {"path": "."},
+    {"path": "../project"},
+    {"name": "custom-project-name", "path": "../another-project"}
   ]
 }
 ```
 
-`path: "."` 表示项目与 Harness Space root 同目录；其他相对路径表示目录解耦。两种形式可以同时出现。`folders` 必须是至少包含一项的数组；folder name 非空且唯一，path 非空、为相对路径、解析后唯一，并在 build 时指向已存在目录。
+`path: "."` 表示项目与 Harness Space root 同目录；其他相对路径表示目录解耦。两种形式可以同时出现。`name` 可选；省略时使用 `path` 所指目录的 basename（`.` 对应 Harness Space root 的 basename），显式配置时必须是非空字符串。`folders` 必须是至少包含一项的数组；最终 folder name 唯一，path 非空、为相对路径、解析后唯一，并在 build 时指向已存在目录。
 
 ### 10.2 Folder 语义
 

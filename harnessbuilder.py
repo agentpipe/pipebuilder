@@ -35,7 +35,7 @@ Harness Space 最小输入
      "skills":[], "tags":[], "skillProviders":[]}
 
 最小 my-space.code-workspace：
-    {"folders":[{"name":"project", "path":"."}]}
+    {"folders":[{"path":"."}]}
 
 可选的一层 HSpace Tree：root 仍是普通 Harness Space，并在自身目录声明显式 children：
     {"schema":"harness-space-tree.v1",
@@ -941,16 +941,30 @@ def load_workspace(root: Path, manifest: Manifest) -> Workspace:
     for index, item in enumerate(raw["folders"]):
         if not isinstance(item, dict):
             fail("HB004", f"workspace.folders[{index}] must be an object", sources=(path.as_posix(),))
-        name, configured = item.get("name"), item.get("path")
-        if not isinstance(name, str) or not name.strip():
-            fail("HB004", f"workspace.folders[{index}].name must be non-empty", sources=(path.as_posix(),))
-        if name in names:
-            fail("HB004", f"Duplicate workspace folder name: {name}", sources=(path.as_posix(),))
+        configured = item.get("path")
         if not isinstance(configured, str) or not configured.strip() or Path(configured).is_absolute():
-            fail("HB004", f"workspace folder path must be a non-empty relative path: {name}", sources=(path.as_posix(),))
+            fail(
+                "HB004",
+                f"workspace.folders[{index}].path must be a non-empty relative path",
+                sources=(path.as_posix(),),
+            )
         resolved = (root / configured).resolve()
         if not resolved.is_dir():
             fail("HB004", f"Workspace folder does not exist: {configured}", sources=(path.as_posix(), configured))
+        if "name" not in item:
+            name = (root / configured).name
+            if not name:
+                fail(
+                    "HB004",
+                    f"workspace.folders[{index}].name could not be derived from path: {configured}",
+                    sources=(path.as_posix(),),
+                )
+        else:
+            name = item.get("name")
+            if not isinstance(name, str) or not name.strip():
+                fail("HB004", f"workspace.folders[{index}].name must be non-empty", sources=(path.as_posix(),))
+        if name in names:
+            fail("HB004", f"Duplicate workspace folder name: {name}", sources=(path.as_posix(),))
         key = os.path.normcase(str(resolved))
         if key in resolved_keys:
             fail("HB004", f"Duplicate resolved workspace folder path: {configured}", sources=(path.as_posix(),))

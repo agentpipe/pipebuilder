@@ -155,7 +155,6 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
 
     def test_folder_name_and_path_validation(self):
         cases = (
-            [{"path": "."}],
             [{"name": "", "path": "."}],
             [{"name": "x"}],
             [{"name": "x", "path": ""}],
@@ -168,6 +167,30 @@ class WorkspaceValidationCases(HarnessBuilderE2ECase):
             self.box.manifest(agents=["codex"], folders=folders)
             with self.subTest(folders=folders):
                 self.expect_code(self.box.builder("check"), "HB004")
+
+    def test_folder_name_is_optional_and_derived_from_path(self):
+        external = self.box.base / "external-project"
+        external.mkdir()
+        self.box.manifest(
+            agents=["codex"],
+            folders=[
+                {"path": "."},
+                {"path": "../external-project"},
+            ],
+        )
+
+        payload = self.expect_ok(self.box.builder("explain"))
+        self.assertEqual(
+            payload["details"]["workspace"]["folders"],
+            [
+                {"name": self.box.root.name, "path": "."},
+                {"name": external.name, "path": "../external-project"},
+            ],
+        )
+        self.expect_ok(self.box.builder("build"))
+        guidance = (self.box.root / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(f"`{self.box.root.name}`: `.`", guidance)
+        self.assertIn("`external-project`: `../external-project`", guidance)
 
     def test_same_directory_external_and_multiple_folders_are_preserved_in_order(self):
         external = self.box.base / "项目 #1 'quoted' $dollar"
