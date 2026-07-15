@@ -1,0 +1,1 @@
+print("GOLDEN_CLAUDE_HOOK_PROBE")

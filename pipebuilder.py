@@ -161,7 +161,7 @@ ADAPTER_STATUS = {
     "codex": "client-verified",
     "cursor": "client-verified",
     "codebuddy": "generated-only",
-    "claude-code": "generated-only",
+    "claude-code": "client-verified",
 }
 CODEX_FORBIDDEN_PROJECT_KEYS = {
     "openai_base_url",

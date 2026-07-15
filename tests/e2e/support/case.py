@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import unittest
 from pathlib import Path
 from typing import Any
@@ -66,10 +67,41 @@ class PipeBuilderE2ECase(unittest.TestCase):
         return payload
 
     def require_program(self, name: str) -> str:
-        found = shutil.which(name)
+        found = self._resolve_program(name)
         if found:
             return found
         if os.environ.get("PIPEBUILDER_E2E_REQUIRE") == "1":
             self.fail(f"required client is missing: {name}")
         self.skipTest(f"client is not installed: {name}")
         raise AssertionError("unreachable")
+
+    def _resolve_program(self, name: str) -> str | None:
+        override = os.environ.get(f"PIPEBUILDER_{name.upper().replace('-', '_')}_BIN")
+        if override and Path(override).is_file():
+            return str(Path(override).resolve())
+        found = shutil.which(name)
+        if found:
+            return found
+        home = Path.home()
+        for candidate in (
+            home / ".local" / "bin" / name,
+            home / ".cursor" / "bin" / name,
+        ):
+            if candidate.is_file():
+                return str(candidate.resolve())
+        if name == "claude":
+            npm = shutil.which("npm")
+            if npm:
+                completed = subprocess.run(
+                    [npm, "root", "-g"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+                if completed.returncode == 0:
+                    root = Path(completed.stdout.strip())
+                    for match in sorted(root.glob("**/claude-code/bin/claude*")):
+                        if match.is_file() and match.name.startswith("claude"):
+                            return str(match.resolve())
+        return None

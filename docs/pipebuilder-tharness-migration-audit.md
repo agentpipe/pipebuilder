@@ -39,7 +39,7 @@ An external THarness checkout is not an E0 repository dependency. The correspond
 
 ## Outstanding External Certification
 
-- an automated case for Cursor's manual E1 validation, plus real-client E1 validation for CodeBuddy and Claude Code;
+- real-client E1 validation for CodeBuddy, plus future Cursor and Claude Code E2 sentinels;
 - native Windows and macOS CI, which has been added but still requires observation of its first results;
 - a standalone bulk-migration tool for nested Skills and `tagents`;
 - Git/registry Providers and adapter plugins, both of which remain future work.

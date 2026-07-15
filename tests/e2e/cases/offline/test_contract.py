@@ -26,7 +26,7 @@ class GoldenBuildCases(PipeBuilderE2ECase):
     def test_static_example_matches_full_managed_tree_and_file_goldens(self):
         before = self.box.snapshot_inputs()
         payload = self.expect_ok(self.box.builder("build"))
-        self.assertEqual(payload["summary"], {"generated": 25, "removed": 0, "skills": 1})
+        self.assertEqual(payload["summary"], {"generated": 28, "removed": 0, "skills": 1})
         lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
         actual_targets = sorted(item["target"] for item in lock["artifacts"])
         expected_targets = json.loads((self.expected / "managed-targets.json").read_text(encoding="utf-8"))
@@ -57,7 +57,7 @@ class GoldenBuildCases(PipeBuilderE2ECase):
         self.assertEqual([item["id"] for item in lock["agents"]], ["codex", "cursor", "codebuddy", "claude-code"])
         self.assertEqual(
             [item["capabilityStatus"] for item in lock["agents"]],
-            ["client-verified", "client-verified", "generated-only", "generated-only"],
+            ["client-verified", "client-verified", "generated-only", "client-verified"],
         )
         self.assertNotIn(str(self.box.base), json.dumps(lock))
         for artifact in lock["artifacts"]:

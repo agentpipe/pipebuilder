@@ -275,7 +275,11 @@ The baseline includes at least:
 - an `.mdc` rule;
 - a Markdown command.
 
-This baseline has completed manual E1 verification against a real client, but that verification has not yet been codified as an automated client case. Hooks, agents, config, and MCP remain `G` and stay in candidate cases rather than entering the baseline full-capability Skill until their schemas are confirmed against the team's pinned Cursor client. Add them individually after confirmation instead of claiming support for all of them at once.
+This baseline has automated installed-client E1 smoke coverage for the CLI and generated native
+discovery paths, backed by prior manual discovery certification. Hooks, agents, config, and MCP
+remain `G` and stay in candidate cases rather than entering the baseline full-capability Skill
+until their schemas are confirmed against the team's pinned Cursor client. Add them individually
+after confirmation instead of claiming support for all of them at once.
 
 ### 5.4 CodeBuddy Capability Skill
 

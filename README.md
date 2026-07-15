@@ -216,9 +216,9 @@ PipeBuilder 0.5.0 includes four platform Adapters. Keep their validation levels 
 | Agent | Current generation capabilities | Validation status |
 | --- | --- | --- |
 | Codex | Skills, `AGENTS.md`, config/agents/MCP, Hooks, Rules | Automated real-client E1; real-model E2 |
-| Cursor | Skills, workspace Rule, Rules, Commands | Manual real-client E1; automated E1 pending |
+| Cursor | Skills, workspace Rule, Rules, Commands | Automated installed-client E1 smoke; manual discovery certification |
 | CodeBuddy | Skills, fixed workspace Rule, Commands, Agents, Settings/Hooks, MCP | E0 generation and limited structural validation |
-| Claude Code | Skills, `CLAUDE.md`, Rules, Commands, Agents, Settings/Hooks, MCP | E0 generation and limited structural validation |
+| Claude Code | Skills, `CLAUDE.md`, Rules, Commands, Agents, Settings/Hooks, MCP | Automated real-client E1 parsing and discovery |
 
 `client-verified` means validation has run in a real client. `generated-only` means generated
 output and supported structure have been validated, but real-client E1 has not been
@@ -334,8 +334,8 @@ python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
 GitHub Actions runs E0 on Python 3.11 for Linux, Windows, and macOS. Linux additionally covers
-Python 3.7 and Python 3.13. Cursor currently has manual real-client E1 validation but no
-automated case.
+Python 3.7 and Python 3.13. The installed-client tier includes automated Codex, Cursor, and
+Claude Code cases; CodeBuddy remains generated-only.
 
 ## License
 

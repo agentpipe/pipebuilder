@@ -146,7 +146,7 @@ Characteristics:
 - Runs on nightly, main, or release runners.
 - Under `--require`, a missing client is a failure rather than a skip.
 
-The automated Codex E1 implementation covers native prompt assembly for generated `AGENTS.md`/Skills, trusted-project configuration discovery, project-hook schema parsing, and `codex execpolicy check`. Actual hook execution belongs to E2. Other platforms are added only after a stable official entry point has been confirmed for the relevant version; CLI arguments are never invented.
+The automated Codex E1 implementation covers native prompt assembly for generated `AGENTS.md`/Skills, trusted-project configuration discovery, project-hook schema parsing, and `codex execpolicy check`. Cursor E1 uses the installed headless CLI for capability/version probes, validates generated native discovery paths, and exercises workspace MCP discovery; model-visible consumption remains a manual certification boundary. Claude Code E1 uses the installed CLI to parse generated project settings and discover generated MCP configuration. Actual hook execution and model consumption belong to E2. Platforms are added only after a stable official entry point has been confirmed for the relevant version; CLI arguments are never invented.
 
 ### E2: Real-Agent E2E
 
@@ -161,7 +161,7 @@ Characteristics:
 - Used for nightly runs, release candidates, or manual compatibility certification.
 - Reported separately from the deterministic E0 gate so that model variability does not block routine development.
 
-The initial E2 implementation uses Codex only. The current sentinel Skill is first committed to a disposable local Git repository, built through a Git Provider with branch/subdir selection, commit locking, and caching, and then consumed by a real Codex model. The same request also validates the generated `AGENTS.md` and the SessionStart hook. By default, the runner uses the installed Codex client's effective default model; a release job may pin a model explicitly with `--model`. A model ID that may be retired is never hard-coded in the repository. This setting affects E2 only: it does not enter E0/E1 or the PipeSpace product protocol. Cursor has completed manual real-client E1 certification, but no automated Cursor E1 case has yet been committed. CodeBuddy and Claude Code currently have E0 projection coverage only and remain `generated-only`; they will enter E1/E2 only after stable official entry points are confirmed.
+The initial E2 implementation uses Codex only. The current sentinel Skill is first committed to a disposable local Git repository, built through a Git Provider with branch/subdir selection, commit locking, and caching, and then consumed by a real Codex model. The same request also validates the generated `AGENTS.md` and the SessionStart hook. By default, the runner uses the installed Codex client's effective default model; a release job may pin a model explicitly with `--model`. A model ID that may be retired is never hard-coded in the repository. This setting affects E2 only: it does not enter E0/E1 or the PipeSpace product protocol. Cursor and Claude Code now have automated E1 cases; CodeBuddy remains `generated-only`. E2 expansion still requires deterministic sentinels and authenticated fixed runners.
 
 ---
 

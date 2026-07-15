@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hb_fixture": {
+      "command": "python3",
+      "args": [
+        "-c",
+        "pass"
+      ]
+    }
+  }
+}

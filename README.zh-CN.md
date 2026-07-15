@@ -200,9 +200,9 @@ PipeBuilder 0.5.0 内置四个平台 Adapter。不同验证等级必须分开理
 | Agent | 当前生成能力 | 验证状态 |
 | --- | --- | --- |
 | Codex | Skills、`AGENTS.md`、config/agents/MCP、Hooks、Rules | 自动化真实客户端 E1；真实模型 E2 |
-| Cursor | Skills、workspace Rule、Rules、Commands | 真实客户端人工 E1；自动化 E1 待补 |
+| Cursor | Skills、workspace Rule、Rules、Commands | 自动化客户端 E1 冒烟；人工发现验证 |
 | CodeBuddy | Skills、固定 workspace Rule、Commands、Agents、Settings/Hooks、MCP | E0 生成与有限结构校验 |
-| Claude Code | Skills、`CLAUDE.md`、Rules、Commands、Agents、Settings/Hooks、MCP | E0 生成与有限结构校验 |
+| Claude Code | Skills、`CLAUDE.md`、Rules、Commands、Agents、Settings/Hooks、MCP | 自动化真实客户端 E1 解析与发现 |
 
 `client-verified` 表示已经在真实客户端验证；`generated-only` 表示已验证生成结果和
 当前实现支持的结构，但尚未建立真实客户端 E1。状态会写入 `explain` 和
@@ -312,7 +312,8 @@ python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
 GitHub Actions 在 Linux、Windows、macOS 的 Python 3.11 上运行 E0；Linux 额外覆盖
-Python 3.7 和 Python 3.13。Cursor 当前采用人工真实客户端 E1 验证，尚未加入自动化 case。
+Python 3.7 和 Python 3.13。客户端测试层已自动覆盖 Codex、Cursor 和 Claude Code；
+CodeBuddy 仍为 `generated-only`。
 
 ## 许可证
 

@@ -2,7 +2,9 @@
 
 Status: implemented
 Baseline date: 2026-07-15
-Latest validation: full E0 103/103 (including targeted PipeSpace Tree coverage 9/9), Codex E1 5/5, and Codex E2 1/1; Cursor has completed manual real-client E1 certification, while an automated case is still pending.
+Latest local validation: full E0 103/103, Cursor E1 4/4, and Claude Code E1 4/4.
+The previously recorded Codex baselines are E1 5/5 and E2 1/1; Codex was not installed for
+the current local run.
 
 This document counts independent black-box test methods; a table or subtest within one method may cover multiple input variants. Every case executes the final `pipebuilder.py` and does not import production code.
 
@@ -11,7 +13,7 @@ This document counts independent black-box test methods; a table or subtest with
 | Tier | Current coverage | External dependencies | Default gate |
 | --- | --- | --- | --- |
 | E0 offline | 103 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
-| E1 client | 5 automated Codex cases; manual Cursor certification | The corresponding real client; no model request | main/release |
+| E1 client | 5 Codex, 4 Cursor, and 4 Claude Code automated cases | The corresponding real client; no model request | main/release |
 | E2 live | 1 combined Codex sentinel case | Codex CLI, authentication, network, and model | opt-in/release |
 
 ## E0 Requirement Mapping
@@ -74,6 +76,17 @@ These tests use real commands from the installed Codex CLI rather than file-exis
 - `codex execpolicy check` actually parses and matches the generated `.rules`;
 - the real client accepts the current three-level `hooks.json` schema.
 
+## E1: Real Cursor and Claude Code Clients
+
+Cursor E1 records the installed CLI version, probes its headless command surface and `about`
+command, validates the generated Rule/Skill/Command discovery paths, and uses the real client
+to discover a workspace MCP configuration. The path checks automate the previously manual
+baseline but do not claim model consumption.
+
+Claude Code E1 records the installed CLI version, validates its supported command surface,
+uses the real client to parse generated `.claude/settings.json`, discovers generated
+`.mcp.json`, and validates the generated instruction, Rule, and Skill paths.
+
 ## E2: Real Model
 
 A single model request validates three chains at once to reduce cost and variability:
@@ -88,7 +101,7 @@ A single model request validates three chains at once to reduce cost and variabi
 
 - The current machine has completed only native Linux filesystem runs. Windows/macOS case sensitivity, permissions, and symlink behavior still require CI on the corresponding OS; string-normalization tests cannot replace native runners.
 - The repository includes a Linux/Windows/macOS GitHub Actions E0 matrix. Local conclusions still represent Linux only, and the first remote results require separate review.
-- Cursor has completed manual real-client E1 certification but does not yet have an automated case. CodeBuddy and Claude Code have E0 projection coverage only and remain `generated-only`; E1 will be added after a stable official entry point is confirmed.
+- Cursor's automated E1 is a no-model CLI/path smoke layer; model-visible Rule and Skill consumption remains supported by its prior manual certification rather than an automated E2 sentinel. CodeBuddy still has E0 projection coverage only and remains `generated-only`.
 - E2 currently runs on Codex only; model calls on other platforms are not a dependency for the initial release.
 - Permission denial, a full disk, and a real power loss cannot be induced reliably inside an ordinary process. The current suite uses safe fault injection for apply failures/crashes and two real processes for lock contention.
 - `--jobs` uses threads to run independent sandboxes in parallel; real-client, model, and lock-timing cases are marked serial.

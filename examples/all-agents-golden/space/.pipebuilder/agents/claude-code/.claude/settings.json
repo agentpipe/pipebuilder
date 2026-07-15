@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "command": "python3 .claude/hooks/probe.py"
+      }
+    ]
+  }
+}

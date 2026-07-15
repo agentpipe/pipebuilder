@@ -2,8 +2,10 @@
   ".agents/skills/portable/.hidden-metadata",
   ".agents/skills/portable/SKILL.md",
   ".agents/skills/portable/references/reference.md",
+  ".claude/hooks/probe.py",
   ".claude/rules/golden.md",
   ".claude/rules/pipebuilder-workspace.md",
+  ".claude/settings.json",
   ".claude/skills/portable/.hidden-metadata",
   ".claude/skills/portable/SKILL.md",
   ".claude/skills/portable/references/reference.md",
@@ -21,6 +23,7 @@
   ".cursor/skills/portable/.hidden-metadata",
   ".cursor/skills/portable/SKILL.md",
   ".cursor/skills/portable/references/reference.md",
+  ".mcp.json",
   ".pipebuilder/generated/workspace-rule.md",
   "AGENTS.md",
   "CLAUDE.md"
