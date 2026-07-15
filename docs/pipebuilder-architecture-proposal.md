@@ -563,7 +563,7 @@ Example:
     "version": "0.1.0",
     "digest": "sha256:..."
   },
-  "space": {
+  "pipespace": {
     "name": "my-pipe-space",
     "root": ".",
     "manifestDigest": "sha256:...",

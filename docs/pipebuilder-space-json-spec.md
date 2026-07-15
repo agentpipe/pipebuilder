@@ -592,7 +592,7 @@ PB017 invalid-pipespace-hierarchy
 
 `PB012` is reserved as an early draft number but is not part of the stable `pipespace.v1` contract. The manifest accepts only the four built-in Agents, and `PB001` rejects an unknown Agent before adapter dispatch, so an artificial failure path must not be created for `PB012`.
 
-`PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or explicitly by a human.
+`PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or a maintenance Agent acting on Human direction.
 
 `PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors.
 
