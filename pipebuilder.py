@@ -12,7 +12,7 @@ Distribution and runtime requirements
 -------------------------------------
 This file is an independently distributable single-file CLI. It does not depend
 on this repository's README, docs, tests, or any third-party Python package.
-Python 3.9+ is required. System Git is required only when using a Git Provider.
+Python 3.7+ is required. System Git is required only when using a Git Provider.
 
 Quick start
 -----------

@@ -3,7 +3,7 @@
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
 [![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Reuse team capabilities across AI coding agents and build task-specific pipeline spaces.
@@ -88,7 +88,7 @@ separate platform configuration scattered across projects.
 
 ## Quick Start in 60 Seconds
 
-Runtime requires only Python 3.9+ and the single `pipebuilder.py` file. Git is required only
+Runtime requires only Python 3.7+ and the single `pipebuilder.py` file. Git is required only
 when using a Git Skill Provider. No third-party Python packages are required.
 
 ```bash
@@ -211,14 +211,22 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.1.1 includes four platform Adapters. Keep their validation levels distinct:
+PipeBuilder 0.1.1 requires Python 3.7+ and supports all three major desktop platforms:
 
-| Agent | Current generation capabilities | Validation status |
+| Platform | Status | Tested versions |
 | --- | --- | --- |
-| Codex | Skills, `AGENTS.md`, config/agents/MCP, Hooks, Rules | Automated real-client E1; real-model E2 |
-| Cursor | Skills, workspace Rule, Rules, Commands | Automated installed-client E1 smoke; manual discovery certification |
-| CodeBuddy | Skills, fixed workspace Rule, Commands, Agents, Settings/Hooks, MCP | E0 generation and limited structural validation |
-| Claude Code | Skills, `CLAUDE.md`, Rules, Commands, Agents, Settings/Hooks, MCP | Automated real-client E1 parsing and discovery |
+| Linux | Supported | Python 3.7, 3.14 |
+| Windows | Supported | Python 3.7, 3.9, 3.11, 3.13, 3.14 |
+| macOS | Supported | Python 3.7, 3.14 |
+
+Four Agent Adapters are included:
+
+| Agent | Status | Current generation capabilities |
+| --- | --- | --- |
+| Codex | Supported (`client-verified`) | Skills, `AGENTS.md`, config/agents/MCP, Hooks, Rules |
+| Cursor | Supported (`client-verified`) | Skills, workspace Rule, Rules, Commands |
+| Claude Code | Supported (`client-verified`) | Skills, `CLAUDE.md`, Rules, Commands, Agents, Settings/Hooks, MCP |
+| CodeBuddy | Preview (`generated-only`) | Skills, fixed workspace Rule, Commands, Agents, Settings/Hooks, MCP |
 
 `client-verified` means validation has run in a real client. `generated-only` means generated
 output and supported structure have been validated, but real-client E1 has not been
@@ -328,9 +336,11 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-GitHub Actions runs E0 on Python 3.11 for Linux, Windows, and macOS. Linux additionally covers
-Python 3.9 and Python 3.13. The installed-client tier includes automated Codex, Cursor, and
-Claude Code cases; CodeBuddy remains generated-only.
+[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) runs the E0
+platform matrix listed above. The repository also includes installed-client E1 cases for
+Codex, Cursor, and Claude Code, but those cases currently run only in environments where the
+clients are installed; they are not part of the hosted GitHub Actions workflow. CodeBuddy
+remains `generated-only`.
 
 ## License
 

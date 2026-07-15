@@ -12,7 +12,7 @@ This document counts independent black-box test methods; a table or subtest with
 
 | Tier | Current coverage | External dependencies | Default gate |
 | --- | --- | --- | --- |
-| E0 offline | 103 cases covering 200+ positive and negative scenarios | Python 3.9+, Git, and a real filesystem; no network access | Required for PRs |
+| E0 offline | 103 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
 | E1 client | 5 Codex, 4 Cursor, and 4 Claude Code automated cases | The corresponding real client; no model request | main/release |
 | E2 live | 1 combined Codex sentinel case | Codex CLI, authentication, network, and model | opt-in/release |
 
@@ -20,7 +20,7 @@ This document counts independent black-box test methods; a table or subtest with
 
 | Requirement | Primary case/module | Acceptance coverage |
 | --- | --- | --- |
-| CLI/report | `test_contract.CliContractCases` | cwd/explicit space, text/JSON, version, zero-write check/explain/dry-run, compile, and the Python 3.9 syntax baseline |
+| CLI/report | `test_contract.CliContractCases` | cwd/explicit space, text/JSON, version, zero-write check/explain/dry-run, compile, and the Python 3.7 syntax baseline |
 | init | `test_contract.InitCases` | Directory and default required-file creation, directory name/explicit name, existing-file validation, idempotency, and zero writes on failure |
 | static golden | `test_contract.GoldenBuildCases` | Public `examples/all-agents-golden` input, complete managed target sets for all four Agents, full contents of key files, lock digest/provenance, and byte stability on the second build |
 | public examples | `test_examples.PublicExampleCases` | A temporary copy of `examples/multi-pipeline-project` builds two PipeSpaces with distinct Skills and Rules, both workspace files resolve to the same project, and project bytes remain unchanged |

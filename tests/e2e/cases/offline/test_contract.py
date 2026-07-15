@@ -169,7 +169,7 @@ class CliContractCases(PipeBuilderE2ECase):
     def test_release_source_compiles_on_minimum_supported_python(self):
         source = PIPEBUILDER.read_text(encoding="utf-8")
         compile(source, str(PIPEBUILDER), "exec", dont_inherit=True)
-        self.assertIn("Python 3.9+", source[:4000])
+        self.assertIn("Python 3.7+", source[:4000])
 
 
 class InitCases(PipeBuilderE2ECase):

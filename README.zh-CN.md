@@ -3,7 +3,7 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > 面向团队的跨 AI 编程 Agent 能力复用与任务管线空间构建工具。
@@ -79,7 +79,7 @@ shared-skills/bugfix-review/
 
 ## 60 秒快速开始
 
-运行时只需要 Python 3.9+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
+运行时只需要 Python 3.7+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
 时才需要系统安装 Git；不需要安装 Python 第三方包。
 
 ```bash
@@ -195,14 +195,22 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.1.1 内置四个平台 Adapter。不同验证等级必须分开理解：
+PipeBuilder 0.1.1 需要 Python 3.7+，支持三大桌面平台：
 
-| Agent | 当前生成能力 | 验证状态 |
+| 平台 | 状态 | 已测试版本 |
 | --- | --- | --- |
-| Codex | Skills、`AGENTS.md`、config/agents/MCP、Hooks、Rules | 自动化真实客户端 E1；真实模型 E2 |
-| Cursor | Skills、workspace Rule、Rules、Commands | 自动化客户端 E1 冒烟；人工发现验证 |
-| CodeBuddy | Skills、固定 workspace Rule、Commands、Agents、Settings/Hooks、MCP | E0 生成与有限结构校验 |
-| Claude Code | Skills、`CLAUDE.md`、Rules、Commands、Agents、Settings/Hooks、MCP | 自动化真实客户端 E1 解析与发现 |
+| Linux | 支持 | Python 3.7、3.14 |
+| Windows | 支持 | Python 3.7、3.9、3.11、3.13、3.14 |
+| macOS | 支持 | Python 3.7、3.14 |
+
+项目内置四个 Agent Adapter：
+
+| Agent | 状态 | 当前生成能力 |
+| --- | --- | --- |
+| Codex | 支持（`client-verified`） | Skills、`AGENTS.md`、config/agents/MCP、Hooks、Rules |
+| Cursor | 支持（`client-verified`） | Skills、workspace Rule、Rules、Commands |
+| Claude Code | 支持（`client-verified`） | Skills、`CLAUDE.md`、Rules、Commands、Agents、Settings/Hooks、MCP |
+| CodeBuddy | 预览（`generated-only`） | Skills、固定 workspace Rule、Commands、Agents、Settings/Hooks、MCP |
 
 `client-verified` 表示已经在真实客户端验证；`generated-only` 表示已验证生成结果和
 当前实现支持的结构，但尚未建立真实客户端 E1。状态会写入 `explain` 和
@@ -305,9 +313,10 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-GitHub Actions 在 Linux、Windows、macOS 的 Python 3.11 上运行 E0；Linux 额外覆盖
-Python 3.9 和 Python 3.13。客户端测试层已自动覆盖 Codex、Cursor 和 Claude Code；
-CodeBuddy 仍为 `generated-only`。
+[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) 运行上表所列
+E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客户端 E1 用例，但这些
+用例目前只在已安装对应客户端的环境中运行，尚未接入 GitHub 托管 Actions。CodeBuddy
+仍为 `generated-only`。
 
 ## 许可证
 
