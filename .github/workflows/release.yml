@@ -1,0 +1,88 @@
+name: PipeBuilder Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vX.Y.Z tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    uses: ./.github/workflows/e2e.yml
+
+  release:
+    needs: e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Verify release tag and build artifacts
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import os
+          import re
+          import shutil
+          from pathlib import Path
+
+          source = Path("pipebuilder.py")
+          text = source.read_text(encoding="utf-8")
+          version_match = re.search(r'^VERSION = "([^"]+)"$', text, re.MULTILINE)
+          if version_match is None:
+              raise SystemExit("VERSION declaration not found in pipebuilder.py")
+
+          version = version_match.group(1)
+          tag = os.environ["RELEASE_TAG"]
+          if re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) is None:
+              raise SystemExit(f"release tag must use vX.Y.Z: {tag}")
+          if tag != f"v{version}":
+              raise SystemExit(f"release tag {tag} does not match pipebuilder.py VERSION {version}")
+
+          dist = Path("dist")
+          dist.mkdir()
+          artifact = dist / "pipebuilder.py"
+          shutil.copy2(source, artifact)
+          digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+          (dist / "pipebuilder.py.sha256").write_text(
+              f"{digest}  pipebuilder.py\n",
+              encoding="utf-8",
+          )
+          PY
+          python -m py_compile dist/pipebuilder.py
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              dist/pipebuilder.py \
+              dist/pipebuilder.py.sha256 \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" \
+              dist/pipebuilder.py \
+              dist/pipebuilder.py.sha256 \
+              --verify-tag \
+              --generate-notes \
+              --title "PipeBuilder $RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY"
+          fi

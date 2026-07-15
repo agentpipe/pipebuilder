@@ -1,6 +1,7 @@
 name: PipeBuilder E2E
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main]
@@ -36,13 +37,13 @@ jobs:
             python: "3.14"
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Normalize git line endings
         shell: bash
         run: |
           git config --global core.autocrlf false
           git config --global core.longpaths true
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Compile release artifact
@@ -71,7 +72,7 @@ jobs:
           PY
       - name: Upload E2E report and failures
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-${{ matrix.os }}-py${{ matrix.python }}
           if-no-files-found: ignore

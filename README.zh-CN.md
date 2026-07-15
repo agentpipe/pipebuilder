@@ -318,6 +318,20 @@ E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客
 用例目前只在已安装对应客户端的环境中运行，尚未接入 GitHub 托管 Actions。CodeBuddy
 仍为 `generated-only`。
 
+## 发布版本
+
+修改 `pipebuilder.py` 中的 `VERSION`，并同步文档版本和版本契约测试。主分支 E0
+通过后，创建并推送匹配的 tag：
+
+```bash
+git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
+git push origin v0.1.1
+```
+
+发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后创建包含
+`pipebuilder.py` 和 `pipebuilder.py.sha256` 的 GitHub Release。也可以通过工作流的
+手动输入发布或重试已有 tag。
+
 ## 许可证
 
 [MIT License](LICENSE)

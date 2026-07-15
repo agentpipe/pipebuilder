@@ -342,6 +342,21 @@ Codex, Cursor, and Claude Code, but those cases currently run only in environmen
 clients are installed; they are not part of the hosted GitHub Actions workflow. CodeBuddy
 remains `generated-only`.
 
+## Releasing
+
+Set `VERSION` in `pipebuilder.py` and keep the documented version and version contract test
+in sync. After the main E0 workflow passes, create and push the matching tag:
+
+```bash
+git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
+git push origin v0.1.1
+```
+
+The release workflow reruns the complete E0 platform matrix, verifies that the tag matches
+`VERSION`, and publishes a GitHub Release containing `pipebuilder.py` and
+`pipebuilder.py.sha256`. An existing tag can also be released or retried through the workflow's
+manual dispatch input.
+
 ## License
 
 [MIT License](LICENSE)
