@@ -125,7 +125,8 @@ class Sandbox:
     def write_text(self, relative: str, content: str, *, executable: bool = False, base: Path | None = None) -> Path:
         path = (base or self.root) / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            handle.write(content)
         if executable:
             path.chmod(path.stat().st_mode | stat.S_IXUSR)
         return path
