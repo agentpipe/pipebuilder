@@ -168,8 +168,8 @@ class GitProviderCases(HarnessBuilderE2ECase):
         super().setUp()
         self.repo = self.box.base / "repos" / "catalog"
         self.repo.mkdir(parents=True)
-        self.cache = self.box.base / "provider-cache"
-        self.provider_env = {"HARNESSBUILDER_CACHE_DIR": str(self.cache)}
+        self.cache = self.box.root / ".harness-builder" / "cache"
+        self.provider_env: dict[str, str] = {}
         self.git("init")
         self.git("symbolic-ref", "HEAD", "refs/heads/main")
 
@@ -203,7 +203,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         lock = json.loads((self.box.root / ".harness-builder/lock.json").read_text(encoding="utf-8"))
         return next(item for item in lock["providers"] if item["type"] == "git")
 
-    def test_branch_resolves_to_commit_and_builds_from_external_immutable_cache(self):
+    def test_branch_resolves_to_commit_and_builds_from_space_local_immutable_cache(self):
         commit = self.commit_skill("from-git", "branch-one")
         self.box.manifest(
             agents=["codex", "cursor"],
@@ -219,6 +219,7 @@ class GitProviderCases(HarnessBuilderE2ECase):
         self.assertEqual(provider["snapshot"], provider["digest"])
         self.assertTrue(str(provider["resolvedPath"]).startswith("cache://git/"))
         self.assertNotIn(str(self.box.base), json.dumps(provider))
+        self.assertTrue(next(self.cache.rglob("repository.git")).is_dir())
         self.assertIn("branch-one", (self.box.root / ".agents/skills/from-git/SKILL.md").read_text(encoding="utf-8"))
         self.assertFalse(any(path.name == ".git" for path in self.box.root.rglob(".git")))
 
@@ -274,8 +275,8 @@ class GitProviderCases(HarnessBuilderE2ECase):
             self.box.close(); self.box = __import__("support").Sandbox()
             self.repo = self.box.base / "repos" / "catalog"
             self.repo.mkdir(parents=True)
-            self.cache = self.box.base / "provider-cache"
-            self.provider_env = {"HARNESSBUILDER_CACHE_DIR": str(self.cache)}
+            self.cache = self.box.root / ".harness-builder" / "cache"
+            self.provider_env = {}
             self.git("init"); self.git("symbolic-ref", "HEAD", "refs/heads/main"); self.commit_skill("available", "ok")
             self.box.manifest(agents=["codex"], providers=[provider])
             with self.subTest(provider=provider, arguments=arguments):

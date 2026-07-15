@@ -474,7 +474,7 @@ CI 永不自动更新 golden。更新提交必须同时审查：
 - folder Provider 的同目录/外部相对目录/symlink root、内容 digest 更新、缺失/非目录、generated target 递归和 symlink loop；
 - Git Provider 的 `branch`/`tag` 二选一 schema、subdir、URL credential 拒绝；
 - Git branch 在线推进、tag 固定、branch/tag 到 immutable commit 的 lock provenance；
-- Git 独立 cache、Harness Space 内无 checkout、`--offline` 锁定 commit 复用、缺 cache 和 snapshot digest 篡改；
+- Git HSpace-local cache、无可变 checkout、`--offline` 锁定 commit 复用、缺 cache 和 snapshot digest 篡改；
 - Git archive symlink、缺 branch/tag/subdir 和 Git 命令失败返回稳定 diagnostics；
 - folder/Git/space-local 混合时仍严格按统一 Provider 顺序 shadow；
 - Harness Space-local `.harness-builder/skills` 的最高优先级；

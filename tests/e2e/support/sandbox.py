@@ -252,6 +252,7 @@ class Sandbox:
             name: snapshot_tree(
                 path,
                 exclude=(
+                    ".harness-builder/cache",
                     ".harness-builder/generated",
                     ".harness-builder/lock.json",
                     ".harness-builder/build.lock",

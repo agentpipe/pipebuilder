@@ -25,7 +25,7 @@
 | workspace | `test_manifest_workspace.WorkspaceValidationCases` | 必选文件、malformed、folder shape、同目录、目录解耦、多 folder、重复 realpath、Unicode/空格/引号/`#`/`$` |
 | legacy namespace | `test_manifest_workspace.LegacyNamespaceCases` | `tagents`、`private`、root `.harness-agents`、旧 YAML/lock/workspace source；零写入 |
 | folder provider/selection | `test_providers_skills.ProviderResolutionCases` | 零/缺失/multiple、同目录/外部/symlink root、file root、realpath alias、Unicode/shell metacharacter、digest 更新、local 优先、显式+tag+local 并集、shadow provenance、provider 顺序 |
-| Git provider | `test_providers_skills.GitProviderCases` | branch/tag、subdir、commit lock、在线推进、离线锁定复用、独立 cache、缺 cache/ref/subdir、digest 篡改、archive symlink、混合优先级 |
+| Git provider | `test_providers_skills.GitProviderCases` | branch/tag、subdir、commit lock、在线推进、离线锁定复用、HSpace-local cache、缺 cache/ref/subdir、digest 篡改、archive symlink、混合优先级 |
 | common Skill | `test_providers_skills.SkillPackageCases` | binary、hidden、executable、YAML block scalar、unknown nested frontmatter、BOM/CRLF、深目录、`.DS_Store`、`.harness-agents` 排除、symlink、invalid/missing Skill |
 | Codex adapter | `test_adapters.CodexAdapterCases` | AGENTS、config TOML、native hooks schema、hook files、rules、稳定 merge、target drift、machine key 拒绝 |
 | Cursor adapter | `test_adapters.OtherAdapterCases` | skills、workspace rule、`.mdc` rules、commands、frontmatter |

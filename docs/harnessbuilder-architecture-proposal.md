@@ -447,14 +447,16 @@ Provider root 的直接子目录是 Skill：
 
 Git Provider 行为：
 
-- 使用独立 cache；
+- 使用当前 Harness Space 的 `.harness-builder/cache/git/`；
 - 将 branch/tag 解析到 immutable commit；
 - lock 记录 URL、选择器类型和值、commit、subdir、Provider/Skill digest；
-- 不在 Harness Space 目录中维护可变 checkout；
+- cache 中只维护 bare mirror 与无 `.git` immutable snapshot，不维护可变工作树；
 - `--offline` 要求并复用匹配 lock 中的 commit 与对应 immutable cache，并校验 snapshot digest；
 - credential 不进入 manifest 或 lock。
 
-默认 cache 位于用户 cache 目录，也可用 `HARNESSBUILDER_CACHE_DIR` 覆盖；覆盖路径仍必须在 Harness Space 外。远程认证由 Git credential helper、SSH agent 或进程环境承担。未知 Provider type 返回 `HB006`，不能忽略或猜测。
+cache 是 ignored 的本机 Builder state，不进入 lock，也不由默认 `clean` 删除。远程认证由
+Git credential helper、SSH agent 或进程环境承担。未知 Provider type 返回 `HB006`，
+不能忽略或猜测。
 
 ---
 

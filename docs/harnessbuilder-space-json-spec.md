@@ -264,11 +264,13 @@ tag 形式：
 - `branch` 与 `tag` 必须严格二选一，通用 `ref` 不属于 schema；
 - `subdir` 可省略，默认 `.`，必须是安全的相对 POSIX 路径；
 - URL 不得内嵌 HTTP(S) username、password、query credential 或 fragment；认证由 Git credential helper、SSH agent 或环境承担；
-- 默认 cache 位于用户 cache 目录；`HARNESSBUILDER_CACHE_DIR` 可以覆盖，但 cache 必须位于 Harness Space 外；
+- cache 固定位于当前 Harness Space 的 `.harness-builder/cache/git/`，按 URL 和 commit
+  隔离 bare mirror 与 immutable snapshot；该目录是 ignored 的本机 Builder state，不进入 lock；
 - 在线 resolve 会更新 cache mirror，将 branch/tag 解析为 commit，并从该 commit 生成无 symlink 的 immutable snapshot；
 - `--offline` 不访问 origin，且要求存在匹配 lock：复用其中 commit，并校验 cache snapshot digest；lock、cache、commit 或 subdir 不可用时返回 `HB005`，digest 漂移返回 `HB010`；
 - lock 记录 portable URL、`branch`/`tag`、commit、subdir、Provider digest 和每个 Skill digest，不记录 credential 或本机 cache absolute path；
-- Harness Space 内不得出现 Git Provider checkout。
+- Harness Space 内不得出现 Git Provider 工作树；`.harness-builder/cache/git/` 中的 bare
+  mirror 与无 `.git` immutable snapshot 是唯一例外。
 
 ### 6.5 Provider 优先级
 
