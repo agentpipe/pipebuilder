@@ -3,7 +3,7 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
-[![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > 面向团队的跨 AI 编程 Agent 能力复用与任务管线空间构建工具。
@@ -79,7 +79,7 @@ shared-skills/bugfix-review/
 
 ## 60 秒快速开始
 
-运行时只需要 Python 3.7+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
+运行时只需要 Python 3.9+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
 时才需要系统安装 Git；不需要安装 Python 第三方包。
 
 ```bash
@@ -306,7 +306,7 @@ python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
 GitHub Actions 在 Linux、Windows、macOS 的 Python 3.11 上运行 E0；Linux 额外覆盖
-Python 3.7 和 Python 3.13。客户端测试层已自动覆盖 Codex、Cursor 和 Claude Code；
+Python 3.9 和 Python 3.13。客户端测试层已自动覆盖 Codex、Cursor 和 Claude Code；
 CodeBuddy 仍为 `generated-only`。
 
 ## 许可证

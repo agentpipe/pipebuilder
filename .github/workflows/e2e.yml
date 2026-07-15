@@ -18,13 +18,18 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.11"]
         include:
-          - os: ubuntu-latest
-            python: "3.7"
+          - os: ubuntu-22.04
+            python: "3.9"
           - os: ubuntu-latest
             python: "3.13"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Normalize git line endings
+        shell: bash
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
@@ -32,6 +37,26 @@ jobs:
         run: python -m py_compile pipebuilder.py
       - name: Run offline E2E
         run: python tests/e2e/run.py --tier offline --jobs 4
+      - name: Print failing cases
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = Path("tests/e2e/e2e-report.json")
+          if not report.is_file():
+              print("no e2e-report.json")
+              raise SystemExit(0)
+          data = json.loads(report.read_text(encoding="utf-8"))
+          failed = [item for item in data.get("cases", []) if item.get("status") == "fail"]
+          print(f"failed cases: {len(failed)}")
+          for item in failed:
+              print(item["id"])
+              reason = item.get("reason")
+              if reason:
+                  print(reason.splitlines()[-6:])
+          PY
       - name: Upload E2E report and failures
         if: always()
         uses: actions/upload-artifact@v4

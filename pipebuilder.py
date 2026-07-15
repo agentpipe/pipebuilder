@@ -12,7 +12,7 @@ Distribution and runtime requirements
 -------------------------------------
 This file is an independently distributable single-file CLI. It does not depend
 on this repository's README, docs, tests, or any third-party Python package.
-Python 3.7+ is required. System Git is required only when using a Git Provider.
+Python 3.9+ is required. System Git is required only when using a Git Provider.
 
 Quick start
 -----------
@@ -2124,10 +2124,13 @@ def _compat_toml_loads(text: str) -> dict[str, Any]:
 
 
 def parse_toml_document(content: bytes, source: Path) -> dict[str, Any]:
+    toml_errors: tuple[type[BaseException], ...] = (UnicodeDecodeError, ValueError)
+    if _tomllib is not None:
+        toml_errors = toml_errors + (_tomllib.TOMLDecodeError,)
     try:
         text = content.decode()
         value = _tomllib.loads(text) if _tomllib is not None else _compat_toml_loads(text)
-    except (UnicodeDecodeError, ValueError) as exc:
+    except toml_errors as exc:
         fail("PB009", f"Invalid TOML agent source: {exc}", sources=(source.as_posix(),))
     return value
 
@@ -2571,6 +2574,19 @@ def process_started_marker() -> str:
 def process_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            synchronize = 0x00100000
+            handle = kernel32.OpenProcess(synchronize, False, pid)
+            if handle:
+                kernel32.CloseHandle(handle)
+                return True
+            return False
+        except Exception:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

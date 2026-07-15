@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from support import PipeBuilderE2ECase, snapshot_tree
+from support import PipeBuilderE2ECase, require_git_symlink_fixture, snapshot_tree, try_symlink
 from support.model import CaseMetadata
 
 
@@ -80,7 +80,7 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
             "---\nname: linked\ndescription: Linked folder Skill.\n---\n\nfirst\n",
             base=external,
         )
-        os.symlink(external, self.box.root / "provider-link")
+        try_symlink(external, self.box.root / "provider-link")
         self.box.manifest(
             agents=["codex"],
             skills=["linked"],
@@ -108,8 +108,8 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
     def test_folder_provider_aliases_to_the_same_realpath_are_rejected(self):
         external = self.box.base / "shared-provider"
         external.mkdir()
-        os.symlink(external, self.box.root / "alias-a")
-        os.symlink(external, self.box.root / "alias-b")
+        try_symlink(external, self.box.root / "alias-a")
+        try_symlink(external, self.box.root / "alias-b")
         self.box.manifest(
             agents=["codex"],
             providers=[{"type": "folder", "path": "alias-a"}, {"type": "folder", "path": "alias-b"}],
@@ -171,6 +171,7 @@ class GitProviderCases(PipeBuilderE2ECase):
         self.cache = self.box.root / ".pipebuilder" / "cache"
         self.provider_env: dict[str, str] = {}
         self.git("init")
+        self.git("config", "core.symlinks", "true")
         self.git("symbolic-ref", "HEAD", "refs/heads/main")
 
     def git(self, *arguments: str):
@@ -284,9 +285,10 @@ class GitProviderCases(PipeBuilderE2ECase):
 
     def test_git_archive_symlinks_are_rejected_before_materialization(self):
         self.commit_skill("unsafe", "body")
-        os.symlink("SKILL.md", self.repo / "skills/unsafe/alias.md")
+        try_symlink(self.repo / "skills/unsafe/SKILL.md", self.repo / "skills/unsafe/alias.md")
         self.git("add", ".")
         self.git("commit", "-m", "add unsafe symlink")
+        require_git_symlink_fixture(self.repo, "skills/unsafe/alias.md")
         self.box.manifest(agents=["codex"], providers=[self.git_provider(branch="main")])
         self.expect_code(self.box.builder("check", env=self.provider_env), "PB011")
 
@@ -424,7 +426,7 @@ Fixture body.
         self.expect_code(self.box.builder("check"), "PB009")
 
     def test_provider_symlink_loop_is_a_structured_unsafe_path_error(self):
-        os.symlink("loop", self.box.root / "loop")
+        try_symlink(Path("loop"), self.box.root / "loop")
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "loop"}])
         self.expect_code(self.box.builder("check"), "PB011")
 
@@ -432,7 +434,7 @@ Fixture body.
         self.box.skill("provider", "linked")
         outside = self.box.base / "outside-secret.txt"
         outside.write_text("outside\n", encoding="utf-8")
-        os.symlink(outside, self.box.root / "provider/linked/link.txt")
+        try_symlink(outside, self.box.root / "provider/linked/link.txt")
         self.box.manifest(agents=["codex"], skills=["linked"], providers=[{"type": "folder", "path": "provider"}])
         self.expect_code(self.box.builder("check"), "PB011")
         self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")

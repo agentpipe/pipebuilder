@@ -3,7 +3,7 @@
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
 [![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
-[![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Reuse team capabilities across AI coding agents and build task-specific pipeline spaces.
@@ -88,7 +88,7 @@ separate platform configuration scattered across projects.
 
 ## Quick Start in 60 Seconds
 
-Runtime requires only Python 3.7+ and the single `pipebuilder.py` file. Git is required only
+Runtime requires only Python 3.9+ and the single `pipebuilder.py` file. Git is required only
 when using a Git Skill Provider. No third-party Python packages are required.
 
 ```bash
@@ -329,7 +329,7 @@ python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
 GitHub Actions runs E0 on Python 3.11 for Linux, Windows, and macOS. Linux additionally covers
-Python 3.7 and Python 3.13. The installed-client tier includes automated Codex, Cursor, and
+Python 3.9 and Python 3.13. The installed-client tier includes automated Codex, Cursor, and
 Claude Code cases; CodeBuddy remains generated-only.
 
 ## License

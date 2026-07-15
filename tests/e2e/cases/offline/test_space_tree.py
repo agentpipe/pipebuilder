@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-from support import PipeBuilderE2ECase, Sandbox, snapshot_tree
+from support import PipeBuilderE2ECase, Sandbox, snapshot_tree, try_symlink
 from support.model import CaseMetadata
 
 
@@ -170,10 +170,7 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
             base=outside,
         )
         link = self.box.root / "linked-child"
-        try:
-            os.symlink(outside, link, target_is_directory=True)
-        except (OSError, NotImplementedError) as exc:
-            self.skipTest(f"directory symlink unavailable: {exc}")
+        try_symlink(outside, link, target_is_directory=True)
 
         result = self.expect_ok(self.box.builder("build"))
         self.assertNotIn("members", result["summary"])

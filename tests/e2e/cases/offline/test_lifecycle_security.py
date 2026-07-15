@@ -7,7 +7,7 @@ import subprocess
 import sys
 import time
 
-from support import PipeBuilderE2ECase, snapshot_tree
+from support import PipeBuilderE2ECase, snapshot_tree, try_symlink, write_reserved_device_source
 from support.model import CaseMetadata, CommandResult
 from support.sandbox import PIPEBUILDER
 
@@ -202,7 +202,7 @@ class FilesystemBoundaryCases(PipeBuilderE2ECase):
         self.box.write_text(".pipebuilder/agents/codex/.codex/config.toml", 'approval_policy = "never"\n')
         outside = self.box.base / "outside"
         outside.mkdir()
-        os.symlink(outside, self.box.root / ".codex")
+        try_symlink(outside, self.box.root / ".codex")
         self.expect_code(self.box.builder("build"), "PB011")
         self.assertEqual(list(outside.iterdir()), [])
 
@@ -230,7 +230,7 @@ class FilesystemBoundaryCases(PipeBuilderE2ECase):
 
         self.box.close(); self.box = __import__("support").Sandbox()
         self.box.manifest(agents=["cursor"])
-        self.box.write_text(".pipebuilder/agents/cursor/.cursor/commands/CON.md", "reserved\n")
+        write_reserved_device_source(self.box, ".pipebuilder/agents/cursor/.cursor/commands/CON.md", "reserved\n")
         self.expect_code(self.box.builder("check"), "PB011")
 
     def test_invalid_existing_lock_is_not_trusted_or_replaced(self):
@@ -264,7 +264,7 @@ class FilesystemBoundaryCases(PipeBuilderE2ECase):
         self.box.manifest(agents=["codex"])
         outside = self.box.base / "outside-builder-state"
         outside.mkdir()
-        os.symlink(outside, self.box.root / ".pipebuilder")
+        try_symlink(outside, self.box.root / ".pipebuilder")
         argv = [sys.executable, str(PIPEBUILDER), "build", str(self.box.root), "--format", "json"]
         process = subprocess.Popen(
             argv,

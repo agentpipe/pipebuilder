@@ -27,7 +27,7 @@ class PipeBuilderE2ECase(unittest.TestCase):
             super().run(active_result)
             failed_ids = {item.id() for item, _ in active_result.failures + active_result.errors}
             failed = any(item == self.id() or item.startswith(self.id() + " ") for item in failed_ids)
-            if failed and hasattr(self, "box"):
+            if failed and hasattr(self, "box") and self.box.base.is_dir():
                 safe_id = re.sub(r"[^a-zA-Z0-9_.-]+", "_", self.id())
                 self.box.archive(ARTIFACTS / safe_id)
             return active_result
