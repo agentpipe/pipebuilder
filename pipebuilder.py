@@ -1250,8 +1250,10 @@ def load_providers(
         provider_id = "space-local" if priority == 0 else f"folder:{configured}"
         subdir = item.get("subdir", ".")
         command = item.get("command")
+        configured_path = root / configured
+        configured_is_symlink = configured_path.is_symlink()
         try:
-            source_root = (root / configured).resolve()
+            source_root = configured_path.resolve()
             provider_root = (source_root / subdir).resolve()
         except (OSError, RuntimeError) as exc:
             fail("PB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
@@ -1259,6 +1261,12 @@ def load_providers(
             providers.append(Provider(provider_id, provider_root, source_root, configured, priority, tree_digest(provider_root), subdir=subdir))
             continue
         if not provider_root.is_dir():
+            if configured_is_symlink:
+                fail(
+                    "PB011",
+                    f"Unsafe Skill provider symlink does not resolve to a directory: {configured}",
+                    sources=(configured,),
+                )
             fail("PB005", f"Skill provider directory not found: {configured}", sources=(configured,))
         resolved_key = os.path.normcase(str(provider_root))
         if resolved_key in seen_folder_roots:
