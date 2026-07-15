@@ -1,7 +1,7 @@
 {
   "schema": "pipespace.v1",
   "name": "golden-space",
-  "description": "Static all-agent golden fixture",
+  "description": "Static all-agent golden example",
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],
   "skills": ["portable"],
   "tags": [],

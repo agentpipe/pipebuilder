@@ -148,6 +148,10 @@ Open `feature-development.code-workspace` in Cursor. For Codex, start the client
 `feature-development/`. Both clients see the `pipeline` and `project` workspace folders and
 load the configuration generated for the current pipeline.
 
+For a compact four-agent input with independently reviewed expected output, see
+[examples/all-agents-golden](examples/all-agents-golden). It is the public source of truth for
+the static E2E example copied into temporary test sandboxes.
+
 ## How a PipeSpace Works
 
 Every PipeSpace contains at least one declaration file and one VS Code/Cursor workspace file:

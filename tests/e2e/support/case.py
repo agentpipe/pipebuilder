@@ -40,9 +40,10 @@ class PipeBuilderE2ECase(unittest.TestCase):
             return []
         return [item.report_record() for item in self.box.commands]
 
-    def use_fixture(self, name: str) -> None:
+    def use_example(self, name: str) -> None:
+        replacement = Sandbox(name)
         self.box.close()
-        self.box = Sandbox(name)
+        self.box = replacement
 
     def expect_ok(self, result: CommandResult) -> dict[str, Any]:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

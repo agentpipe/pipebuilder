@@ -2,7 +2,7 @@
 
 Status: implemented
 Baseline date: 2026-07-15
-Latest validation: full E0 102/102 (including targeted PipeSpace Tree coverage 9/9), Codex E1 5/5, and Codex E2 1/1; Cursor has completed manual real-client E1 certification, while an automated case is still pending.
+Latest validation: full E0 103/103 (including targeted PipeSpace Tree coverage 9/9), Codex E1 5/5, and Codex E2 1/1; Cursor has completed manual real-client E1 certification, while an automated case is still pending.
 
 This document counts independent black-box test methods; a table or subtest within one method may cover multiple input variants. Every case executes the final `pipebuilder.py` and does not import production code.
 
@@ -10,7 +10,7 @@ This document counts independent black-box test methods; a table or subtest with
 
 | Tier | Current coverage | External dependencies | Default gate |
 | --- | --- | --- | --- |
-| E0 offline | 102 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
+| E0 offline | 103 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
 | E1 client | 5 automated Codex cases; manual Cursor certification | The corresponding real client; no model request | main/release |
 | E2 live | 1 combined Codex sentinel case | Codex CLI, authentication, network, and model | opt-in/release |
 
@@ -20,7 +20,8 @@ This document counts independent black-box test methods; a table or subtest with
 | --- | --- | --- |
 | CLI/report | `test_contract.CliContractCases` | cwd/explicit space, text/JSON, version, zero-write check/explain/dry-run, compile, and the Python 3.7 syntax baseline |
 | init | `test_contract.InitCases` | Directory and default required-file creation, directory name/explicit name, existing-file validation, idempotency, and zero writes on failure |
-| static golden | `test_contract.GoldenBuildCases` | Complete managed target sets for all four Agents, full contents of key files, lock digest/provenance, and byte stability on the second build |
+| static golden | `test_contract.GoldenBuildCases` | Public `examples/all-agents-golden` input, complete managed target sets for all four Agents, full contents of key files, lock digest/provenance, and byte stability on the second build |
+| public examples | `test_examples.PublicExampleCases` | A temporary copy of `examples/multi-pipeline-project` builds two PipeSpaces with distinct Skills and Rules, both workspace files resolve to the same project, and project bytes remain unchanged |
 | manifest | `test_manifest_workspace.ManifestValidationCases` | malformed/non-object input, required/unknown fields, schema, name, agents, skills, tags, providers, and description |
 | workspace | `test_manifest_workspace.WorkspaceValidationCases` | Required file, malformed input, folder shape, colocated paths, directory decoupling, multiple folders, duplicate realpaths, Unicode/spaces/quotes/`#`/`$` |
 | legacy namespace | `test_manifest_workspace.LegacyNamespaceCases` | `tagents`, `private`, root `.pipe-agents`, and legacy YAML/lock/workspace sources; zero writes |
@@ -81,7 +82,7 @@ A single model request validates three chains at once to reduce cost and variabi
 2. The Skill comes from a `branch + subdir` Provider backed by a real local Git repository. After the build locks to a commit, the Skill body supplies the Skill sentinel, while the generated `AGENTS.md` supplies the other sentinel.
 3. `--output-schema` constrains the response to two-field JSON, and the final values must match exactly.
 4. The generated `SessionStart` hook writes a receipt in the disposable workspace, and the test validates the event and cwd.
-5. The case uses `--ephemeral`, `--ask-for-approval never`, a workspace sandbox, and a temporary `CODEX_HOME`; real authentication is mounted only through a symlink and is not copied into fixtures or reports.
+5. The case uses `--ephemeral`, `--ask-for-approval never`, a workspace sandbox, and a temporary `CODEX_HOME`; real authentication is mounted only through a symlink and is not copied into example inputs or reports.
 
 ## Explicitly Unclaimed Coverage
 
@@ -91,4 +92,4 @@ A single model request validates three chains at once to reduce cost and variabi
 - E2 currently runs on Codex only; model calls on other platforms are not a dependency for the initial release.
 - Permission denial, a full disk, and a real power loss cannot be induced reliably inside an ordinary process. The current suite uses safe fault injection for apply failures/crashes and two real processes for lock contention.
 - `--jobs` uses threads to run independent sandboxes in parallel; real-client, model, and lock-timing cases are marked serial.
-- A local migration audit of the original THarness `shared-skills` found 43 of 45 directly compatible. The remaining `BotAI-Log-Analyzer` and `ts-local-launch` issues are canonical-name/directory-name data problems. Multiline/nested fixtures in this repository preserve the parser regression coverage without making an external THarness path an E0 dependency.
+- A local migration audit of the original THarness `shared-skills` found 43 of 45 directly compatible. The remaining `BotAI-Log-Analyzer` and `ts-local-launch` issues are canonical-name/directory-name data problems. Dynamic multiline/nested cases preserve the parser regression coverage without making an external THarness path an E0 dependency.

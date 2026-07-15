@@ -137,6 +137,10 @@ feature-development/
 `feature-development/` 目录启动客户端。两者都会看到 `pipeline` 与 `project` 两个
 workspace folder，并加载当前管线生成的配置。
 
+如需查看精简的四 Agent 输入及独立审阅的预期输出，请访问
+[examples/all-agents-golden](examples/all-agents-golden)。它是 E2E 测试复制到临时
+Sandbox 的唯一静态示例真相源。
+
 ## PipeSpace 如何工作
 
 每个 PipeSpace 至少包含一个声明文件和一个 VS Code/Cursor workspace 文件：

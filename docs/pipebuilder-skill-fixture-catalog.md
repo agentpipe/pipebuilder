@@ -1,8 +1,8 @@
-# PipeBuilder: Skill Fixture Catalog and Agent Capability Coverage
+# PipeBuilder: Skill Input Catalog and Agent Capability Coverage
 
 Status: target catalog; see `tests/e2e/COVERAGE.md` for the current baseline
 Date: 2026-07-13
-Scope: standard Skills, four-Agent capabilities, Provider resolution, failure scenarios, and Codex live-model fixtures in PipeBuilder Python E2E
+Scope: standard Skills, four-Agent capabilities, Provider resolution, failure scenarios, and Codex live-model scenarios in PipeBuilder Python E2E
 
 Related documents:
 
@@ -14,16 +14,16 @@ Related documents:
 
 ## 1. Conclusion
 
-Multiple fixture sets are required. A single minimal `SKILL.md` is insufficient, and all behavior should not be concentrated in one monolithic Skill.
+Multiple input sets are required. A single minimal `SKILL.md` is insufficient, and all behavior should not be concentrated in one monolithic Skill.
 
 The target directory is organized around five capability categories:
 
 ```text
-5 Skill fixture capability categories
+5 Skill input capability categories
 + Space-level `.pipebuilder/agents` overlay
 ```
 
-The five fixture capability categories cover:
+The five input capability categories cover:
 
 1. portable common Skills;
 2. full-capability projections for all four Agents;
@@ -31,17 +31,17 @@ The five fixture capability categories cover:
 4. invalid, conflict, and security scenarios;
 5. Codex live consumption using either the client default or a model explicitly selected by the release job.
 
-An additional PipeSpace overlay validates `.pipebuilder/agents/<agent>`. Because it is not a Skill, it must not be disguised as a Skill fixture.
+An additional PipeSpace overlay validates `.pipebuilder/agents/<agent>`. Because it is not a Skill, it must not be disguised as a Skill input.
 
-Each Skill remains small, typically consisting of one `SKILL.md` plus one or two minimal resources. Comprehensive coverage comes from fixture composition and the capability matrix, not from complex application logic.
+Each Skill remains small, typically consisting of one `SKILL.md` plus one or two minimal resources. Comprehensive coverage comes from input composition and the capability matrix, not from complex application logic.
 
 ---
 
-## 2. Fixture Design Principles
+## 2. Input Design Principles
 
 ### 2.1 Model Real Skills, Not Test-Script Manuals
 
-Every valid fixture follows the standard structure:
+Every valid Skill input follows the standard structure:
 
 ```text
 <skill-name>/
@@ -58,17 +58,17 @@ Every valid fixture follows the standard structure:
 - `name` matches the directory name;
 - `description` clearly states the trigger conditions;
 - the body contains concise, executable instructions;
-- the fixture setup process, expected output, and test explanations are omitted;
+- the test setup process, expected output, and test explanations are omitted;
 - the core body should remain under 50 lines where practical;
 - details belong in `references/`, while deterministic actions belong in Python `scripts/`.
 
-Do not add a README, installation guide, or changelog to a Skill directory. Fixture test metadata belongs in the test-side Python catalog so that the package delivered to the Agent remains clean.
+Do not add a README, installation guide, or changelog to a Skill directory. Test metadata belongs in the test-side Python cases so that the package delivered to the Agent remains clean.
 
-All executable fixtures use Python. Skill scripts, hooks, local MCP servers, and receipt writers must not use MJS, TypeScript, or shell scripts. Markdown, JSON, TOML, YAML, and `.rules` files serve only as product inputs or expected data.
+All executable test inputs use Python. Skill scripts, hooks, local MCP servers, and receipt writers must not use MJS, TypeScript, or shell scripts. Markdown, JSON, TOML, YAML, and `.rules` files serve only as product inputs or expected data.
 
 ### 2.2 Prefer Orthogonality Over Duplication
 
-Each fixture should have one primary purpose:
+Each input should have one primary purpose:
 
 - common-package preservation;
 - a complete capability projection for one Agent;
@@ -82,75 +82,78 @@ The same fact is not maintained repeatedly across four nearly identical Skills. 
 
 Every Agent capability must be in exactly one of the following states:
 
-| State | Fixture behavior |
+| State | Input behavior |
 | --- | --- |
-| `supported` | Included in the full-capability Skill and required to have an E0 golden plus E1 client verification |
+| `supported` | Included in the full-capability Skill and required to have an E0 golden expectation plus E1 client verification |
 | `gated` | Retained as a candidate input; it may enter the full-capability Skill only after real-client verification passes and the schema is frozen |
-| `unsupported` | Included in a negative fixture and required to fail consistently with a diagnostic |
+| `unsupported` | Included in a negative case and required to fail consistently with a diagnostic |
 
 A directory that appears to exist is not necessarily supported. Version-sensitive capabilities, particularly Cursor hooks, agents, config, and MCP as well as arbitrary CodeBuddy Rules, must not be presented as supported through ordinary file copying.
 
-### 2.4 Fixtures Must Not Reuse the Production Oracle
+### 2.4 Test Inputs Must Not Reuse the Production Oracle
 
-Test-side Python may copy fixtures and inject nonces, but it must not invoke PipeBuilder's resolver, adapter, or renderer. Expected targets, locks, and reports remain independent goldens.
+Test-side Python may copy public examples and inject nonces, but it must not invoke PipeBuilder's resolver, adapter, or renderer. Expected targets, locks, and reports remain independent golden expectations.
 
 ---
 
 ## 3. Test Directory
 
-Add the following under `tests/e2e/`:
+Static inputs belong only under `examples/`; test metadata and dynamic construction remain under
+`tests/e2e/cases/`. The target static catalog is:
 
 ```text
-fixtures/
-├── catalog.py
-├── skill-packs/
-│   ├── portable/
-│   │   ├── fixture-minimal/
-│   │   └── fixture-bundled/
-│   ├── agent-capabilities/
-│   │   ├── fixture-codex-capabilities/
-│   │   ├── fixture-cursor-capabilities/
-│   │   ├── fixture-codebuddy-capabilities/
-│   │   └── fixture-claude-code-capabilities/
-│   ├── resolution/
-│   │   ├── space-local-provider/
-│   │   ├── provider-high/
-│   │   └── provider-low/
-│   ├── invalid/
-│   │   ├── bad-frontmatter/
-│   │   ├── unsupported-surface/
-│   │   ├── semantic-conflict/
-│   │   └── security/
-│   └── live-codex/
-│       └── fixture-live-codex/
-└── space-overlays/
-    ├── all-agents/
-    ├── merge-with-skill/
-    └── conflict-with-skill/
+examples/
+├── all-agents-golden/
+└── capability-catalog/
+    ├── skill-packs/
+    │   ├── portable/
+    │   │   ├── example-minimal/
+    │   │   └── example-bundled/
+    │   ├── agent-capabilities/
+    │   │   ├── example-codex-capabilities/
+    │   │   ├── example-cursor-capabilities/
+    │   │   ├── example-codebuddy-capabilities/
+    │   │   └── example-claude-code-capabilities/
+    │   ├── resolution/
+    │   │   ├── space-local-provider/
+    │   │   ├── provider-high/
+    │   │   └── provider-low/
+    │   ├── invalid/
+    │   │   ├── bad-frontmatter/
+    │   │   ├── unsupported-surface/
+    │   │   ├── semantic-conflict/
+    │   │   └── security/
+    │   └── live-codex/
+    │       └── example-live-codex/
+    └── space-overlays/
+        ├── all-agents/
+        ├── merge-with-skill/
+        └── conflict-with-skill/
 ```
 
-`catalog.py` stores only test metadata and copy locations, such as the fixture ID, pack, validity, target Agent, and capability tags. It neither parses `SKILL.md` nor computes expected projections.
+Test-side Python stores only metadata and copy locations, such as the example ID, pack, validity,
+target Agent, and capability tags. It neither parses `SKILL.md` nor computes expected projections.
 
 When a case creates a sandbox:
 
-1. copy the case's own `input/`;
-2. copy the selected fixture pack byte-for-byte to the designated Provider;
-3. inject `$FIXTURE_NONCE` with test-side Python when necessary;
+1. copy the selected public example into the temporary Sandbox;
+2. copy the selected input pack byte-for-byte to the designated Provider;
+3. inject a per-run nonce with test-side Python when necessary;
 4. snapshot the fully assembled input;
 5. execute the final `pipebuilder.py` through a subprocess.
 
-Do not reuse fixtures through cross-directory symlinks, because Windows behavior and symlink policies could change test semantics.
+Do not reuse static inputs through cross-directory symlinks, because Windows behavior and symlink policies could change test semantics.
 
 ---
 
 ## 4. Pack A: Portable Common Skills
 
-This fixture set does not contain `.pipe-agents`. It proves that a standard Skill package is copied consistently to all four platforms and that `.pipe-agents` exclusion does not accidentally remove common resources.
+This input set does not contain `.pipe-agents`. It proves that a standard Skill package is copied consistently to all four platforms and that `.pipe-agents` exclusion does not accidentally remove common resources.
 
-### 4.1 `fixture-minimal`
+### 4.1 `example-minimal`
 
 ```text
-fixture-minimal/
+example-minimal/
 └── SKILL.md
 ```
 
@@ -163,10 +166,10 @@ Coverage:
 - Skill targets for all four platforms;
 - explicit selection and absence when not selected.
 
-### 4.2 `fixture-bundled`
+### 4.2 `example-bundled`
 
 ```text
-fixture-bundled/
+example-bundled/
 ├── SKILL.md
 ├── scripts/
 │   └── write_receipt.py
@@ -197,19 +200,19 @@ Coverage:
 There is one Skill per platform. It contains every `.pipe-agents` surface currently marked `supported` for that platform and deliberately excludes directories for other platforms.
 
 ```text
-fixture-codex-capabilities/
+example-codex-capabilities/
 ├── SKILL.md
 └── .pipe-agents/codex/...
 
-fixture-cursor-capabilities/
+example-cursor-capabilities/
 ├── SKILL.md
 └── .pipe-agents/cursor/...
 
-fixture-codebuddy-capabilities/
+example-codebuddy-capabilities/
 ├── SKILL.md
 └── .pipe-agents/codebuddy/...
 
-fixture-claude-code-capabilities/
+example-claude-code-capabilities/
 ├── SKILL.md
 └── .pipe-agents/claude-code/...
 ```
@@ -218,16 +221,16 @@ This separation serves three purposes:
 
 - a single-Agent case can isolate adapter problems precisely;
 - the all-agents catalog smoke test can prove that all four capability sets build together;
-- a schema change on one platform does not alter the other three fixture sets.
+- a schema change on one platform does not alter the other three input sets.
 
 ### 5.1 Capability Matrix
 
-Legend: `P` denotes a positive supported fixture, `G` a candidate gated on the client version, `R` a rejection fixture, and `—` a capability that is not modeled separately.
+Legend: `P` denotes a positive supported input, `G` a candidate gated on the client version, `R` a rejection case, and `—` a capability that is not modeled separately.
 
 | Surface | Codex | Cursor | CodeBuddy | Claude Code |
 | --- | --- | --- | --- | --- |
 | Common Skill | P | P | P | P |
-| Workspace rule | PipeSpace fixture | PipeSpace fixture | PipeSpace fixture | PipeSpace fixture |
+| Workspace rule | PipeSpace input | PipeSpace input | PipeSpace input | PipeSpace input |
 | Rules | P: `.rules` command policy | P: `.mdc` | G: enable only after pinning and verifying the client | P: `.md`/path scope |
 | Commands | R: unsupported in the initial version | P | P | P + migration warning |
 | Agents | P: config agent roles | G | P | P |
@@ -260,7 +263,7 @@ At minimum, include:
 Additional assertions:
 
 - `.pipe-agents/codex/.codex/commands` is absent from the positive Skill;
-- a separate negative fixture containing that directory consistently returns unsupported;
+- a separate negative case containing that directory consistently returns unsupported;
 - the canonical workspace section, Space source, and Skill `AGENTS.md` source compose deterministically;
 - rebuilding restores the generated root `AGENTS.md` after it is modified;
 - `codex execpolicy check`, config discovery, and the hook probe are covered by E1.
@@ -292,7 +295,7 @@ At minimum, include:
 - an always-loaded rule;
 - a path-scoped rule;
 - a compatibility command;
-- a sub-agent that references an installed fixture Skill;
+- a sub-agent that references an installed example Skill;
 - a settings hook;
 - a local Python MCP server.
 
@@ -311,16 +314,16 @@ This pack is not a single Skill; it consists of three Provider roots. Content wi
 ```text
 resolution/
 ├── space-local-provider/
-│   ├── fixture-space-local/SKILL.md
-│   └── fixture-shadow/SKILL.md       # marker: space-local
+│   ├── example-space-local/SKILL.md
+│   └── example-shadow/SKILL.md       # marker: space-local
 ├── provider-high/
-│   ├── fixture-explicit/SKILL.md
-│   ├── fixture-tagged/SKILL.md
-│   ├── fixture-shadow/SKILL.md       # marker: high
-│   └── fixture-unselected/SKILL.md
+│   ├── example-explicit/SKILL.md
+│   ├── example-tagged/SKILL.md
+│   ├── example-shadow/SKILL.md       # marker: high
+│   └── example-unselected/SKILL.md
 └── provider-low/
-    ├── fixture-shadow/SKILL.md       # marker: low
-    └── fixture-low-only/SKILL.md
+    ├── example-shadow/SKILL.md       # marker: low
+    └── example-low-only/SKILL.md
 ```
 
 Use one complete PipeSpace to cover:
@@ -336,13 +339,13 @@ Use one complete PipeSpace to cover:
 
 This pack excludes Agent surfaces such as rules and hooks so that resolution failures are not conflated with adapter failures.
 
-`fixture-tagged` specifically covers one or more tags, tag union, negative variants with duplicate tags or invalid types, and verbatim preservation of unrecognized frontmatter fields. Portable fixture frontmatter uses only the standard `name` and `description`. A Skill with tags is explicitly a PipeBuilder resolution extension and does not claim to be the minimal cross-platform standard.
+`example-tagged` specifically covers one or more tags, tag union, negative variants with duplicate tags or invalid types, and verbatim preservation of unrecognized frontmatter fields. Portable example frontmatter uses only the standard `name` and `description`. A Skill with tags is explicitly a PipeBuilder resolution extension and does not claim to be the minimal cross-platform standard.
 
 ---
 
 ## 7. Pack D: Invalid, Conflict, and Security Scenarios
 
-Each negative fixture must have one primary error per case. Do not create a directory that simultaneously lacks `SKILL.md`, has invalid frontmatter, escapes its path boundary, and leaks a secret; such a fixture would verify only fail-fast ordering.
+Each negative input must have one primary error per case. Do not create a directory that simultaneously lacks `SKILL.md`, has invalid frontmatter, escapes its path boundary, and leaks a secret; such an input would verify only fail-fast ordering.
 
 At minimum, cover:
 
@@ -376,7 +379,7 @@ At minimum, cover:
 - sibling files unrelated to the plan or old lock remain unchanged;
 - legacy `tagents/`, Space-root `.pipe-agents/`, and the new `.pipebuilder/agents/`, each alone or in combination.
 
-Inputs requiring symlinks, junctions, case folding, or permissions are created by `case.py` inside the sandbox. Platform-specific inode behavior must not be disguised as an ordinary Git fixture.
+Inputs requiring symlinks, junctions, case folding, or permissions are created by test-side Python inside the sandbox. Platform-specific inode behavior must not be disguised as an ordinary checked-in example.
 
 ---
 
@@ -385,7 +388,7 @@ Inputs requiring symlinks, junctions, case folding, or permissions are created b
 The initial real-model coverage uses one reusable Skill package:
 
 ```text
-fixture-live-codex/
+example-live-codex/
 ├── SKILL.md
 ├── scripts/
 │   ├── write_receipt.py
@@ -403,7 +406,7 @@ fixture-live-codex/
             └── rules/
 ```
 
-The model is not pinned in the fixture. Normal runs use the client default, while release jobs may pass `--model` explicitly. The following target cases may be separated according to compatibility risk:
+The model is not pinned in the example. Normal runs use the client default, while release jobs may pass `--model` explicitly. The following target cases may be separated according to compatibility risk:
 
 | Live case | Validation | Machine oracle |
 | --- | --- | --- |
@@ -455,7 +458,7 @@ Receipts may be written only to the sandbox capture directory. They must not rea
 
 ---
 
-## 9. Space-Level Overlay Fixture
+## 9. Space-Level Overlay Input
 
 PipeSpace `.pipebuilder/agents/<agent>` is maintained separately and preserves each platform's native configuration tree:
 
@@ -475,13 +478,13 @@ Coverage:
 - no implicit override based on scope;
 - provenance that distinguishes `space` from `skill:<name>`.
 
-This fixture set does not contain `SKILL.md` and must not be discovered by the Provider index.
+This input set does not contain `SKILL.md` and must not be discovered by the Provider index.
 
 ---
 
 ## 10. Five Complete PipeSpace Topologies
 
-Fixture packs are ultimately consumed through the following E2E topologies:
+Input packs are ultimately consumed through the following E2E topologies:
 
 ### T1: Portable Smoke
 
@@ -503,11 +506,11 @@ Each case installs exactly one erroneous Pack D input and asserts a stable diagn
 
 Build Pack E and then use the Codex live profile. The current baseline is one combined sentinel request that validates AGENTS, an explicit Skill, and the SessionStart hook together. It should be split into multiple model requests only when needed to isolate instability or establish an independent release gate.
 
-PipeSpace overlay fixtures are added to the T2 merge and conflict cases; they are not represented by a separate, artificial Skill.
+PipeSpace overlay inputs are added to the T2 merge and conflict cases; they are not represented by a separate, artificial Skill.
 
 ---
 
-## 11. Fixture Change Gate
+## 11. Input Change Gate
 
 Adding any Agent capability requires simultaneous updates to:
 
@@ -520,13 +523,14 @@ Adding any Agent capability requires simultaneous updates to:
 7. the requirement mapping in `COVERAGE.md`;
 8. a short E2 case if the capability is part of the core Codex live path.
 
-Deleting or renaming a fixture requires proof that no requirement loses its only coverage. Updating goldens is not a substitute for capability review.
+Deleting or renaming an input requires proof that no requirement loses its only coverage. Updating golden expectations is not a substitute for capability review.
 
 ---
 
 ## 12. Current Baseline and Extension Checklist
 
-The repository currently contains one static all-agent golden fixture, while dynamic sandbox cases construct the following equivalent capabilities:
+The repository currently uses `examples/all-agents-golden` as the sole static all-agent input and
+golden source, while dynamic sandbox cases construct the following equivalent capabilities:
 
 ```text
 portable common package
@@ -544,4 +548,4 @@ The current baseline also includes:
 - E0 projections for all four Agents and the Codex E1 client report;
 - one combined Codex live case relevant to releases.
 
-Before adding a physical fixture pack, demonstrate that it is easier to review than a dynamic case or that it freezes a new binary or client contract. Existing inputs must not be duplicated merely to increase the number of directories.
+Before adding a physical example pack, demonstrate that it is easier to review than a dynamic case or that it freezes a new binary or client contract. Existing inputs must not be duplicated merely to increase the number of directories.

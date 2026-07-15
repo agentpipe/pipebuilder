@@ -7,7 +7,7 @@ from pathlib import Path
 
 from support import PipeBuilderE2ECase
 from support.model import CaseMetadata
-from support.sandbox import FIXTURES, PIPEBUILDER, snapshot_tree
+from support.sandbox import EXAMPLES, PIPEBUILDER, snapshot_tree
 
 
 class GoldenBuildCases(PipeBuilderE2ECase):
@@ -20,10 +20,10 @@ class GoldenBuildCases(PipeBuilderE2ECase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.use_fixture("minimal-all-agents")
-        self.expected = FIXTURES / "spaces" / "minimal-all-agents" / "expected"
+        self.use_example("all-agents-golden")
+        self.expected = EXAMPLES / "all-agents-golden" / "expected"
 
-    def test_static_fixture_matches_full_managed_tree_and_file_goldens(self):
+    def test_static_example_matches_full_managed_tree_and_file_goldens(self):
         before = self.box.snapshot_inputs()
         payload = self.expect_ok(self.box.builder("build"))
         self.assertEqual(payload["summary"], {"generated": 25, "removed": 0, "skills": 1})

@@ -9,7 +9,7 @@ Related documents:
 - [PipeBuilder Architecture Proposal](pipebuilder-architecture-proposal.md)
 - [PipeSpace and Skill Provider Protocol](pipebuilder-space-json-spec.md)
 - [Initial Specification for Four Agent Adapters](pipebuilder-agent-adapters.md)
-- [Skill Fixture Catalog and Agent Capability Coverage](pipebuilder-skill-fixture-catalog.md)
+- [Skill Input Catalog and Agent Capability Coverage](pipebuilder-skill-fixture-catalog.md)
 
 ---
 
@@ -171,6 +171,14 @@ The current PipeBuilder development repository uses:
 
 ```text
 pipebuilder/
+├── examples/
+│   ├── all-agents-golden/
+│   │   ├── space/
+│   │   ├── providers/
+│   │   ├── projects/
+│   │   ├── expected/
+│   │   └── README.md
+│   └── multi-pipeline-project/
 ├── pipebuilder.py
 └── tests/
     └── e2e/
@@ -183,6 +191,7 @@ pipebuilder/
         ├── cases/
         │   ├── offline/
         │   │   ├── test_contract.py
+        │   │   ├── test_examples.py
         │   │   ├── test_manifest_workspace.py
         │   │   ├── test_providers_skills.py
         │   │   ├── test_adapters.py
@@ -191,10 +200,6 @@ pipebuilder/
         │   │   └── test_codex_client.py
         │   └── live/
         │       └── test_codex_live.py
-        ├── fixtures/
-        │   └── spaces/minimal-all-agents/
-        │       ├── input/
-        │       └── expected/
         ├── README.md
         ├── COVERAGE.md
         └── .artifacts/
@@ -204,36 +209,41 @@ During initial development in the THarness repository, this directory may live a
 
 `.artifacts/` must be ignored by Git. The sandbox, stdout, stderr, report, tree diff, and client version for failed cases are written there. Temporary directories for successful cases are deleted by default.
 
-The static all-agent fixture provides human-reviewable goldens. Cases construct the many invalid, resolution, lifecycle, and adapter combinations in isolated sandboxes, avoiding dozens of copied directory trees that differ by only one field. See `tests/e2e/COVERAGE.md` for the implemented requirement-to-case mapping. The [Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md) remains the target catalog for future expansion of the concrete fixture pack.
+`examples/` is the only source of truth for static test input. The public all-agent example
+provides human-reviewable inputs and independent golden expectations, while the multi-pipeline
+example is also exercised by an E0 smoke case. Other invalid, resolution, lifecycle, and
+adapter combinations are constructed dynamically in isolated sandboxes, avoiding copied
+directory trees that differ by only one field. See `tests/e2e/COVERAGE.md` for the implemented
+requirement-to-case mapping. The [Skill Input Catalog](pipebuilder-skill-fixture-catalog.md)
+remains the target catalog for future example expansion.
 
 ---
 
 ## 6. E2E Case Protocol
 
-### 6.1 Directory for One Case
+### 6.1 Static Golden Example
 
 ```text
-minimal-all-agents/
-├── case.py
-├── input/
-│   ├── space/
-│   │   ├── pipespace.json
-│   │   ├── demo.code-workspace
-│   │   └── .pipebuilder/
-│   ├── providers/
-│   │   ├── provider-a/
-│   │   └── provider-b/
-│   └── projects/
-│       ├── project-a/
-│       └── project-b/
+examples/all-agents-golden/
+├── README.md
+├── space/
+│   ├── pipespace.json
+│   ├── golden-space.code-workspace
+│   └── .pipebuilder/
+├── providers/
+│   └── portable-pack/
+├── projects/
+│   └── application/
 └── expected/
-    ├── files/
-    ├── tree.json
-    ├── report.json
-    └── lock.json
+    ├── managed-targets.json
+    └── files/
 ```
 
-Relative relationships within `input/` are the actual relationships exercised by the test. The runner copies the entire `input/` tree into one temporary root. It must not copy only `space/` and then reconstruct Provider paths, because doing so would bypass real workspace and Provider path resolution.
+Relative relationships among `space/`, `providers/`, and `projects/` are the actual
+relationships exercised by the test. `use_example("all-agents-golden")` copies those three
+directories together into one temporary root; it does not reconstruct Provider or workspace
+paths. The test reads `expected/` directly from the public example, outside the temporary
+input copy.
 
 ### 6.2 Why Case Behavior Is Written in Python
 
@@ -245,28 +255,26 @@ The project does not define a `case.json` test DSL. Complex lifecycles are inher
 
 ```python
 from support.case import PipeBuilderE2ECase
+from support.model import CaseMetadata
+from support.sandbox import EXAMPLES
 
 
 class Case(PipeBuilderE2ECase):
-    id = "offline.build.minimal_all_agents"
-    tier = "offline"
-    tags = {"build", "all-agents", "golden"}
+    metadata = CaseMetadata(
+        tier="offline",
+        requirements=("BUILD", "GOLDEN"),
+        tags=("all-agents", "golden"),
+    )
 
-    def run(self):
-        box = self.create_sandbox()
-        inputs_before = box.snapshot_inputs()
+    def setUp(self):
+        super().setUp()
+        self.use_example("all-agents-golden")
+        self.expected = EXAMPLES / "all-agents-golden" / "expected"
 
-        first = box.pipebuilder("build", "--format", "json")
-        self.expect_exit(first, 0)
-        self.expect_report_schema(first, "pipebuilder-report.v1")
-        self.expect_golden_tree(box)
-        self.expect_golden_lock(box)
-        self.expect_inputs_unchanged(box, inputs_before)
-
-        built = box.snapshot_all()
-        second = box.pipebuilder("build", "--format", "json")
-        self.expect_exit(second, 0)
-        self.expect_snapshot_equal(box.snapshot_all(), built)
+    def test_build(self):
+        inputs_before = self.box.snapshot_inputs()
+        self.expect_ok(self.box.builder("build"))
+        self.assertEqual(self.box.snapshot_inputs(), inputs_before)
 ```
 
 This test uses only test-side subprocess, snapshot, and assertion helpers. It does not access production internals.
@@ -368,7 +376,7 @@ Tests check that:
 
 - Every managed artifact has an owner, source, digest, and adapter.
 - The lock does not record machine-specific, non-portable paths unless the protocol explicitly requires and normalizes them.
-- Source digests match the actual fixture content.
+- Source digests match the actual example or dynamically constructed input content.
 - Shadowed providers and explicit-selection reasons are explainable.
 - The lock contains no tokens, complete sensitive environment variables, or secret values.
 
@@ -410,10 +418,10 @@ The apply phase guarantees per-file atomic replacement only, not a transaction a
 
 Stable successful scenarios preserve:
 
-- `expected/files/`: full contents of key files that should be generated.
-- `expected/tree.json`: the complete managed tree and digests.
-- `expected/report.json`: the normalized structured report.
-- `expected/lock.json`: the normalized lock.
+- `examples/all-agents-golden/expected/files/`: full contents of key generated files.
+- `examples/all-agents-golden/expected/managed-targets.json`: the complete managed target set.
+- Normalized tree, report, or lock expectations may be added under the same `expected/`
+  directory when a stable contract requires them.
 
 Not every negative case requires complete file goldens, but every such case must define an exit code, diagnostic code, side-effect-free snapshot, and any necessary report golden.
 
@@ -433,11 +441,11 @@ The normalizer resides on the test side, and its rules must be simple, explicit,
 
 ### 9.3 Update Process
 
-Goldens may be updated only explicitly:
+Golden expectations may be updated only by editing the public example and reviewing the diff.
+Re-run the owning cases explicitly:
 
 ```bash
-python3 tests/e2e/tools/update_goldens.py \
-  --case offline.build.minimal_all_agents
+python3 tests/e2e/run.py --tier offline --case GoldenBuildCases
 ```
 
 CI never updates goldens automatically. An update must review:
@@ -448,7 +456,8 @@ CI never updates goldens automatically. An update must review:
 - The projection diff for all four Agents.
 - Whether a local machine path or secret was accidentally written into expected data.
 
-Test helpers must not call a production renderer to generate expected files. A golden updater may capture actual output once, but that capture is only a review candidate, not an automatically correct oracle.
+Test helpers must not call a production renderer to generate expected files. A captured actual
+output may be used as a review candidate, but it is not an automatically correct oracle.
 
 ---
 
@@ -634,7 +643,7 @@ codex --ask-for-approval never \
   <sentinel-prompt>
 ```
 
-The Python runner still launches this command with an argv list and `shell=False`. It must not use `--dangerously-bypass-approvals-and-sandbox`. The current combined sentinel must validate a project hook, so `--dangerously-bypass-hook-trust` is used only in a disposable sandbox where the case itself constructs both the hook source and path. The temporary `CODEX_HOME` mounts existing authentication only through a symlink; credentials are not copied into fixtures or reports.
+The Python runner still launches this command with an argv list and `shell=False`. It must not use `--dangerously-bypass-approvals-and-sandbox`. The current combined sentinel must validate a project hook, so `--dangerously-bypass-hook-trust` is used only in a disposable sandbox where the case itself constructs both the hook source and path. The temporary `CODEX_HOME` mounts existing authentication only through a symlink; credentials are not copied into example inputs or reports.
 
 ### 12.2 Sentinel Acceptance
 
@@ -736,7 +745,7 @@ A full macOS E0 run is recommended on main or nightly. Required cases related to
 
 - Full E0 on Linux, Windows, and macOS.
 - E1 on fixed runners for all four platforms.
-- Crash/kill, concurrency, and large-fixture stress cases.
+- Crash/kill, concurrency, and large-input stress cases.
 - Optional Codex E2 live sentinel using the client default or an explicit release-job `--model`.
 - Client-version changes and compatibility-matrix reports.
 
@@ -762,7 +771,7 @@ E2E tests are not automatically reliable; oracle independence must be maintained
 5. Every happy path has at least one corresponding input mutation or failure scenario.
 6. Assertions cover the complete tree, input immutability, lock/provenance, and repeated builds, not only the exit code.
 7. Critical adapters are parsed or consumed by real clients.
-8. Positive and negative cases for the same requirement use different fixtures.
+8. Positive and negative cases for the same requirement use independent inputs.
 9. When fixing a bug, first commit a complete reproduction case that fails against the old artifact.
 10. Broad golden changes must explain the contract change; they cannot be accepted with a simple "accept all" action.
 
@@ -777,7 +786,7 @@ Tests for the current Node/TypeScript Builder will not be expanded further and w
 | Existing content | New location | Migration approach |
 | --- | --- | --- |
 | `tests/integration/builtin-builder.mjs` | `cases/offline/build/cursor_legacy_parity/` | Convert to a complete `pipespace.json`, workspace, Provider, and Cursor artifact goldens |
-| `tests/fixtures/builtin/*` | `cases/offline/**/input/` | Convert to standard `skills/foo/SKILL.md` and `.pipe-agents/` |
+| `tests/fixtures/builtin/*` (legacy) | `examples/<public-example>/` | Convert reusable static input to standard `skills/foo/SKILL.md` and `.pipe-agents/`; construct one-off variants dynamically |
 
 Existing command-runner tests are not migrated into PipeBuilder; the build command has been removed from the new protocol.
 

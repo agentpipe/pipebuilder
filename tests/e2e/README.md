@@ -19,4 +19,9 @@ The current automated `client` and `live` cases cover Codex only. Cursor has com
 
 The runner generates `e2e-report.json`, which records the release SHA256, case metadata, actual argv, cwd, stdout/stderr, and duration. A failed sandbox is copied to `.artifacts/<case-id>/`. Both outputs are ignored by Git.
 
-Static fixtures and human-reviewed goldens are stored in `fixtures/`. See [COVERAGE.md](COVERAGE.md) for the coverage mapping and the boundaries that still require validation on native runners.
+The repository's only static test inputs live under `examples/`. The all-agent input and its
+human-reviewed expectations are in
+[`examples/all-agents-golden`](../../examples/all-agents-golden); E0 copies only the example
+inputs into temporary sandboxes and reads the golden files from the public example. See
+[COVERAGE.md](COVERAGE.md) for the coverage mapping and the boundaries that still require
+validation on native runners.

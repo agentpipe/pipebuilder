@@ -35,3 +35,7 @@ pipespaces/feature-development/
 Open `pipespaces/feature-development/feature-development.code-workspace` in Cursor. For
 Codex, start the client from `pipespaces/feature-development/`. Build output is written only
 to that PipeSpace; `project/` is not modified.
+
+The offline E0 smoke test copies this example into a temporary Sandbox, builds both
+PipeSpaces, verifies their distinct Skill and Rule selections, and confirms that both still
+reference the unchanged `project/`.

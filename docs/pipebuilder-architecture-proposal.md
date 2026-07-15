@@ -8,8 +8,8 @@ Related documents:
 
 - [PipeBuilder PipeSpace and Skill Provider Protocol](pipebuilder-space-json-spec.md): Protocols for `pipespace.json`, Skill Providers, selection, and workspace rules.
 - [PipeBuilder Initial Four-Agent Adapter Specification](pipebuilder-agent-adapters.md): Initial projection specifications for Codex, Cursor, CodeBuddy, and Claude Code.
-- [PipeBuilder Python E2E Integration Test Architecture](pipebuilder-test-architecture.md): Black-box PipeSpace sandboxes, goldens, ownership, cross-platform coverage, real-client gates, and real-model gates.
-- [PipeBuilder Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md): Five Skill fixture packs, a four-agent capability matrix, PipeSpace overlays, and Codex live probes.
+- [PipeBuilder Python E2E Integration Test Architecture](pipebuilder-test-architecture.md): Black-box PipeSpace sandboxes, public examples, golden expectations, ownership, cross-platform coverage, real-client gates, and real-model gates.
+- [PipeBuilder Skill Input Catalog](pipebuilder-skill-fixture-catalog.md): Five Skill input groups, a four-agent capability matrix, PipeSpace overlays, and Codex live probes.
 - [THarness Builder Migration Audit](pipebuilder-tharness-migration-audit.md): Migration of legacy capabilities, deletion boundaries, and compatibility results for real shared skills.
 
 Once accepted, this proposal supersedes the designs in `tagent-builder-proposal.md` for a centralized THarness Builder, fixed shared skills, and separately generated workspaces. `platform-capability-report.md` remains a historical research snapshot for the first three platforms; the added Claude Code conclusions are governed by the companion adapter specification for this document.
@@ -753,7 +753,7 @@ However, plugins are an explicit second-phase capability. When an external adapt
 - implement the standard Skill package and `.pipe-agents`;
 - migrate the current Cursor rules/commands/files;
 - implement the in-place ownership lock;
-- migrate the current built-in fixtures into Python black-box E2E cases.
+- migrate the current built-in static inputs into public examples consumed by Python black-box E2E cases.
 
 ### Phase 2: Initial four-agent release
 

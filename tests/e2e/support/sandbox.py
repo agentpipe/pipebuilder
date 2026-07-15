@@ -17,7 +17,7 @@ from .model import CommandResult
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PIPEBUILDER = REPO_ROOT / "pipebuilder.py"
-FIXTURES = REPO_ROOT / "tests" / "e2e" / "fixtures"
+EXAMPLES = REPO_ROOT / "examples"
 
 
 def _digest(path: Path) -> str:
@@ -67,7 +67,7 @@ def snapshot_tree(root: Path, *, exclude: Iterable[str] = ()) -> list[dict[str, 
 
 
 class Sandbox:
-    def __init__(self, fixture: str | None = None) -> None:
+    def __init__(self, example: str | None = None) -> None:
         self._temporary = tempfile.TemporaryDirectory(prefix="pipebuilder-e2e-")
         self.base = Path(self._temporary.name)
         self.root = self.base / "space"
@@ -77,11 +77,25 @@ class Sandbox:
         for path in (self.root, self.home, self.tmp, self.captures):
             path.mkdir(parents=True, exist_ok=True)
         self.commands: list[CommandResult] = []
-        if fixture:
-            source = FIXTURES / "spaces" / fixture / "input"
-            if not source.is_dir():
-                raise AssertionError(f"fixture not found: {source}")
-            _copytree_merge(source, self.base)
+        if example:
+            self._load_example_inputs(example)
+
+    def _load_example_inputs(self, name: str) -> None:
+        source = EXAMPLES / name
+        if not (source / "space").is_dir():
+            raise AssertionError(f"example input not found: {source}")
+        for directory in ("space", "providers", "projects"):
+            candidate = source / directory
+            if candidate.is_dir():
+                _copytree_merge(candidate, self.base / directory)
+
+    def copy_example(self, name: str, *, destination: Path | None = None) -> Path:
+        source = EXAMPLES / name
+        if not source.is_dir():
+            raise AssertionError(f"example not found: {source}")
+        target = destination or (self.base / "example")
+        _copytree_merge(source, target)
+        return target
 
     def close(self) -> None:
         self._temporary.cleanup()

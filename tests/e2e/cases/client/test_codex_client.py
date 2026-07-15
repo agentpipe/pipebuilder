@@ -30,7 +30,7 @@ class CodexClientCases(PipeBuilderE2ECase):
             "verificationLevel": "client-parsed",
             "model": None,
         }
-        self.use_fixture("minimal-all-agents")
+        self.use_example("all-agents-golden")
         git = self.require_program("git")
         initialized = self.box.run_command([git, "init", "-q"], cwd=self.box.root)
         self.assertEqual(initialized.returncode, 0, initialized.stdout + initialized.stderr)
@@ -67,7 +67,7 @@ class CodexClientCases(PipeBuilderE2ECase):
         self.assertIn("GOLDEN_CODEX_SPACE_GUIDANCE", serialized)
         self.assertIn("GOLDEN_CODEX_SKILL_GUIDANCE", serialized)
         self.assertIn("PipeSpace: `golden-space`", serialized)
-        self.assertIn("- portable: Golden portable fixture", serialized)
+        self.assertIn("- portable: Golden portable example", serialized)
         self.assertIn(str(self.box.root / ".agents/skills/portable/SKILL.md"), serialized)
         self.assertNotIn(".pipe-agents/codex", serialized)
 

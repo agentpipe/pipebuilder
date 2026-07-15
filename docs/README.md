@@ -15,15 +15,15 @@ Start with the repository-level [README](../README.md) for the problems PipeBuil
 
 - [Four-Agent Adapter Specification](pipebuilder-agent-adapters.md)
   Native directories, merge strategies, supported capabilities, and verification requirements for Codex, Cursor, CodeBuddy, and Claude Code.
-- [Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md)
-  Coverage design for standard Skills, platform extensions, Providers, negative cases, security, and real-client fixtures.
+- [Skill Input Catalog](pipebuilder-skill-fixture-catalog.md)
+  Coverage design for standard Skills, platform extensions, Providers, negative cases, security, and real-client scenarios.
 
 ## Maintaining the Implementation and Tests
 
 - [Architecture Overview](pipebuilder-architecture-proposal.md)
   Background on the single-file builder, PipeSpace inputs, Adapter IR, ownership, and decoupling from THarness.
 - [E2E Test Architecture](pipebuilder-test-architecture.md)
-  Black-box test layers, sandboxes, golden files, real clients, and release gates.
+  Black-box test layers, public examples, sandboxes, golden expectations, real clients, and release gates.
 - [Implementation Iteration Log](pipebuilder-implementation-iterations.md)
   Historical iteration designs and phase-specific decisions; this is not the sole authority for current product status.
 - [Test Execution Guide](../tests/e2e/README.md)

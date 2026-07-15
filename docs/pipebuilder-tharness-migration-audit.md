@@ -35,7 +35,7 @@ An audit of the 45 `SKILL.md` files under `/data/workspace/THarness/harness/shar
 
 PipeBuilder supports `description: >`, `|`, `>-`, unknown block scalars, unknown nested metadata, BOM, and CRLF, all of which are common in these legacy Skills, and copies the common package unchanged. The remaining two issues require explicit renaming; the Builder does not silently change Skill identity.
 
-An external THarness checkout is not an E0 repository dependency. The corresponding parser behavior is captured by self-contained fixtures in this repository; during migration, a complete `check` may additionally be run against the target catalog.
+An external THarness checkout is not an E0 repository dependency. The corresponding parser behavior is captured by self-contained dynamic cases and public examples in this repository; during migration, a complete `check` may additionally be run against the target catalog.
 
 ## Outstanding External Certification
 

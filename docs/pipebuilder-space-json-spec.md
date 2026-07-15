@@ -256,7 +256,7 @@ Tag form:
 
 Constraints:
 
-- `url` must be a non-empty Git URL; development and offline fixtures may also use a local repository path relative to the PipeSpace root;
+- `url` must be a non-empty Git URL; development and offline test inputs may also use a local repository path relative to the PipeSpace root;
 - exactly one of `branch` and `tag` must be specified; a generic `ref` is not part of the schema;
 - `subdir` may be omitted and defaults to `.`; it must be a safe relative POSIX path;
 - the URL must not embed an HTTP(S) username, password, query credential, or fragment; authentication is handled by the Git credential helper, SSH agent, or environment;
@@ -379,7 +379,7 @@ Constraints:
 
 The example shows only common surfaces. Exact filenames, schemas, and target mappings for each adapter are defined by the Adapter specification. Encountering a native file or directory that the adapter does not support fails by default and reports the Agent, Skill, and path; it must not be ignored.
 
-Specification fixtures do not use one oversized Skill to cover every behavior. See the [PipeBuilder Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md) for the grouping of portable packages, four-platform full-capability Skills, Provider resolution, invalid and security cases, and live Codex fixtures.
+Specification examples and dynamic cases do not use one oversized Skill to cover every behavior. See the [PipeBuilder Skill Input Catalog](pipebuilder-skill-fixture-catalog.md) for the grouping of portable packages, four-platform full-capability Skills, Provider resolution, invalid and security cases, and live Codex scenarios.
 
 Skill-level Agent sources may appear only under `.pipe-agents/<agent>/` at the Skill root. The specification provides no generic `files/` escape hatch and defines no top-level `rules/`, `resources/`, or `tagents/`.
 
@@ -563,7 +563,7 @@ PB017 invalid-hspace-tree
 
 `PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` is dedicated to declaration, member-identity, aggregate-state, and whole-Tree consistency errors in `pipespace-tree.v1`.
 
-When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for report E2E fixtures and golden-file rules.
+When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for E2E input and golden-expectation rules.
 
 ---
 
