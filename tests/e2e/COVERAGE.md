@@ -35,7 +35,7 @@
 | ownership/clean | `test_lifecycle_security.OwnershipLifecycleCases` | clean 只删 owned、幂等、rebuild、反选 Skill、移除 Agent、source update、managed file 删除、Builder version 变化、无 lock 不猜 ownership |
 | lock/concurrency | `test_lifecycle_security.LockAndInterruptionCases` | 两个真实进程争锁、active/stale/malformed lock、硬崩溃、apply failure、旧 lock 保持、恢复收敛 |
 | filesystem security | `test_lifecycle_security.FilesystemBoundaryCases` | forged lock、unowned target、type drift、Builder state/target symlink escape、NFC/NFD/case collision、Windows reserved name、invalid lock、recursive provider |
-| Leader-rooted HSpace Tree | `test_space_tree.HSpaceTreeCases` | 显式内嵌 children、全树 check/explain/build/verify、单 Space 非递归、反向 clean、独立 ownership/锁、越界/保留路径/symlink/嵌套拒绝、成员身份与顺序漂移、跨成员 stale plan、post/最终验收失败 journal 与重跑收敛 |
+| 通用 HSpace children Tree | `test_space_tree.HSpaceTreeCases` | 显式内嵌 children、全树 check/explain/build/verify、单 Space 非递归、反向 clean、独立 ownership/锁、越界/保留路径/symlink/嵌套拒绝、成员身份与顺序漂移、跨成员 stale plan、post/最终验收失败 journal 与重跑收敛 |
 | release/runner | `test_contract.CliContractCases` | 单文件复制后独立执行、SHA256 report、command record credential redaction、失败制品排除 auth/home |
 
 ## Stable diagnostics

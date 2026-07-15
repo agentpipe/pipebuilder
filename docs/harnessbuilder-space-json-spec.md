@@ -6,8 +6,8 @@ Schema：`harness-space.v1`
 
 本文定义 Harness Space identity、`harness-space.json`、workspace、Skill package、Skill Provider、Skill 选择和 lock 的规范行为。
 
-一个 HSpace 作为 Leader 物理包含并管理多个 child HSpaces 时，成员仍分别遵守本文；树关系、
-顺序、聚合 receipt 和恢复语义由 [Leader-rooted HSpace Tree 协议](harnessbuilder-space-tree-spec.md)
+一个普通 HSpace 物理包含并管理多个 child HSpaces 时，成员仍分别遵守本文；树关系、
+顺序、聚合 receipt 和恢复语义由 [通用 HSpace children Tree 协议](harnessbuilder-space-tree-spec.md)
 定义，不并入 `harness-space.v1`。
 
 ---

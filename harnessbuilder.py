@@ -13,11 +13,11 @@
     python3 harnessbuilder.py explain [SPACE] [--format text|json] [--offline]
     python3 harnessbuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
     python3 harnessbuilder.py clean [SPACE] [--format text|json]
-    python3 harnessbuilder.py check-tree [PARENT] [--format text|json] [--offline]
-    python3 harnessbuilder.py explain-tree [PARENT] [--format text|json] [--offline]
-    python3 harnessbuilder.py build-tree [PARENT] [--format text|json] [--offline] [--dry-run]
-    python3 harnessbuilder.py verify-tree [PARENT] [--format text|json]
-    python3 harnessbuilder.py clean-tree [PARENT] [--format text|json]
+    python3 harnessbuilder.py check-tree [ROOT] [--format text|json] [--offline]
+    python3 harnessbuilder.py explain-tree [ROOT] [--format text|json] [--offline]
+    python3 harnessbuilder.py build-tree [ROOT] [--format text|json] [--offline] [--dry-run]
+    python3 harnessbuilder.py verify-tree [ROOT] [--format text|json]
+    python3 harnessbuilder.py clean-tree [ROOT] [--format text|json]
     python3 harnessbuilder.py --version
     python3 harnessbuilder.py --help
 
@@ -37,12 +37,12 @@ Harness Space 最小输入
 最小 my-space.code-workspace：
     {"folders":[{"name":"project", "path":"."}]}
 
-可选的一层 HSpace Tree：Parent 仍是普通 Harness Space，并在同一 root 声明显式 children：
+可选的一层 HSpace Tree：root 仍是普通 Harness Space，并在自身目录声明显式 children：
     {"schema":"harness-space-tree.v1",
-     "children":[{"path":"children/worker-01", "expectName":"worker-01"}]}
+     "children":[{"path":"children/child-01", "expectName":"child-01"}]}
 
-Tree 命令不会扫描目录。build-tree 在写入前锁定并 plan Parent 与全部 direct children，
-按 Parent → children 顺序 build；clean-tree 按 children 逆序 → Parent 清理。首版不递归。
+Tree 命令不会扫描目录。build-tree 在写入前锁定并 plan root 与全部 direct children，
+按 root → children 顺序 build；clean-tree 按 children 逆序 → root 清理。v1 不递归。
 
 可选的 Space-level source：
     .harness-builder/agents/<agent>/
@@ -768,7 +768,7 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
     ):
         fail(
             "HB017",
-            f"children[{index}].path must be a safe relative POSIX path below the Parent HSpace",
+            f"children[{index}].path must be a safe relative POSIX path below the Tree root",
             sources=(manifest_path.as_posix(),),
             semantic_key=f"children[{index}].path",
         )
@@ -817,14 +817,14 @@ def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Pa
     except ValueError:
         fail(
             "HB017",
-            f"Tree child escapes Parent HSpace: {configured}",
+            f"Tree child escapes Tree root: {configured}",
             sources=(resolved.as_posix(),),
             semantic_key=f"children[{index}].path",
         )
     if not relative.parts:
         fail(
             "HB017",
-            "Tree child must not be the Parent HSpace root",
+            "Tree child must not be the Tree root",
             sources=(manifest_path.as_posix(),),
             semantic_key=f"children[{index}].path",
         )
@@ -3165,7 +3165,7 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
                         "HB017",
                         f"Tree member changed after full-tree planning: {member.path}",
                         sources=(member.root.as_posix(),),
-                        action="Ensure Parent/earlier child post commands do not modify another HSpace, then rerun build-tree.",
+                        action="Ensure root/earlier child post commands do not modify another HSpace, then rerun build-tree.",
                     )
                 try:
                     generated, removed = apply_build(fresh_model)
@@ -3341,11 +3341,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
     add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"), offline=False)
-    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a Parent HSpace and its explicit children"), dry_run=True)
+    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a root HSpace and its explicit children"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check-tree", help="Validate and plan an HSpace Tree without writes"))
     add_common_subcommand(subparsers.add_parser("explain-tree", help="Explain every member of an HSpace Tree"))
     add_common_subcommand(subparsers.add_parser("verify-tree", help="Verify an HSpace Tree receipt and member artifacts"), offline=False)
-    add_common_subcommand(subparsers.add_parser("clean-tree", help="Clean children in reverse order, then the Parent"), offline=False)
+    add_common_subcommand(subparsers.add_parser("clean-tree", help="Clean children in reverse order, then the root"), offline=False)
     return parser.parse_args(argv)
 
 
@@ -3355,7 +3355,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command in {"build-tree", "check-tree", "explain-tree", "verify-tree", "clean-tree"}:
             if not root.is_dir():
-                fail("HB017", f"HSpace Tree Parent root is not a directory: {root}")
+                fail("HB017", f"HSpace Tree root is not a directory: {root}")
             tree = load_space_tree(root)
             if args.command == "verify-tree":
                 details = verify_space_tree(tree)
