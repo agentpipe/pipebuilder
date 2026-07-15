@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import stat
 from pathlib import Path
 
 from support import PipeBuilderE2ECase
 from support.model import CaseMetadata
-from support.sandbox import EXAMPLES, PIPEBUILDER, snapshot_tree
+from support.sandbox import EXAMPLES, PIPEBUILDER, Sandbox, snapshot_tree
 
 
 class GoldenBuildCases(PipeBuilderE2ECase):
@@ -137,6 +138,18 @@ class CliContractCases(PipeBuilderE2ECase):
         serialized = json.dumps(result.report_record())
         self.assertNotIn(secret, serialized)
         self.assertIn("<redacted>", serialized)
+
+    def test_sandbox_cleanup_handles_readonly_git_objects(self):
+        readonly = self.box.write_bytes(
+            "repos/catalog/.git/objects/40/object",
+            b"fixture",
+            base=self.box.base,
+        )
+        readonly.chmod(stat.S_IREAD)
+        sandbox_root = self.box.base
+        self.box.close()
+        self.assertFalse(sandbox_root.exists())
+        self.box = Sandbox()
 
     def test_release_artifact_is_single_python_file_and_compiles(self):
         self.assertTrue(PIPEBUILDER.is_file())

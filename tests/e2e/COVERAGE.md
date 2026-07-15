@@ -2,7 +2,7 @@
 
 Status: implemented
 Baseline date: 2026-07-15
-Latest local validation: full E0 103/103, Cursor E1 4/4, and Claude Code E1 4/4.
+Latest local validation: full E0 104/104, Cursor E1 4/4, and Claude Code E1 4/4.
 The previously recorded Codex baselines are E1 5/5 and E2 1/1; Codex was not installed for
 the current local run.
 
@@ -12,7 +12,7 @@ This document counts independent black-box test methods; a table or subtest with
 
 | Tier | Current coverage | External dependencies | Default gate |
 | --- | --- | --- | --- |
-| E0 offline | 103 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
+| E0 offline | 104 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
 | E1 client | 5 Codex, 4 Cursor, and 4 Claude Code automated cases | The corresponding real client; no model request | main/release |
 | E2 live | 1 combined Codex sentinel case | Codex CLI, authentication, network, and model | opt-in/release |
 

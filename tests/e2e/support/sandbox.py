@@ -20,6 +20,19 @@ PIPEBUILDER = REPO_ROOT / "pipebuilder.py"
 EXAMPLES = REPO_ROOT / "examples"
 
 
+def _remove_readonly(func, path: str, exc_info) -> None:
+    error = exc_info[1]
+    if not isinstance(error, PermissionError):
+        raise error
+    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+    func(path)
+
+
+def _remove_tree(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(str(path), onerror=_remove_readonly)
+
+
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -98,12 +111,15 @@ class Sandbox:
         return target
 
     def close(self) -> None:
-        self._temporary.cleanup()
+        _remove_tree(self.base)
+        try:
+            self._temporary.cleanup()
+        except FileNotFoundError:
+            pass
 
     def archive(self, destination: Path) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists():
-            shutil.rmtree(destination)
+        _remove_tree(destination)
 
         def ignore_sensitive(source: str, names: list[str]) -> set[str]:
             ignored = {name for name in names if name == "auth.json" or name.endswith((".pem", ".key"))}
