@@ -207,15 +207,25 @@ class FilesystemBoundaryCases(PipeBuilderE2ECase):
         self.assertEqual(list(outside.iterdir()), [])
 
     def test_case_only_path_collisions_are_rejected_for_cross_platform_portability(self):
-        self.box.manifest(agents=["cursor"])
+        self.box.skill("provider", "collision")
+        self.box.manifest(
+            agents=["cursor"],
+            skills=["collision"],
+            providers=[{"type": "folder", "path": "provider"}],
+        )
         self.box.write_text(".pipebuilder/agents/cursor/.cursor/commands/Check.md", "one\n")
-        self.box.write_text(".pipebuilder/agents/cursor/.cursor/commands/check.md", "two\n")
+        self.box.write_text("provider/collision/.pipe-agents/cursor/.cursor/commands/check.md", "two\n")
         self.expect_code(self.box.builder("check"), "PB010")
 
     def test_unicode_normalization_collisions_and_windows_reserved_names_are_rejected(self):
-        self.box.manifest(agents=["cursor"])
+        self.box.skill("provider", "collision")
+        self.box.manifest(
+            agents=["cursor"],
+            skills=["collision"],
+            providers=[{"type": "folder", "path": "provider"}],
+        )
         self.box.write_text(".pipebuilder/agents/cursor/.cursor/commands/caf\u00e9.md", "one\n")
-        self.box.write_text(".pipebuilder/agents/cursor/.cursor/commands/cafe\u0301.md", "two\n")
+        self.box.write_text("provider/collision/.pipe-agents/cursor/.cursor/commands/cafe\u0301.md", "two\n")
         self.expect_code(self.box.builder("check"), "PB010")
 
         self.box.close(); self.box = __import__("support").Sandbox()

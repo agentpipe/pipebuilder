@@ -1,0 +1,12 @@
+{
+  "folders": [
+    {
+      "name": "pipeline",
+      "path": "."
+    },
+    {
+      "name": "project",
+      "path": "../../project"
+    }
+  ]
+}

@@ -1,44 +1,44 @@
-# PipeBuilder v0.2.0 落地与迭代记录
+# PipeBuilder v0.2.0 Implementation and Iteration Record
 
-日期：2026-07-13
-验证解释器：CPython 3.11.9（隔离构建，仅用于测试）
-第 20 轮结束结果：40/40 passed
-第一次交付前 hardening：43/43 passed
-全面 E2E 重写后：E0 57/57、Codex E1 5/5、Codex E2 1/1
-v0.2.0 安全与迁移 hardening 后：E0 71/71、Codex E1 5/5、Codex E2 1/1
-Git Provider 与 folder 边界补强后：E0 84/84、Codex E1 5/5、Codex E2 1/1
+Date: 2026-07-13
+Validation interpreter: CPython 3.11.9 (isolated build used only for testing)
+Result after round 20: 40/40 passed
+First pre-delivery hardening: 43/43 passed
+After the comprehensive E2E rewrite: E0 57/57, Codex E1 5/5, Codex E2 1/1
+After v0.2.0 security and migration hardening: E0 71/71, Codex E1 5/5, Codex E2 1/1
+After strengthening Git Provider and folder boundaries: E0 84/84, Codex E1 5/5, Codex E2 1/1
 
-当前主机默认 `python3` 为 3.6.8，低于项目明确要求的 Python 3.11。为保持“只依赖 3.11 标准库 `tomllib`”的发布约束，本次在 `/tmp` 隔离构建 CPython 3.11.9 运行测试，没有向仓库或系统 Python 安装依赖。
+The host's default `python3` is 3.6.8, below PipeBuilder's explicit requirement of Python 3.11. To preserve the release constraint of depending only on the Python 3.11 standard-library `tomllib`, CPython 3.11.9 was built in isolation under `/tmp` for these tests. No dependencies were installed into the repository or the system Python.
 
-| 轮次 | 新增验证或改进 | 结果 |
+| Round | Added validation or improvement | Result |
 | --- | --- | --- |
-| 1 | 完成单文件 CLI、四 Adapter、lock/clean 与初始 21 个黑盒 E2E；识别默认 Python 版本不满足要求 | 隔离 3.11 下 21/21 passed |
-| 2 | manifest 重复 Agent、workspace 绝对路径与重复 realpath | 23/23 passed |
-| 3 | 缺失 Provider 与缺失显式 Skill 的稳定诊断码 | 24/24 passed |
-| 4 | common package 的 binary、隐藏文件、executable bit、`.DS_Store` 排除和 source 不可变 | 25/25 passed |
-| 5 | 删除 Agent 后只清理该 Adapter 的 owned targets | 26/26 passed |
-| 6 | 反选 Skill 后清理安装目录和 Agent artifact | 27/27 passed |
-| 7 | JSON handler additive merge 与相同定义去重 | 28/28 passed |
-| 8 | Codex TOML quoted key/array 确定性 render 后可由 `tomllib` 往返解析 | 29/29 passed |
-| 9 | lock 中每个 artifact digest/provenance 与实际 target 对应 | 30/30 passed |
-| 10 | clean 幂等；损坏 lock 零副作用失败 | 32/32 passed |
-| 11 | source symlink 和 target-parent symlink 逃逸；修正一个未实际命中 target 的错误测试前提 | 33/33 passed |
-| 12 | semantic conflict 必须在任何写入前失败并释放 operation lock | 33/33 passed |
-| 13 | owned target 从 file 漂移为 directory 的故障注入 | 发现并修复 build preflight bug，34/34 passed |
-| 14 | apply 中断时旧 lock 不前移，下一次 build 完整收敛 | 35/35 passed |
-| 15 | 进程硬崩溃留下 stale `build.lock`，Human 删除后恢复 | 36/36 passed |
-| 16 | clean 对所有 target kind 先 preflight 再删除 | 发现并修复 partial-clean bug，37/37 passed |
-| 17 | secret literal 拒绝与环境变量 secret reference 允许 | 38/38 passed |
-| 18 | 大小写不同的 target portability collision | 39/39 passed |
-| 19 | runner `--case` 拼错导致 0 tests 假绿 | 发现并修复 runner bug；无匹配返回 2，单 case passed |
-| 20 | 未选择 Agent 的 Space/Skill source 不读取；最终 py_compile + 全量回归 | 40/40 passed |
+| 1 | Completed the single-file CLI, four Adapters, lock/clean, and the initial 21 black-box E2E cases; identified that the default Python version did not meet requirements | 21/21 passed under isolated Python 3.11 |
+| 2 | Duplicate agents in the manifest, absolute workspace paths, and duplicate real paths | 23/23 passed |
+| 3 | Stable diagnostic codes for a missing Provider and a missing explicitly selected Skill | 24/24 passed |
+| 4 | Binary files, hidden files, executable bits, `.DS_Store` exclusion, and source immutability in the common package | 25/25 passed |
+| 5 | After removing an agent, clean only that Adapter's owned targets | 26/26 passed |
+| 6 | After deselecting a Skill, clean its installation directory and agent artifacts | 27/27 passed |
+| 7 | Additive merge in JSON handlers and deduplication of identical definitions | 28/28 passed |
+| 8 | Deterministically render quoted keys and arrays in Codex TOML, then round-trip the result through `tomllib` | 29/29 passed |
+| 9 | Every artifact digest/provenance entry in the lock corresponds to the actual target | 30/30 passed |
+| 10 | Idempotent clean; a corrupt lock fails with zero side effects | 32/32 passed |
+| 11 | Source-symlink and target-parent-symlink escapes; corrected an invalid test premise that did not actually reach the target | 33/33 passed |
+| 12 | A semantic conflict must fail before any write and release the operation lock | 33/33 passed |
+| 13 | Fault injection for an owned target drifting from a file to a directory | Found and fixed a build-preflight bug; 34/34 passed |
+| 14 | If apply is interrupted, the old lock does not advance and the next build converges fully | 35/35 passed |
+| 15 | A hard process crash leaves a stale `build.lock`; recovery succeeds after a Human removes it | 36/36 passed |
+| 16 | Clean preflights every target kind before deleting anything | Found and fixed a partial-clean bug; 37/37 passed |
+| 17 | Reject secret literals and permit environment-variable secret references | 38/38 passed |
+| 18 | Portability collision between targets that differ only by case | 39/39 passed |
+| 19 | A misspelled runner `--case` produced a false green result with 0 tests | Found and fixed the runner bug; no match returns 2, and a single case passed |
+| 20 | Do not read Space/Skill sources for unselected agents; final `py_compile` and full regression | 40/40 passed |
 
-测试均通过 `tests/e2e/support/` 以 `shell=False` 子进程执行最终 `pipebuilder.py`。轮次 13、14、15 以及后续真实并发 case 使用受测脚本内仅供 E2E 的 `PIPEBUILDER_TEST_*` 故障/时序注入变量验证 apply failure、crash 与锁竞争；正常环境未设置时不影响构建路径。
+All tests execute the final `pipebuilder.py` through `shell=False` subprocesses from `tests/e2e/support/`. Rounds 13, 14, and 15, along with subsequent real-concurrency cases, use E2E-only `PIPEBUILDER_TEST_*` fault/timing injection variables inside the script under test to validate apply failures, crashes, and lock contention. When these variables are unset in a normal environment, they do not affect the build path.
 
-后续全面重写把测试拆成 case/fixture/golden/support，并补齐结构化报告、失败制品、并行安全 metadata 和 `COVERAGE.md`。本机 Codex CLI 0.144.1 已完成 E1 真实 prompt assembly/config/execpolicy/hook schema 验证，并用一次真实模型请求同时通过 generated AGENTS、Skill 与 SessionStart hook 哨兵。其他三个平台仍只声称 E0 projection 覆盖。
+The subsequent comprehensive rewrite split tests into case/fixture/golden/support and added structured reports, failure artifacts, concurrency-safety metadata, and `COVERAGE.md`. The local Codex CLI 0.144.1 completed E1 validation of real prompt assembly, configuration, execpolicy, and hook schemas. A single real-model request simultaneously passed the sentinels for generated `AGENTS.md`, the Skill, and the SessionStart hook. The other three platforms still claim only E0 projection coverage.
 
-20 轮完成后的交付前 hardening 继续增加了 3 个 case：Codex machine/user-level key 拒绝、Cursor 跨目录 slash command semantic collision、Claude Code legacy command migration warning。它们不计入上述 20 轮循环，最终全量为 43/43。
+Pre-delivery hardening after the 20 rounds added three more cases: rejection of Codex machine/user-level keys, a semantic collision between Cursor slash commands in different directories, and a Claude Code legacy-command migration warning. These were not counted in the 20-round loop above; the final full result was 43/43.
 
-第二次审计 hardening 修复了伪造 lock 越权 clean、`.pipebuilder` symlink 写锁、YAML block scalar/unknown nested frontmatter、Unicode normalization 与 Windows reserved name 等问题；补充 Adapter schema、hook command secret、risk/semantic lock、standalone release copy 和 runner redaction。原 THarness 45 个真实 shared Skills 中 43 个通过新解析器，剩余两个需要显式 canonical rename。最终本机验证为 E0 71/71、Codex E1 5/5、Codex E2 1/1。
+The second audit-hardening pass fixed unauthorized clean through a forged lock, `.pipebuilder` symlink write-locking, YAML block scalars and unknown nested frontmatter, Unicode normalization, Windows reserved names, and related issues. It added Adapter schemas, hook-command secret checks, risk/semantic locks, standalone release-copy coverage, and runner redaction. Of the 45 real shared Skills from the original THarness, 43 passed the new parser; the remaining two require explicit canonical renaming. Final local validation was E0 71/71, Codex E1 5/5, and Codex E2 1/1.
 
-Provider follow-up 实现了 `url + branch/tag` Git Provider、独立 mirror/snapshot cache、commit lock、subdir 和 `--offline` digest 校验，并补充 folder symlink root、realpath alias、特殊字符路径、root kind 与内容变更覆盖。新增 13 个黑盒 case 后 E0 为 84/84；Codex E2 哨兵 Skill 也改为从真实本地 Git branch Provider 构建后交给模型消费。原安全 P0 继续由 forged lock、Builder state symlink、THarness-compatible frontmatter 与 unknown nested frontmatter 回归用例守护。
+The Provider follow-up implemented a `url + branch/tag` Git Provider, separate mirror/snapshot caches, commit locking, subdir support, and `--offline` digest validation. It also added coverage for a folder Provider whose root is a symlink, real-path aliases, paths with special characters, root kinds, and content changes. After adding 13 black-box cases, E0 reached 84/84. The Codex E2 sentinel Skill was also changed to be built from a real local Git branch Provider before being consumed by the model. The original security P0 remains guarded by regression cases for forged locks, Builder-state symlinks, THarness-compatible frontmatter, and unknown nested frontmatter.

@@ -193,7 +193,7 @@ class WorkspaceValidationCases(PipeBuilderE2ECase):
         self.assertIn("`external-project`: `../external-project`", guidance)
 
     def test_same_directory_external_and_multiple_folders_are_preserved_in_order(self):
-        external = self.box.base / "项目 #1 'quoted' $dollar"
+        external = self.box.base / "café project #1 'quoted' $dollar"
         external.mkdir()
         self.box.manifest(
             name="different-name",

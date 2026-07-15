@@ -1,0 +1,14 @@
+{
+  "schema": "pipespace.v1",
+  "name": "feature-development",
+  "description": "Feature implementation pipeline for the shared example project",
+  "agents": ["codex", "cursor"],
+  "skills": ["feature-implementation"],
+  "tags": [],
+  "skillProviders": [
+    {
+      "type": "folder",
+      "path": "../../shared-skills"
+    }
+  ]
+}

@@ -1,45 +1,45 @@
-# THarness Builder 迁移审计
+# THarness Builder Migration Audit
 
-状态：current baseline  
-日期：2026-07-13
+Status: current baseline
+Date: 2026-07-13
 
-本文只记录旧 THarness Builder 到 PipeBuilder 的迁移边界。Rounditer 不属于 Builder；它可以作为符合 PipeBuilder 规范的 Skill 分发。
+This document records only the migration boundary from the legacy THarness Builder to PipeBuilder. Rounditer is not part of the Builder; it can be distributed as a Skill that conforms to the PipeBuilder specification.
 
-## 已迁移
+## Migrated
 
-- 显式 Skill、tag 选择、Space-local Skill 与 Provider shadow；
-- flat `SKILL.md` common package、binary/hidden/executable 文件复制；
-- Skill/Space 两级 Agent source；
-- Cursor rules/commands 与基础 frontmatter 校验；
-- workspace folder inventory；
-- provenance lock、重复 build、clean、故障恢复和简单并发锁。
+- explicit Skills, tag-based selection, Space-local Skills, and Provider shadowing;
+- flat `SKILL.md` common packages and copying of binary, hidden, and executable files;
+- Agent sources at both the Skill and Space levels;
+- Cursor rules and commands, plus basic frontmatter validation;
+- workspace-folder inventory;
+- provenance locks, repeat builds, clean operations, failure recovery, and basic concurrency locks.
 
-## 明确删除或改模
+## Explicitly Removed or Remodeled
 
-- command pipeline/no-shell runner；
-- `runtime/`、`saved/`、`work/`、`artifacts/`、`logs/`；
-- THarness repo root、中心注册表和固定 `shared-skills` 路径；
-- `.code-workspace.src` 发布；
-- generic `files/` escape hatch；
-- nested `skill/SKILL.md` 正式协议。
+- command pipeline/no-shell runner;
+- `runtime/`, `saved/`, `work/`, `artifacts/`, `logs/`;
+- THarness repository root, central registry, and fixed `shared-skills` path;
+- `.code-workspace.src` publishing;
+- generic `files/` escape hatch;
+- nested `skill/SKILL.md` as a formal protocol.
 
-这些内容不应重新进入 PipeBuilder core。旧 nested Skill、`tagents`、YAML manifest/lock 的转换由独立迁移工具或 Human 显式完成。
+These items must not be reintroduced into PipeBuilder core. Conversion of legacy nested Skills, `tagents`, and YAML manifests or locks must be performed by a separate migration tool or explicitly by a human.
 
-## 真实 Skill catalog 结果
+## Results from the Real Skill Catalog
 
-对 `/data/workspace/THarness/harness/shared-skills` 的 45 个 `SKILL.md` 使用当前 parser/validator 审计：
+An audit of the 45 `SKILL.md` files under `/data/workspace/THarness/harness/shared-skills` with the current parser and validator found:
 
-- 43 个直接兼容；
-- `BotAI-Log-Analyzer` 的 name/目录不符合 lowercase canonical name；
-- `ts-local-launch` 的 frontmatter name 为 `tikistar-local-launch`，与目录名不一致。
+- 43 are directly compatible;
+- the name and directory of `BotAI-Log-Analyzer` do not conform to the lowercase canonical-name requirement;
+- the frontmatter name of `ts-local-launch` is `tikistar-local-launch`, which does not match the directory name.
 
-PipeBuilder 已支持这些旧 Skill 普遍使用的 `description: >`、`|`、`>-`、未知 block scalar、未知嵌套 metadata、BOM 和 CRLF，并原样复制 common package。剩余两个问题必须显式 rename，Builder 不静默改变 Skill identity。
+PipeBuilder supports `description: >`, `|`, `>-`, unknown block scalars, unknown nested metadata, BOM, and CRLF, all of which are common in these legacy Skills, and copies the common package unchanged. The remaining two issues require explicit renaming; the Builder does not silently change Skill identity.
 
-外部 THarness checkout 不属于仓库 E0 依赖。对应 parser 行为由仓库内 self-contained fixture 固化；迁移时可以额外对目标 catalog 执行一次完整 `check`。
+An external THarness checkout is not an E0 repository dependency. The corresponding parser behavior is captured by self-contained fixtures in this repository; during migration, a complete `check` may additionally be run against the target catalog.
 
-## 尚未完成的外部认证
+## Outstanding External Certification
 
-- Cursor、CodeBuddy、Claude Code 的真实客户端 E1；
-- 已加入但尚需观察首轮结果的 Windows/macOS 原生 CI；
-- nested Skill/tagents 的独立批量迁移工具；
-- Git/registry Provider 和 adapter plugin，二者仍属于后续阶段。
+- an automated case for Cursor's manual E1 validation, plus real-client E1 validation for CodeBuddy and Claude Code;
+- native Windows and macOS CI, which has been added but still requires observation of its first results;
+- a standalone bulk-migration tool for nested Skills and `tagents`;
+- Git/registry Providers and adapter plugins, both of which remain future work.

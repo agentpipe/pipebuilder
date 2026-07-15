@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""PipeBuilder：可独立分发的单文件 PipeSpace 编译器。
+"""PipeBuilder: capability reuse and workspace construction across AI coding agents.
 
-发布与运行要求
-------------
-只需要分发本文件，不依赖本仓库中的 README、docs、tests 或 Python 第三方包。
-运行环境要求 Python 3.7+；只有使用 Git Provider 时才需要系统安装 git。
+PipeBuilder packages standard Skills and platform-native Rules, Hooks, Commands,
+Agents, and MCP configurations into reusable capability bundles. It generates
+native project configurations for Codex, Cursor, CodeBuddy, and Claude Code.
+A workspace that is decoupled from the project directory and independently
+selects its agents and capability combination is called a PipeSpace. Multiple
+PipeSpace task pipelines may reference the same project.
 
-快速使用
---------
+Distribution and runtime requirements
+-------------------------------------
+This file is an independently distributable single-file CLI. It does not depend
+on this repository's README, docs, tests, or any third-party Python package.
+Python 3.7+ is required. System Git is required only when using a Git Provider.
+
+Quick start
+-----------
     python3 pipebuilder.py init [SPACE] [--name NAME] [--format text|json]
     python3 pipebuilder.py check [SPACE] [--format text|json] [--offline]
     python3 pipebuilder.py explain [SPACE] [--format text|json] [--offline]
@@ -21,58 +29,67 @@
     python3 pipebuilder.py --version
     python3 pipebuilder.py --help
 
-SPACE 省略时使用当前目录。建议先运行 check 或 build --dry-run，再运行 build。
---offline 只从已有 lock 和本地 immutable Git cache 解析 Git Provider，不访问 origin。
+SPACE defaults to the current directory when omitted. Run check or
+build --dry-run before build. --offline resolves Git Providers only from an
+existing lock and the local immutable Git cache, without contacting origin.
 
-PipeSpace 最小输入
----------------------
+Minimal PipeSpace inputs
+------------------------
     <space>/
     ├── pipespace.json
     └── <manifest.name>.code-workspace
 
-最小 pipespace.json：
+Minimal pipespace.json:
     {"schema":"pipespace.v1", "name":"my-space", "agents":["codex"],
      "skills":[], "tags":[], "skillProviders":[]}
 
-最小 my-space.code-workspace：
+Minimal my-space.code-workspace:
     {"folders":[{"path":"."}]}
 
-可选的一层 PipeSpace Tree：root 仍是普通 PipeSpace，并在自身目录声明显式 children：
+Optional single-level PipeSpace Tree: the root remains a regular PipeSpace and
+declares explicit children in its own directory:
     {"schema":"pipespace-tree.v1",
      "children":[{"path":"children/child-01", "expectName":"child-01"}]}
 
-Tree 命令不会扫描目录。build-tree 在写入前锁定并 plan root 与全部 direct children，
-按 root → children 顺序 build；clean-tree 按 children 逆序 → root 清理。v1 不递归。
+Tree commands do not scan directories. Before writing, build-tree locks and
+plans the root and all direct children, then builds in root-to-children order.
+clean-tree cleans in reverse children-to-root order. v1 is non-recursive.
 
-可选的 Space-level source：
+Optional space-level sources:
     .pipebuilder/agents/<agent>/
     .pipebuilder/skills/<skill>/SKILL.md
 
-外部 Skill Provider 在 pipespace.json.skillProviders 中声明。支持：
+External Skill Providers are declared in pipespace.json.skillProviders.
+Supported forms:
     {"type":"folder", "path":"../shared-skills"}
     {"type":"folder", "path":"../component", "subdir":"skills",
      "command":{"cwd":".", "args":["node","build.mjs","--output","{pipespaceRoot}"]}}
     {"type":"git", "url":"https://example/repo.git", "branch":"main", "subdir":"skills"}
     {"type":"git", "url":"https://example/repo.git", "tag":"v1.0.0", "subdir":"skills"}
 
-Git Provider 的 branch/tag 严格二选一；认证交给 Git credential helper 或 SSH agent，
-不得把 credential 写入 manifest。Git mirror 与 immutable snapshot 固定缓存在
-<space>/.pipebuilder/cache/git/，属于 ignored 的本机 Builder state。
+Git Providers must specify exactly one of branch or tag. Authentication is
+delegated to the Git credential helper or SSH agent; credentials must never be
+written to the manifest. Git mirrors and immutable snapshots are cached under
+<space>/.pipebuilder/cache/git/ as ignored local Builder state.
 
-Folder/Git 的 subdir 是 Skill Provider 根，默认为 .。可选 command 默认在正常 build 后调用；
-cwd 相对 Provider 源根，args 不经 shell，并展开 {pipespaceRoot}、{sourceRoot}、{providerRoot}。
-check、explain 和 build --dry-run 不调用 command。
+For Folder and Git Providers, subdir is the Skill Provider root and defaults to
+the current directory. An optional command runs after a normal build by default.
+Its cwd is relative to the Provider source root, its args bypass the shell, and
+{pipespaceRoot}, {sourceRoot}, and {providerRoot} are expanded. check, explain,
+and build --dry-run do not invoke the command.
 
-所有权与输出
------------
-平台配置和安装后的 Skill 是 Builder-owned target；Human-owned source 只能放在
-.pipebuilder/agents、.pipebuilder/skills 或外部 Provider 中。build 将 ownership
-写入 .pipebuilder/lock.json；clean 只删除有效 lock 证明由 Builder 管理的文件。
-不要直接维护生成的 AGENTS.md、CLAUDE.md、.codex、.cursor、.codebuddy、.claude 或
-.agents/skills 内容，应修改 source 后重新 build。
+Ownership and outputs
+---------------------
+Platform configurations and installed Skills are Builder-owned targets.
+Human-owned sources may only reside in .pipebuilder/agents, .pipebuilder/skills,
+or external Providers. build records ownership in .pipebuilder/lock.json; clean
+removes only files that a valid lock proves are Builder-managed. Do not directly
+maintain generated AGENTS.md, CLAUDE.md, .codex, .cursor, .codebuddy, .claude,
+or .agents/skills content. Modify the source and run build again instead.
 
-自动化应使用 --format json，并依赖 pipebuilder-report.v1 中稳定的 diagnostic code，
-不要解析人类可读 message。完整命令说明可随时运行本文件的 --help 查看。
+Automation should use --format json and rely on stable diagnostic codes in
+pipebuilder-report.v1. It must not parse human-readable messages. Run this
+file with --help at any time for complete command documentation.
 """
 
 from __future__ import annotations
@@ -142,7 +159,7 @@ TREE_RESERVED_ROOTS = {
 ADAPTER_VERSIONS = {"codex": "2", "cursor": "1", "codebuddy": "2", "claude-code": "2"}
 ADAPTER_STATUS = {
     "codex": "client-verified",
-    "cursor": "generated-only",
+    "cursor": "client-verified",
     "codebuddy": "generated-only",
     "claude-code": "generated-only",
 }

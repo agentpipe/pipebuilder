@@ -1,26 +1,24 @@
-# PipeBuilder PipeSpace 与 Skill Provider 协议
+# PipeBuilder PipeSpace and Skill Provider Specification
 
-状态：proposal  
-Schema：`pipespace.v1`  
-日期：2026-07-14
+Status: implemented
+Schema: `pipespace.v1`
+Date: 2026-07-14
 
-本文定义 PipeSpace identity、`pipespace.json`、workspace、Skill package、Skill Provider、Skill 选择和 lock 的规范行为。
+This document defines the normative behavior of PipeSpace identity, `pipespace.json`, the workspace file, Skill packages, Skill Providers, Skill selection, and the lock.
 
-一个普通 PipeSpace 物理包含并管理多个 child PipeSpaces 时，成员仍分别遵守本文；树关系、
-顺序、聚合 receipt 和恢复语义由 [通用 PipeSpace children Tree 协议](pipebuilder-space-tree-spec.md)
-定义，不并入 `pipespace.v1`。
+When an ordinary PipeSpace physically contains and manages multiple child PipeSpaces, each member still follows this document independently. Tree relationships, ordering, aggregate receipts, and recovery semantics are defined by the [General PipeSpace Children Tree Specification](pipebuilder-space-tree-spec.md) and are not part of `pipespace.v1`.
 
 ---
 
 ## 1. PipeSpace identity
 
-给定 PipeSpace root：
+Given this PipeSpace root:
 
 ```text
 /workspace/local-checkout-17/
 ```
 
-其 `pipespace.json` 为：
+Its `pipespace.json` is:
 
 ```json
 {
@@ -33,48 +31,48 @@ Schema：`pipespace.v1`
 }
 ```
 
-canonical logical name 是：
+The canonical logical name is:
 
 ```text
 my-harness-space
 ```
 
-`pipespace.json.name` 是 PipeSpace identity 的唯一事实源，必须匹配：
+`pipespace.json.name` is the sole source of truth for PipeSpace identity and must match:
 
 ```text
 ^[a-z][a-z0-9-]*$
 ```
 
-必须存在：
+The following workspace file must exist:
 
 ```text
 my-harness-space.code-workspace
 ```
 
-目录 basename 不参与 identity 推导，也不与 `name` 比较。移动或重命名 PipeSpace root 不改变逻辑身份；复制目录后若要创建新 PipeSpace，必须显式修改 `name` 并同步重命名 workspace 文件。workspace folder name 不要求与 PipeSpace name 相同。
+The directory basename neither contributes to identity derivation nor is compared with `name`. Moving or renaming the PipeSpace root does not change its logical identity. To create a new PipeSpace by copying the directory, explicitly change `name` and rename the workspace file accordingly. Workspace folder names do not have to match the PipeSpace name.
 
-大小写敏感文件系统和不敏感文件系统使用相同逻辑名称比较；目标路径冲突比较在 Windows/macOS 默认大小写不敏感，在明确大小写敏感的文件系统上仍应额外诊断 portability collision。
-
----
-
-## 2. `pipespace.json` 是否必需
-
-`pipespace.json` 必需。缺失时构建立即失败，不从目录名、workspace 文件名或已有 lock 猜测配置。
-
-以下字段必须显式存在：
-
-- `schema`；
-- `name`；
-- `agents`；
-- `skills`；
-- `tags`；
-- `skillProviders`。
-
-显式空数组用于表达“当前没有该类配置”。这让 manifest 始终是 identity、schema 版本和构建选择的稳定入口。低摩擦创建由未来的 `pipebuilder init` 提供，不通过省略 manifest 实现。
+Case-sensitive and case-insensitive file systems use the same logical-name comparison. Target-path conflict comparison is case-insensitive by default on Windows and macOS; on an explicitly case-sensitive file system, portability collisions should still be diagnosed separately.
 
 ---
 
-## 3. 完整示例
+## 2. Is `pipespace.json` Required?
+
+`pipespace.json` is required. If it is missing, the build fails immediately; configuration is never inferred from the directory name, workspace filename, or an existing lock.
+
+The following fields must be explicitly present:
+
+- `schema`;
+- `name`;
+- `agents`;
+- `skills`;
+- `tags`;
+- `skillProviders`.
+
+An explicit empty array means that there is currently no configuration of that kind. This keeps the manifest as the stable entry point for identity, schema version, and build selection. Low-friction creation is provided by `pipebuilder init`, not by omitting the manifest.
+
+---
+
+## 3. Complete Example
 
 ```json
 {
@@ -109,29 +107,29 @@ my-harness-space.code-workspace
 }
 ```
 
-未知顶层字段首版默认报错，防止拼写错误静默失效。未来 schema 版本可以新增字段。
+In v1, unknown top-level fields are errors by default so that spelling mistakes cannot fail silently. Future schema versions may add fields.
 
 ---
 
-## 4. 顶层字段
+## 4. Top-Level Fields
 
-| 字段 | 类型 | 必需 | 默认值 | 语义 |
+| Field | Type | Required | Default | Semantics |
 | --- | --- | --- | --- | --- |
-| `schema` | string | 是 | 无 | 必须为 `pipespace.v1` |
-| `name` | string | 是 | 无 | PipeSpace canonical logical name；不从目录名推导 |
-| `description` | string | 否 | 无 | Human-facing 描述 |
-| `agents` | string[] | 是 | 无 | 需要生成的平台，保持声明顺序 |
-| `skills` | string[] | 是 | 无 | 显式 Skill 名单；没有时写 `[]` |
-| `tags` | string[] | 是 | 无 | PipeSpace tags；没有时写 `[]` |
-| `skillProviders` | object[] | 是 | 无 | 外部 Skill 来源；没有时写 `[]`，按数组顺序降序优先 |
+| `schema` | string | yes | none | Must be `pipespace.v1` |
+| `name` | string | yes | none | PipeSpace canonical logical name; not derived from the directory name |
+| `description` | string | no | none | Human-facing description |
+| `agents` | string[] | yes | none | Platforms to generate, preserving declaration order |
+| `skills` | string[] | yes | none | Explicit Skill list; use `[]` when empty |
+| `tags` | string[] | yes | none | PipeSpace tags; use `[]` when empty |
+| `skillProviders` | object[] | yes | none | External Skill sources; use `[]` when empty, with priority descending in array order |
 
-数组必须去重。重复值报错，而不是静默去重，以暴露配置问题。
+Array values must be unique. Duplicate values are errors rather than being silently deduplicated, so configuration problems remain visible.
 
 ---
 
 ## 5. `agents`
 
-首版合法值：
+Allowed v1 values:
 
 ```json
 [
@@ -142,15 +140,15 @@ my-harness-space.code-workspace
 ]
 ```
 
-约束：
+Constraints:
 
-- 至少一项；
-- 不允许重复；
-- 未知值报错；
-- PipeBuilder 只读取被选中 Agent 的 Skill `.pipe-agents/<agent>` 和 PipeSpace `.pipebuilder/agents/<agent>`；
-- 删除一个 Agent 后，rebuild 清理 lock 中该 adapter 的旧生成产物，不删除 Human-owned source。
+- at least one entry is required;
+- duplicates are not allowed;
+- unknown values are errors;
+- PipeBuilder reads only the selected Agent's Skill `.pipe-agents/<agent>` and PipeSpace `.pipebuilder/agents/<agent>`;
+- after an Agent is removed, rebuild cleans that adapter's stale generated artifacts recorded in the lock without deleting Human-owned sources.
 
-Agent 声明顺序用于 diagnostics 和 lock 展示，不应影响跨 Agent 语义。
+Agent declaration order is used for diagnostics and lock presentation; it must not affect cross-Agent semantics.
 
 ---
 
@@ -158,7 +156,7 @@ Agent 声明顺序用于 diagnostics 和 lock 展示，不应影响跨 Agent 语
 
 ### 6.1 Provider IR
 
-逻辑接口：
+Logical interface:
 
 ```text
 Provider.resolve() -> immutable provider snapshot
@@ -166,32 +164,32 @@ Provider.listSkills() -> skill descriptors
 Provider.openSkill(name) -> skill package
 ```
 
-Core 不关心来源是 folder、Git 或 registry。Provider 必须返回统一的：
+Core is independent of whether the source is a folder, Git repository, or registry. Every Provider must return a consistent representation containing:
 
-- provider id；
-- source description；
-- immutable revision/digest；
-- Skill name；
-- Skill root；
-- Skill digest。
+- provider id;
+- source description;
+- immutable revision/digest;
+- Skill name;
+- Skill root;
+- Skill digest.
 
-### 6.2 Implicit space-local Provider
+### 6.2 Implicit Space-Local Provider
 
-PipeBuilder 永远在最高优先级检查：
+At the highest priority, PipeBuilder always checks:
 
 ```text
 <space-root>/.pipebuilder/skills
 ```
 
-如果目录不存在，视为空 Provider，不报错。
+If the directory does not exist, it is treated as an empty Provider without an error.
 
-其逻辑 id 固定为：
+Its logical id is fixed:
 
 ```text
 space-local
 ```
 
-该 Provider 中所有合法 Skill 都会被选中，保持旧 PipeSpace-local Skill 的语义。
+All valid Skills in this Provider are selected, preserving the semantics of legacy PipeSpace-local Skills.
 
 ### 6.3 Folder Provider
 
@@ -203,19 +201,19 @@ space-local
 }
 ```
 
-约束：
+Constraints:
 
-- `type` 必须为 `folder`；
-- `path` 必须是非空字符串；
-- `subdir` 可选，默认 `.`，是相对 Provider 源根的 Skill 根目录；
-- manifest 中必须使用相对路径；
-- 路径以 PipeSpace root 为基准；
-- build 时必须解析为已存在目录；
-- provider root 不得位于 PipeBuilder generated target 内；
-- provider realpath 和目录内容 digest 写入 lock；
-- provider root 的直接子目录才是 Skill candidate。
+- `type` must be `folder`;
+- `path` must be a non-empty string;
+- `subdir` is optional and defaults to `.`; it identifies the Skill root relative to the Provider source root;
+- the manifest must use a relative path;
+- the path is resolved relative to the PipeSpace root;
+- at build time, it must resolve to an existing directory;
+- the Provider root must not be inside a PipeBuilder-generated target;
+- the Provider realpath and directory-content digest are written to the lock;
+- only direct subdirectories of the Provider root are Skill candidates.
 
-Folder 与 Git Provider 都可附加 post command：
+Both Folder Providers and Git Providers may include a post command:
 
 ```json
 {
@@ -229,15 +227,13 @@ Folder 与 Git Provider 都可附加 post command：
 }
 ```
 
-`cwd` 相对 Provider 源根，默认 `.`；`args` 是不经 shell 的非空字符串数组。
-正式 `build` 在 PipeBuilder 自身产物落地后按 Provider 顺序调用；`check`、`explain` 和
-`build --dry-run` 只展示，不执行。
+`cwd` is relative to the Provider source root and defaults to `.`. `args` is a non-empty string array that is executed without a shell. A normal `build` invokes post commands in Provider order after PipeBuilder's own outputs have been written. `check`, `explain`, and `build --dry-run` only display them and do not execute them.
 
-绝对路径不允许进入 manifest，以保证 PipeSpace 可移动。确有本机路径需求时，应通过外部目录布局、symlink 或未来的 local override 机制解决。
+Absolute paths are not allowed in the manifest, which keeps the PipeSpace movable. A genuine need for a machine-local path should be addressed through the external directory layout, a symlink, or a future local-override mechanism.
 
 ### 6.4 Git Provider
 
-分支形式：
+Branch form:
 
 ```json
 {
@@ -248,7 +244,7 @@ Folder 与 Git Provider 都可附加 post command：
 }
 ```
 
-tag 形式：
+Tag form:
 
 ```json
 {
@@ -258,23 +254,21 @@ tag 形式：
 }
 ```
 
-约束：
+Constraints:
 
-- `url` 为非空 Git URL；开发和离线 fixture 也可使用相对于 PipeSpace root 的本地 repository 路径；
-- `branch` 与 `tag` 必须严格二选一，通用 `ref` 不属于 schema；
-- `subdir` 可省略，默认 `.`，必须是安全的相对 POSIX 路径；
-- URL 不得内嵌 HTTP(S) username、password、query credential 或 fragment；认证由 Git credential helper、SSH agent 或环境承担；
-- cache 固定位于当前 PipeSpace 的 `.pipebuilder/cache/git/`，按 URL 和 commit
-  隔离 bare mirror 与 immutable snapshot；该目录是 ignored 的本机 Builder state，不进入 lock；
-- 在线 resolve 会更新 cache mirror，将 branch/tag 解析为 commit，并从该 commit 生成无 symlink 的 immutable snapshot；
-- `--offline` 不访问 origin，且要求存在匹配 lock：复用其中 commit，并校验 cache snapshot digest；lock、cache、commit 或 subdir 不可用时返回 `PB005`，digest 漂移返回 `PB010`；
-- lock 记录 portable URL、`branch`/`tag`、commit、subdir、Provider digest 和每个 Skill digest，不记录 credential 或本机 cache absolute path；
-- PipeSpace 内不得出现 Git Provider 工作树；`.pipebuilder/cache/git/` 中的 bare
-  mirror 与无 `.git` immutable snapshot 是唯一例外。
+- `url` must be a non-empty Git URL; development and offline fixtures may also use a local repository path relative to the PipeSpace root;
+- exactly one of `branch` and `tag` must be specified; a generic `ref` is not part of the schema;
+- `subdir` may be omitted and defaults to `.`; it must be a safe relative POSIX path;
+- the URL must not embed an HTTP(S) username, password, query credential, or fragment; authentication is handled by the Git credential helper, SSH agent, or environment;
+- the cache is fixed at `.pipebuilder/cache/git/` within the current PipeSpace. Bare mirrors and immutable snapshots are isolated by URL and commit. This directory contains ignored, machine-local Builder state and is not recorded in the lock;
+- online resolution updates the cache mirror, resolves the branch or tag to a commit, and creates a symlink-free immutable snapshot from that commit;
+- `--offline` does not access the origin and requires a matching lock. It reuses the recorded commit and validates the cache snapshot digest. An unavailable lock, cache, commit, or subdirectory returns `PB005`; digest drift returns `PB010`;
+- the lock records the portable URL, `branch` or `tag`, commit, subdirectory, Provider digest, and each Skill digest. It does not record credentials or the machine-local absolute cache path;
+- a Git Provider worktree must not appear inside the PipeSpace. Bare mirrors and immutable snapshots without `.git` under `.pipebuilder/cache/git/` are the only exceptions.
 
-### 6.5 Provider 优先级
+### 6.5 Provider Priority
 
-从高到低：
+From highest to lowest:
 
 ```text
 space-local
@@ -283,7 +277,7 @@ skillProviders[1]
 ...
 ```
 
-对一个逻辑 Skill name，选取第一个合法 candidate。其余同名候选不参与 merge：
+For each logical Skill name, the first valid candidate is selected. Other candidates with the same name do not participate in a merge:
 
 ```json
 {
@@ -298,21 +292,21 @@ skillProviders[1]
 }
 ```
 
-同名 shadow 默认 warning；`explain` 必须展示。
+Shadowing by a same-named candidate produces a warning by default and must be shown by `explain`.
 
 ---
 
-## 7. Skill package
+## 7. Skill Package
 
-### 7.1 标准结构
+### 7.1 Standard Structure
 
 ```text
 <provider-root>/<skill-name>/
-├── SKILL.md                   # required
-├── scripts/                   # optional
-├── references/                # optional
-├── assets/                    # optional
-├── agents/                    # Agent Skills 标准允许的其他内容
+├── SKILL.md                     # required
+├── scripts/                     # optional
+├── references/                  # optional
+├── assets/                      # optional
+├── agents/                      # other content allowed by the Agent Skills standard
 └── .pipe-agents/                # PipeBuilder extension, optional
     ├── codex/
     ├── cursor/
@@ -320,18 +314,18 @@ skillProviders[1]
     └── claude-code/
 ```
 
-除 `.pipe-agents/` 外，Skill 根目录全部属于 common package。复制时保留目录结构并排除：
+Except for `.pipe-agents/`, the entire Skill root belongs to the common package. Copying preserves the directory structure and excludes:
 
 ```text
 .pipe-agents/
 .DS_Store
 ```
 
-禁止把任意隐藏目录都排除，因为标准 Skill 内容可能合法使用其他隐藏目录。
+Do not exclude all hidden directories indiscriminately, because standard Skill content may legitimately use other hidden directories.
 
 ### 7.2 `SKILL.md`
 
-必须包含 YAML frontmatter。PipeBuilder v1 至少识别：
+YAML frontmatter is required. PipeBuilder v1 recognizes at least:
 
 ```yaml
 ---
@@ -343,19 +337,19 @@ tags:
 ---
 ```
 
-约束：
+Constraints:
 
-- `name` 必须存在；
-- `description` 必须存在且非空；
-- `name` 必须与 Skill 目录名一致；
-- name 使用 `^[a-z][a-z0-9-]*$`；
-- `tags` 可选，必须是唯一字符串列表；
-- 未识别 frontmatter 字段原样保留；
-- PipeBuilder 不为不同平台重写 common frontmatter。
+- `name` must be present;
+- `description` must be present and non-empty;
+- `name` must match the Skill directory name;
+- `name` must match `^[a-z][a-z0-9-]*$`;
+- `tags` is optional and must be a list of unique strings;
+- unrecognized frontmatter fields are preserved verbatim;
+- PipeBuilder does not rewrite common frontmatter for different platforms.
 
 ### 7.3 `.pipe-agents`
 
-`.pipe-agents/<agent>/` 是对应 Agent 的虚拟项目根，内部保留平台原生的 target-relative path，不再定义一套跨平台通用子目录。例如：
+`.pipe-agents/<agent>/` is the virtual target root for the corresponding Agent. It preserves the platform-native target-relative paths inside and does not define another set of cross-platform generic subdirectories. For example:
 
 ```text
 .pipe-agents/
@@ -383,23 +377,23 @@ tags:
         └── agents/
 ```
 
-示例只展示常见 surface；每个 adapter 的精确文件名、schema 和 target mapping 由 Adapter 规范定义。遇到该 adapter 未支持的原生文件或目录，默认失败并给出 agent、Skill 和路径，不允许忽略。
+The example shows only common surfaces. Exact filenames, schemas, and target mappings for each adapter are defined by the Adapter specification. Encountering a native file or directory that the adapter does not support fails by default and reports the Agent, Skill, and path; it must not be ignored.
 
-协议 fixture 不使用一个巨型 Skill 覆盖全部行为。Portable package、四平台 full-capability Skill、Provider resolution、invalid/security 和 live Codex fixture 的分组见 [PipeBuilder Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md)。
+Specification fixtures do not use one oversized Skill to cover every behavior. See the [PipeBuilder Skill Fixture Catalog](pipebuilder-skill-fixture-catalog.md) for the grouping of portable packages, four-platform full-capability Skills, Provider resolution, invalid and security cases, and live Codex fixtures.
 
-Skill-level Agent source 只允许出现在 Skill 根目录的 `.pipe-agents/<agent>/`。协议不提供通用 `files/` escape hatch，也不定义顶层 `rules/`、`resources/` 或 `tagents/`。
+Skill-level Agent sources may appear only under `.pipe-agents/<agent>/` at the Skill root. The specification provides no generic `files/` escape hatch and defines no top-level `rules/`, `resources/`, or `tagents/`.
 
 ---
 
 ## 8. Space-level `.pipebuilder/agents`
 
-PipeSpace 级 Agent 专属输入位于：
+PipeSpace-level Agent-specific inputs are located at:
 
 ```text
 .pipebuilder/agents/<agent>/...
 ```
 
-它与 Skill `.pipe-agents/<agent>` 一样是对应 Agent 的虚拟项目根：
+Like Skill `.pipe-agents/<agent>`, it is a virtual target root for the corresponding Agent:
 
 ```text
 .pipebuilder/agents/codex/AGENTS.md
@@ -410,15 +404,15 @@ PipeSpace 级 Agent 专属输入位于：
 .pipebuilder/agents/claude-code/.claude/settings.json
 ```
 
-PipeSpace `.pipebuilder/agents` 与 Skill `.pipe-agents` 是两个明确 scope；scope 本身不授予覆盖权。可 additive merge 的 artifact 按 adapter 语义合并，其余同 semantic key 冲突默认 fail。
+PipeSpace `.pipebuilder/agents` and Skill `.pipe-agents` are two distinct scopes; a scope does not itself grant overwrite rights. Artifacts that support additive merging are merged according to adapter semantics. Other conflicts on the same semantic key fail by default.
 
-它用于无法合理归属于某个 Skill 的 PipeSpace 级能力，例如项目 instructions、额外 hooks、workspace-specific commands 和全局 validation gate。这里的文件是 Human-owned source；对应根 `AGENTS.md`、`CLAUDE.md`、`.mcp.json` 以及 `.codex/`、`.cursor/`、`.codebuddy/`、`.claude/` 中列入 plan 的 target 都是 Builder-owned output。
+This scope is for PipeSpace-level capabilities that cannot reasonably belong to a particular Skill, such as project instructions, additional hooks, PipeSpace-specific commands, and global validation gates. Files here are Human-owned sources. The corresponding root-level `AGENTS.md`, `CLAUDE.md`, and `.mcp.json`, together with targets under `.codex/`, `.cursor/`, `.codebuddy/`, and `.claude/` that are included in the plan, are Builder-owned outputs.
 
 ---
 
-## 9. Skill 选择算法
+## 9. Skill Selection Algorithm
 
-### 9.1 输入
+### 9.1 Inputs
 
 ```text
 space-local Skill names
@@ -427,26 +421,26 @@ pipespace.json.tags
 resolved Provider index
 ```
 
-### 9.2 算法
+### 9.2 Algorithm
 
-1. 按 Provider 优先级为每个 Skill name 解析唯一有效 candidate。
-2. 将 `space-local` 中全部 Skill 加入结果，`selectedBy = space-local`。
-3. 按 `skills` 声明顺序选择 resolved candidate：
-   - 不存在：error；
-   - 已由 space-local 选中：升级为 `selectedBy = skills`，同时记录 space-local；
-   - 否则加入结果，`selectedBy = skills`。
-4. 对尚未显式选择的 resolved candidates，计算 Skill tags 与 PipeSpace tags 的交集：
-   - 交集非空：加入结果，`selectedBy = tags`；
-   - 交集为空：不选择。
-5. 对同时由 explicit 和 tags 命中的 Skill：保留 `selectedBy = skills`，并记录 `matchedTags`。
-6. 最终安装顺序：
-   - explicit skills 按 manifest 顺序；
-   - space-local-only skills 按 Skill name；
-   - tags-only skills 按 Skill name。
+1. Resolve one valid candidate for each Skill name according to Provider priority.
+2. Add every Skill from `space-local` to the result with `selectedBy = space-local`.
+3. Select resolved candidates in `skills` declaration order:
+   - if the candidate does not exist, report an error;
+   - if it has already been selected from space-local, promote it to `selectedBy = skills` while also recording space-local;
+   - otherwise, add it with `selectedBy = skills`.
+4. For resolved candidates that have not been explicitly selected, compute the intersection of the Skill tags and PipeSpace tags:
+   - if the intersection is non-empty, add the candidate with `selectedBy = tags`;
+   - if the intersection is empty, do not select it.
+5. For a Skill matched by both the explicit list and tags, retain `selectedBy = skills` and record `matchedTags`.
+6. Final installation order:
+   - explicit Skills in manifest order;
+   - space-local-only Skills by Skill name;
+   - tags-only Skills by Skill name.
 
-安装顺序只影响稳定输出和 diagnostics，不授予静默覆盖权限。
+Installation order affects only deterministic output and diagnostics; it does not grant silent overwrite rights.
 
-### 9.3 示例
+### 9.3 Example
 
 ```json
 {
@@ -455,7 +449,7 @@ resolved Provider index
 }
 ```
 
-Provider 中：
+Provider contents:
 
 ```text
 git tags=[workflow]
@@ -463,30 +457,30 @@ ue-cli tags=[ue,build]
 trace-analyze tags=[performance]
 ```
 
-结果：
+Result:
 
 ```text
 git       selectedBy=skills matchedTags=[]
 ue-cli    selectedBy=tags   matchedTags=[ue]
 ```
 
-`trace-analyze` 不选择。
+`trace-analyze` is not selected.
 
 ---
 
-## 10. Workspace
+## 10. Workspace File
 
-### 10.1 Human-owned source
+### 10.1 Human-Owned Source
 
-Workspace 不设置独立路径字段；其路径固定由必需的 `pipespace.json.name` 推导：
+The workspace file has no independent path field. Its path is derived deterministically from the required `pipespace.json.name`:
 
 ```text
 <space-root>/<pipespace.json.name>.code-workspace
 ```
 
-因此 PipeSpace identity 只有 manifest 一个事实源，同时避免搜索或猜测多个 `.code-workspace` 文件。workspace 自身仍是项目名称、路径和顺序的事实源。
+This makes the manifest the sole source of truth for PipeSpace identity while avoiding searches for, or guesses among, multiple `.code-workspace` files. The workspace file remains the source of truth for project names, paths, and ordering.
 
-Workspace 支持三种常见 topology：
+The workspace file supports three common topologies:
 
 ```json
 {
@@ -498,15 +492,15 @@ Workspace 支持三种常见 topology：
 }
 ```
 
-`path: "."` 表示项目与 PipeSpace root 同目录；其他相对路径表示目录解耦。两种形式可以同时出现。`name` 可选；省略时使用 `path` 所指目录的 basename（`.` 对应 PipeSpace root 的 basename），显式配置时必须是非空字符串。`folders` 必须是至少包含一项的数组；最终 folder name 唯一，path 非空、为相对路径、解析后唯一，并在 build 时指向已存在目录。
+`path: "."` means that the project is colocated with the PipeSpace root; other relative paths represent directory decoupling. Both forms may appear together. `name` is optional. When omitted, it uses the basename of the directory identified by `path` (`.` maps to the PipeSpace root's basename); when explicitly configured, it must be a non-empty string. `folders` must be an array containing at least one item. Final folder names must be unique, and each path must be non-empty, relative, unique after resolution, and point to an existing directory at build time.
 
-### 10.2 Folder 语义
+### 10.2 Folder Semantics
 
-PipeBuilder 保留 `folders` 的声明顺序，但不从顺序推导 primary/reference、可写/只读、验证或提交边界。所有 folder 都是同等的 workspace project。特定 Skill 可以读取 workspace rule 并定义自己的项目选择约定，但该约定不属于 PipeBuilder core。
+PipeBuilder preserves the declaration order of `folders`, but does not infer primary/reference status, writable/read-only status, validation boundaries, or commit boundaries from that order. All folders are peers in the workspace file. A particular Skill may read the generated workspace rule and define its own project-selection convention, but that convention is not part of PipeBuilder core.
 
-### 10.3 Generated workspace rule model
+### 10.3 Generated Workspace Rule Model
 
-中间表示：
+Intermediate representation:
 
 ```json
 {
@@ -525,13 +519,13 @@ PipeBuilder 保留 `folders` 的声明顺序，但不从顺序推导 primary/ref
 }
 ```
 
-该 IR 由各 Agent adapter render，程序不得从 render 后的 Markdown/MDC 反向解析。
+Each Agent adapter renders this IR. Programs must not reconstruct it by parsing the rendered Markdown or MDC.
 
 ---
 
 ## 11. Diagnostics
 
-每条诊断至少包含：
+Every diagnostic contains at least:
 
 ```text
 level
@@ -542,7 +536,7 @@ target path or semantic key
 suggested action
 ```
 
-建议的稳定错误码：
+Recommended stable error codes:
 
 ```text
 PB001 invalid-manifest
@@ -563,57 +557,56 @@ PB016 provider-post-command-failed
 PB017 invalid-hspace-tree
 ```
 
-`PB012` 作为早期草案编号保留但不属于 `pipespace.v1` stable contract：manifest 只接受四个内置 Agent，未知 Agent 在 adapter dispatch 前由 `PB001` 拒绝，因此不能为 PB012 制造伪失败入口。
+`PB012` is reserved as an early draft number but is not part of the stable `pipespace.v1` contract. The manifest accepts only the four built-in Agents, and `PB001` rejects an unknown Agent before adapter dispatch, so an artificial failure path must not be created for `PB012`.
 
-`PB015` 用于发现旧 THarness layout，例如 `tagents/`、Space root `.pipe-agents/`、`private/`、`.harness-space.yaml`、`.harness-lock.yaml` 或 workspace source template。PipeBuilder v1 不双读、不自动 merge，也不在 build 中就地改名；迁移由独立工具或 Human 显式完成。
+`PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or explicitly by a human.
 
-`PB016` 用于 Provider post command 无法启动、cwd 无效或非零退出；`PB017` 专用于
-`pipespace-tree.v1` 的声明、成员身份、聚合状态和整树一致性错误。
+`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` is dedicated to declaration, member-identity, aggregate-state, and whole-Tree consistency errors in `pipespace-tree.v1`.
 
-CLI 使用 `--format json` 时，diagnostics 包装在版本化 `pipebuilder-report.v1` 中；测试与自动化必须依赖 `code` 和结构化字段，不解析人类文案。Report 的 E2E fixture 和 golden 规则见 [PipeBuilder Python E2E 集成测试架构](pipebuilder-test-architecture.md)。
+When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for report E2E fixtures and golden-file rules.
 
 ---
 
-## 12. 简化 Lock 与并发要求
+## 12. Simplified Lock and Concurrency Requirements
 
-Lock 固定为：
+The lock path is fixed:
 
 ```text
 .pipebuilder/lock.json
 ```
 
-Lock 至少记录：
+The lock records at least:
 
-- PipeBuilder version 和自身 digest；
-- manifest path 和 digest；
-- workspace path 和 digest；
-- Agent ids 和 adapter versions；
-- Provider 配置、realpath、snapshot/digest；
-- 每个 Skill 的 provider、source、digest、selectedBy、matchedTags、shadowed candidates；
-- 每个 artifact 的 source、logical type、target、semantic key、operation、digest；
-- Adapter capability status，以及自动执行 hook、Codex rule 等 surface 的结构化 risks；
-- 可选 generated timestamp。
+- the PipeBuilder version and its own digest;
+- the manifest path and digest;
+- the workspace-file path and digest;
+- Agent ids and adapter versions;
+- Provider configuration, realpath, and snapshot/digest;
+- each Skill's Provider, source, digest, `selectedBy`, `matchedTags`, and shadowed candidates;
+- each artifact's source, logical type, target, semantic key, operation, and digest;
+- Adapter capability status and structured risks for surfaces such as automatically executed hooks and Codex rules;
+- an optional generation timestamp.
 
-Lock 中的 source path 优先写 PipeSpace-relative 或 Provider-relative 路径。不可移植 absolute realpath 可以用于本机诊断，但必须与 portable identity 分开，不参与可复现 digest。
+Source paths in the lock should preferentially be PipeSpace-relative or Provider-relative. A non-portable absolute realpath may be used for machine-local diagnostics, but it must be separate from the portable identity and must not contribute to the reproducible digest.
 
-平台 target 配置整体由 Builder 管理，lock 不承担 target 内 Human 字段的 ownership merge。build 和 clean 开始时以 exclusive create 获取 `.pipebuilder/build.lock`；文件已存在时返回 `PB013`，不等待并发操作。首版不提供 transaction journal 和跨文件 rollback。每个目标文件使用临时文件加 atomic replace，最终 `lock.json` 最后写入。
+Platform target configurations are managed in their entirety by the Builder; the lock does not perform ownership merging for Human-owned fields inside a target. At the start of build and clean, `.pipebuilder/build.lock` is acquired through exclusive creation. If the file already exists, the operation returns `PB013` instead of waiting for the concurrent operation. v1 provides neither a transaction journal nor cross-file rollback. Each target file is written through a temporary file and atomic replacement, and `lock.json` is written last.
 
-进程异常退出可能留下 stale `build.lock`。PipeBuilder 报 `PB014` 并展示其中的 pid、host 和 startedAt；确认原进程已结束后由 Human 删除该文件。构建在多文件应用中断时，重新执行 build 即可按 source 重新生成全部计划目标。
+An abnormal process exit may leave a stale `build.lock`. PipeBuilder reports `PB014` and displays its pid, host, and startedAt values. A human deletes the file only after confirming that the original process has ended. If a build is interrupted while applying multiple files, rerun build to regenerate every planned target from its source.
 
 ---
 
-## 13. 路径安全
+## 13. Path Safety
 
-所有写入目标必须：
+Every write target must:
 
-- 相对于 PipeSpace root；
-- normalize 后仍位于 PipeSpace root；
-- 不通过 symlink/junction 逃逸 PipeSpace root；
-- 不指向 Provider source；
-- 不指向 Human-owned PipeSpace build inputs：`.pipebuilder/agents/` 或 `.pipebuilder/skills/`；
-- 不指向 workspace 文件或 `pipespace.json`；
-- 只有 core operation 可以写 `.pipebuilder/generated/`、`lock.json` 和 `build.lock`；
-- 在 Windows 做 drive/UNC 检查；
-- 在应用前检查 real parent path。
+- be relative to the PipeSpace root;
+- remain within the PipeSpace root after normalization;
+- not escape the PipeSpace root through a symlink or junction;
+- not point to a Provider source;
+- not point to Human-owned PipeSpace build inputs: `.pipebuilder/agents/` or `.pipebuilder/skills/`;
+- not point to the workspace file or `pipespace.json`;
+- allow only core operations to write `.pipebuilder/generated/`, `lock.json`, and `build.lock`;
+- undergo drive and UNC checks on Windows;
+- have its real parent path checked before application.
 
-读取 Provider 和 workspace 引用项目可以位于 PipeSpace root 外；写入永远限制在 PipeSpace root。
+Provider sources and projects referenced by the workspace file may be read from outside the PipeSpace root; writes are always restricted to the PipeSpace root.

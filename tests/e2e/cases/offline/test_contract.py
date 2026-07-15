@@ -57,7 +57,7 @@ class GoldenBuildCases(PipeBuilderE2ECase):
         self.assertEqual([item["id"] for item in lock["agents"]], ["codex", "cursor", "codebuddy", "claude-code"])
         self.assertEqual(
             [item["capabilityStatus"] for item in lock["agents"]],
-            ["client-verified", "generated-only", "generated-only", "generated-only"],
+            ["client-verified", "client-verified", "generated-only", "generated-only"],
         )
         self.assertNotIn(str(self.box.base), json.dumps(lock))
         for artifact in lock["artifacts"]:
@@ -141,7 +141,13 @@ class CliContractCases(PipeBuilderE2ECase):
     def test_release_artifact_is_single_python_file_and_compiles(self):
         self.assertTrue(PIPEBUILDER.is_file())
         first_hundred_lines = "\n".join(PIPEBUILDER.read_text(encoding="utf-8").splitlines()[:100])
-        for expected in ("可独立分发的单文件", "快速使用", "pipespace.json", "branch/tag", "所有权与输出"):
+        for expected in (
+            "independently distributable single-file CLI",
+            "Quick start",
+            "pipespace.json",
+            "exactly one of branch or tag",
+            "Ownership and outputs",
+        ):
             self.assertIn(expected, first_hundred_lines)
         result = self.box.run_command([str(Path(__import__("sys").executable)), "-m", "py_compile", str(PIPEBUILDER)])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -150,7 +156,7 @@ class CliContractCases(PipeBuilderE2ECase):
         shutil.copy2(PIPEBUILDER, release)
         help_result = self.box.run_command([str(Path(__import__("sys").executable)), str(release), "--help"], cwd=self.box.base)
         self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
-        for expected in ("快速使用", "Git Provider", ".pipebuilder/lock.json", "--offline"):
+        for expected in ("Quick start", "Git Provider", ".pipebuilder/lock.json", "--offline"):
             self.assertIn(expected, help_result.stdout)
         standalone = self.box.run_command(
             [str(Path(__import__("sys").executable)), str(release), "build", str(self.box.root), "--format", "json"],
@@ -183,7 +189,7 @@ class InitCases(PipeBuilderE2ECase):
         self.expect_ok(self.box.builder("check"))
 
     def test_init_creates_a_missing_target_directory_and_supports_explicit_name(self):
-        target = self.box.base / "nested" / "新项目"
+        target = self.box.base / "nested" / "new-project"
         result = self.box.run_command(
             [str(Path(__import__("sys").executable)), str(PIPEBUILDER), "init", str(target), "--name", "web-game", "--format", "json"],
             cwd=self.box.base,

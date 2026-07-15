@@ -1,47 +1,47 @@
-# PipeBuilder：Skill Fixture Catalog 与 Agent 能力覆盖
+# PipeBuilder: Skill Fixture Catalog and Agent Capability Coverage
 
-状态：target catalog；当前 baseline 见 `tests/e2e/COVERAGE.md`
-日期：2026-07-13  
-适用范围：PipeBuilder Python E2E 中的标准 Skill、四 Agent capability、Provider resolution、失败场景和 Codex live model fixture
+Status: target catalog; see `tests/e2e/COVERAGE.md` for the current baseline
+Date: 2026-07-13
+Scope: standard Skills, four-Agent capabilities, Provider resolution, failure scenarios, and Codex live-model fixtures in PipeBuilder Python E2E
 
-相关文档：
+Related documents:
 
-- [PipeBuilder Python E2E 集成测试架构](pipebuilder-test-architecture.md)
-- [PipeSpace 与 Skill Provider 协议](pipebuilder-space-json-spec.md)
-- [四 Agent Adapter 首版规范](pipebuilder-agent-adapters.md)
+- [PipeBuilder Python E2E Integration Test Architecture](pipebuilder-test-architecture.md)
+- [PipeSpace and Skill Provider Protocol](pipebuilder-space-json-spec.md)
+- [Initial Four-Agent Adapter Specification](pipebuilder-agent-adapters.md)
 
 ---
 
-## 1. 结论
+## 1. Conclusion
 
-需要多套 fixture，不能只用一个最小 `SKILL.md`，也不应把所有行为塞进一个巨型 Skill。
+Multiple fixture sets are required. A single minimal `SKILL.md` is insufficient, and all behavior should not be concentrated in one monolithic Skill.
 
-目标目录按五类能力组织：
+The target directory is organized around five capability categories:
 
 ```text
-5 类 Skill fixture capability
+5 Skill fixture capability categories
 + Space-level `.pipebuilder/agents` overlay
 ```
 
-五类 fixture capability 分别负责：
+The five fixture capability categories cover:
 
-1. portable common Skill；
-2. 四 Agent full-capability projection；
-3. Provider、显式名单和 tag resolution；
-4. invalid/conflict/security；
-5. Codex live consumption（client default 或 release job 显式模型）。
+1. portable common Skills;
+2. full-capability projections for all four Agents;
+3. Provider, explicit-list, and tag resolution;
+4. invalid, conflict, and security scenarios;
+5. Codex live consumption using either the client default or a model explicitly selected by the release job.
 
-额外的 PipeSpace overlay 用来验证 `.pipebuilder/agents/<agent>`，因为它不是 Skill，不能伪装成 Skill fixture。
+An additional PipeSpace overlay validates `.pipebuilder/agents/<agent>`. Because it is not a Skill, it must not be disguised as a Skill fixture.
 
-每个 Skill 本身保持很小，通常一个 `SKILL.md` 加一两个最小资源；“全面”由 fixture 组合和 capability matrix 实现，而不是靠复杂业务逻辑。
+Each Skill remains small, typically consisting of one `SKILL.md` plus one or two minimal resources. Comprehensive coverage comes from fixture composition and the capability matrix, not from complex application logic.
 
 ---
 
-## 2. Fixture 设计原则
+## 2. Fixture Design Principles
 
-### 2.1 像真实 Skill，不像测试脚本说明书
+### 2.1 Model Real Skills, Not Test-Script Manuals
 
-所有合法 fixture 都遵循标准结构：
+Every valid fixture follows the standard structure:
 
 ```text
 <skill-name>/
@@ -53,52 +53,52 @@
 └── .pipe-agents/        # optional PipeBuilder extension
 ```
 
-`SKILL.md`：
+`SKILL.md` requirements:
 
-- name 与目录名一致；
-- description 写清触发条件；
-- body 使用短小、可执行的指令；
-- 不写 fixture 搭建过程、expected output 或测试解释；
-- 核心正文尽量少于 50 行；
-- 细节放入 `references/`，确定性动作放入 Python `scripts/`。
+- `name` matches the directory name;
+- `description` clearly states the trigger conditions;
+- the body contains concise, executable instructions;
+- the fixture setup process, expected output, and test explanations are omitted;
+- the core body should remain under 50 lines where practical;
+- details belong in `references/`, while deterministic actions belong in Python `scripts/`.
 
-Skill 目录内不添加 README、安装指南或 changelog。Fixture 的测试 metadata 放在测试侧 Python catalog，不污染交给 Agent 的 package。
+Do not add a README, installation guide, or changelog to a Skill directory. Fixture test metadata belongs in the test-side Python catalog so that the package delivered to the Agent remains clean.
 
-所有可执行 fixture 都使用 Python：Skill scripts、hooks、local MCP server 和 receipt writer 均不得使用 MJS、TypeScript 或 shell script。Markdown、JSON、TOML、YAML 和 `.rules` 只作为产品输入或 expected data。
+All executable fixtures use Python. Skill scripts, hooks, local MCP servers, and receipt writers must not use MJS, TypeScript, or shell scripts. Markdown, JSON, TOML, YAML, and `.rules` files serve only as product inputs or expected data.
 
-### 2.2 正交而非重复
+### 2.2 Prefer Orthogonality Over Duplication
 
-一个 fixture 应有一个主要目的：
+Each fixture should have one primary purpose:
 
-- common package preservation；
-- 某 Agent 的完整 capability projection；
-- Provider resolution；
-- 一个明确失败原因；
-- 一个 live consumption 能力。
+- common-package preservation;
+- a complete capability projection for one Agent;
+- Provider resolution;
+- one explicit failure reason;
+- one live-consumption capability.
 
-同一个事实不在四套几乎相同的 Skill 中重复维护。平台差异只进入对应 `.pipe-agents/<agent>`。
+The same fact is not maintained repeatedly across four nearly identical Skills. Platform differences belong only in the corresponding `.pipe-agents/<agent>` directory.
 
-### 2.3 Supported、gated、unsupported 三态
+### 2.3 Three States: Supported, Gated, and Unsupported
 
-每项 Agent 能力必须处于以下一种状态：
+Every Agent capability must be in exactly one of the following states:
 
-| 状态 | Fixture 行为 |
+| State | Fixture behavior |
 | --- | --- |
-| `supported` | 进入 full-capability Skill，必须有 E0 golden 和 E1 client verification |
-| `gated` | 保留 candidate 输入；真实客户端验证通过并冻结 schema 后才能进入 full-capability Skill |
-| `unsupported` | 放入负向 fixture，必须稳定失败并返回 diagnostic |
+| `supported` | Included in the full-capability Skill and required to have an E0 golden plus E1 client verification |
+| `gated` | Retained as a candidate input; it may enter the full-capability Skill only after real-client verification passes and the schema is frozen |
+| `unsupported` | Included in a negative fixture and required to fail consistently with a diagnostic |
 
-“目录看起来存在”不等于 supported。尤其是 Cursor 的 hooks/agents/config/MCP、CodeBuddy rules 等版本相关能力，不得通过普通文件复制冒充支持。
+A directory that appears to exist is not necessarily supported. Version-sensitive capabilities, particularly Cursor hooks, agents, config, and MCP as well as arbitrary CodeBuddy Rules, must not be presented as supported through ordinary file copying.
 
-### 2.4 Fixture 不复用 production oracle
+### 2.4 Fixtures Must Not Reuse the Production Oracle
 
-Fixture 可以由测试侧 Python 复制和填充 nonce，但不得调用 PipeBuilder 的 resolver、adapter 或 renderer。Expected target、lock 和 report 仍是独立 golden。
+Test-side Python may copy fixtures and inject nonces, but it must not invoke PipeBuilder's resolver, adapter, or renderer. Expected targets, locks, and reports remain independent goldens.
 
 ---
 
-## 3. 测试目录
+## 3. Test Directory
 
-在 `tests/e2e/` 下增加：
+Add the following under `tests/e2e/`:
 
 ```text
 fixtures/
@@ -129,23 +129,23 @@ fixtures/
     └── conflict-with-skill/
 ```
 
-`catalog.py` 只保存测试 metadata 和复制位置，例如 fixture id、pack、合法性、目标 Agent 和 capability tags；它不解析 `SKILL.md`，也不计算期望投影。
+`catalog.py` stores only test metadata and copy locations, such as the fixture ID, pack, validity, target Agent, and capability tags. It neither parses `SKILL.md` nor computes expected projections.
 
-Case 创建 sandbox 时：
+When a case creates a sandbox:
 
-1. 复制 case 自己的 `input/`；
-2. 将选中的 fixture pack byte-for-byte 复制到指定 Provider；
-3. 必要时用测试侧 Python 填充 `$FIXTURE_NONCE`；
-4. 对完成组装的输入做 snapshot；
-5. subprocess 执行最终 `pipebuilder.py`。
+1. copy the case's own `input/`;
+2. copy the selected fixture pack byte-for-byte to the designated Provider;
+3. inject `$FIXTURE_NONCE` with test-side Python when necessary;
+4. snapshot the fully assembled input;
+5. execute the final `pipebuilder.py` through a subprocess.
 
-不使用跨目录 symlink 复用 fixture，避免 Windows 和 symlink policy 改变测试语义。
+Do not reuse fixtures through cross-directory symlinks, because Windows behavior and symlink policies could change test semantics.
 
 ---
 
-## 4. Pack A：Portable common Skills
+## 4. Pack A: Portable Common Skills
 
-这套 fixture 不包含 `.pipe-agents`，负责证明标准 Skill package 能被四个平台一致复制，并且 `.pipe-agents` 排除逻辑不会误伤 common resources。
+This fixture set does not contain `.pipe-agents`. It proves that a standard Skill package is copied consistently to all four platforms and that `.pipe-agents` exclusion does not accidentally remove common resources.
 
 ### 4.1 `fixture-minimal`
 
@@ -154,14 +154,14 @@ fixture-minimal/
 └── SKILL.md
 ```
 
-覆盖：
+Coverage:
 
-- 最小合法 frontmatter；
-- name/目录一致；
-- description discovery metadata；
-- Markdown body byte preservation；
-- 四个平台的 Skill target；
-- explicit selection 和未选择时 absence。
+- minimal valid frontmatter;
+- consistency between `name` and the directory;
+- discovery metadata in `description`;
+- byte-preservation of the Markdown body;
+- Skill targets for all four platforms;
+- explicit selection and absence when not selected.
 
 ### 4.2 `fixture-bundled`
 
@@ -178,23 +178,23 @@ fixture-bundled/
     └── openai.yaml
 ```
 
-覆盖：
+Coverage:
 
-- nested directory preservation；
-- Python executable bit；
-- progressive disclosure reference；
-- asset 非 context 资源；
-- Skill UI metadata；
-- common package digest；
-- 四个目标目录内容 byte-for-byte 一致。
+- nested-directory preservation;
+- the Python executable bit;
+- a progressive-disclosure reference;
+- an asset as a non-context resource;
+- Skill UI metadata;
+- the common-package digest;
+- byte-for-byte identical contents across all four target directories.
 
-`write_receipt.py` 只使用 Python 标准库，输入 argv，输出版本化 JSON receipt，可在 E2 中被 Agent 调用。
+`write_receipt.py` uses only the Python standard library, accepts `argv`, and emits a versioned JSON receipt that an Agent can invoke in E2.
 
 ---
 
-## 5. Pack B：四 Agent full-capability Skills
+## 5. Pack B: Full-Capability Skills for Four Agents
 
-每个平台一个 Skill。它包含该平台当前所有 `supported` `.pipe-agents` surface，并刻意不包含其他平台目录。
+There is one Skill per platform. It contains every `.pipe-agents` surface currently marked `supported` for that platform and deliberately excludes directories for other platforms.
 
 ```text
 fixture-codex-capabilities/
@@ -214,99 +214,99 @@ fixture-claude-code-capabilities/
 └── .pipe-agents/claude-code/...
 ```
 
-这种拆分有三个作用：
+This separation serves three purposes:
 
-- 单 Agent case 可以准确定位 adapter 问题；
-- all-agents catalog smoke 可以证明四套能力可同时构建；
-- 某个平台 schema 变化时不会改动另外三套 fixture。
+- a single-Agent case can isolate adapter problems precisely;
+- the all-agents catalog smoke test can prove that all four capability sets build together;
+- a schema change on one platform does not alter the other three fixture sets.
 
-### 5.1 Capability matrix
+### 5.1 Capability Matrix
 
-图例：`P` 为 positive supported fixture，`G` 为 client-version gated candidate，`R` 为 rejection fixture，`—` 为不单独建模。
+Legend: `P` denotes a positive supported fixture, `G` a candidate gated on the client version, `R` a rejection fixture, and `—` a capability that is not modeled separately.
 
 | Surface | Codex | Cursor | CodeBuddy | Claude Code |
 | --- | --- | --- | --- | --- |
 | Common Skill | P | P | P | P |
 | Workspace rule | PipeSpace fixture | PipeSpace fixture | PipeSpace fixture | PipeSpace fixture |
-| Rules | P：`.rules` command policy | P：`.mdc` | G：锁定客户端后启用 | P：`.md`/path scope |
-| Commands | R：首版 unsupported | P | P | P + migration warning |
-| Agents | P：config agent roles | G | P | P |
-| Hooks | P | G | P：settings merge | P：settings merge |
-| Generic config | P：TOML strict subset | G | —：由 settings surface 表达 | —：由 settings surface 表达 |
-| MCP | P：config TOML | G | P：`mcp.json` | P：`.mcp.json` |
+| Rules | P: `.rules` command policy | P: `.mdc` | G: enable only after pinning and verifying the client | P: `.md`/path scope |
+| Commands | R: unsupported in the initial version | P | P | P + migration warning |
+| Agents | P: config agent roles | G | P | P |
+| Hooks | P | G | P: settings merge | P: settings merge |
+| Generic config | P: strict TOML subset | G | —: represented by the settings surface | —: represented by the settings surface |
+| MCP | P: config TOML | G | P: `mcp.json` | P: `.mcp.json` |
 | Builder-owned target regeneration | P | P | P | P |
 | Human-owned source preservation | `.pipebuilder/agents/codex` | `.pipebuilder/agents/cursor` | `.pipebuilder/agents/codebuddy` | `.pipebuilder/agents/claude-code` |
 
-Capability status 以 Adapter 规范和锁定的客户端版本为准。`G` 变成 `P` 必须同时提交：
+Capability status is governed by the Adapter specification and the pinned client version. Promoting `G` to `P` requires all of the following in the same change:
 
-1. 精确 source grammar；
-2. target path/schema；
-3. semantic key；
-4. merge/conflict policy；
-5. E0 golden；
-6. E1 client parse/discovery case；
-7. compatibility note。
+1. exact source grammar;
+2. target path and schema;
+3. semantic key;
+4. merge and conflict policy;
+5. E0 golden;
+6. E1 client parse or discovery case;
+7. compatibility note.
 
-### 5.2 Codex capability Skill
+### 5.2 Codex Capability Skill
 
-至少包含：
+At minimum, include:
 
-- 一个最小 `.rules` allow/deny policy；
-- 一个 additive lifecycle hook；
-- 一个命名 agent role；
-- 一个安全的 config fragment；
-- 一个本地 Python stdio MCP server definition；
+- one minimal `.rules` allow/deny policy;
+- one additive lifecycle hook;
+- one named agent role;
+- one safe config fragment;
+- one local Python stdio MCP server definition.
 
-额外断言：
+Additional assertions:
 
-- `.pipe-agents/codex/.codex/commands` 不在正向 Skill 中；
-- 单独负向 fixture 放入该目录时稳定返回 unsupported；
-- canonical workspace section、Space source 与 Skill `AGENTS.md` source 可稳定合成；
-- generated 根 `AGENTS.md` 被修改后 rebuild 恢复；
-- `codex execpolicy check`、config discovery 和 hook probe 进入 E1。
+- `.pipe-agents/codex/.codex/commands` is absent from the positive Skill;
+- a separate negative fixture containing that directory consistently returns unsupported;
+- the canonical workspace section, Space source, and Skill `AGENTS.md` source compose deterministically;
+- rebuilding restores the generated root `AGENTS.md` after it is modified;
+- `codex execpolicy check`, config discovery, and the hook probe are covered by E1.
 
-### 5.3 Cursor capability Skill
+### 5.3 Cursor Capability Skill
 
-baseline 至少包含：
+The baseline includes at least:
 
-- `.mdc` rule；
-- Markdown command；
+- an `.mdc` rule;
+- a Markdown command.
 
-hooks、agents、config 和 MCP 在团队锁定的 Cursor 客户端上确认 schema 前保持 `G`，放在 candidate case，不进入 baseline full-capability Skill。确认后逐项加入，而不是一次性宣称全部支持。
+This baseline has completed manual E1 verification against a real client, but that verification has not yet been codified as an automated client case. Hooks, agents, config, and MCP remain `G` and stay in candidate cases rather than entering the baseline full-capability Skill until their schemas are confirmed against the team's pinned Cursor client. Add them individually after confirmation instead of claiming support for all of them at once.
 
-### 5.4 CodeBuddy capability Skill
+### 5.4 CodeBuddy Capability Skill
 
-baseline 至少包含：
+The baseline includes at least:
 
-- command；
-- sub-agent；
-- settings hook fragment；
-- MCP server；
+- a command;
+- a sub-agent;
+- a settings hook fragment;
+- an MCP server.
 
-rules 在锁定版本真实发现成功后从 `G` 升级。每个 hook、agent 和 MCP 使用唯一 semantic name，避免 full smoke 自身制造冲突。
+Arbitrary Rules are promoted from `G` only after successful discovery against the pinned real-client version. Each hook, agent, and MCP entry uses a unique semantic name so that the full smoke test does not create its own conflicts.
 
-### 5.5 Claude Code capability Skill
+### 5.5 Claude Code Capability Skill
 
-至少包含：
+At minimum, include:
 
-- always-loaded rule；
-- path-scoped rule；
-- compatibility command；
-- sub-agent，引用已安装 fixture Skill；
-- settings hook；
-- local Python MCP server；
+- an always-loaded rule;
+- a path-scoped rule;
+- a compatibility command;
+- a sub-agent that references an installed fixture Skill;
+- a settings hook;
+- a local Python MCP server.
 
-额外断言：
+Additional assertions:
 
-- command 生成 migration warning；
-- `tools`、`disallowedTools`、`skills`、`mcpServers` 和 hook shape 被验证；
-- `.pipebuilder/agents/claude-code` source 不变，根 `CLAUDE.md` 和 target settings 可完整重生成。
+- the command generates a migration warning;
+- the shapes of `tools`, `disallowedTools`, `skills`, `mcpServers`, and hooks are validated;
+- the `.pipebuilder/agents/claude-code` source remains unchanged, while the root `CLAUDE.md` and target settings can be regenerated completely.
 
 ---
 
-## 6. Pack C：Provider 与选择
+## 6. Pack C: Providers and Selection
 
-这套不是单个 Skill，而是三棵 Provider root。相同 Skill name 的内容使用明显不同 marker：
+This pack is not a single Skill; it consists of three Provider roots. Content with the same Skill name uses clearly distinct markers:
 
 ```text
 resolution/
@@ -323,66 +323,66 @@ resolution/
     └── fixture-low-only/SKILL.md
 ```
 
-用一个完整 PipeSpace 覆盖：
+Use one complete PipeSpace to cover:
 
-- space-local Skill 隐式全选；
-- explicit `skills` 优先选择；
-- `tags` 匹配加入并集；
-- high provider shadow low provider；
-- space-local shadow 所有 external provider；
-- unselected Skill 不出现在任何 Agent target；
-- lock 和 `explain` 给出 `selectedBy`、provider 和 `shadowedCandidates`；
-- 调整 provider 顺序后结果和 provenance 按协议变化。
+- implicit selection of all Space-local Skills;
+- precedence of the explicit `skills` selection;
+- union inclusion through `tags` matches;
+- a high-priority Provider shadowing a low-priority Provider;
+- the Space-local Provider shadowing every external Provider;
+- absence of unselected Skills from every Agent target;
+- `selectedBy`, Provider, and `shadowedCandidates` in the lock and `explain`;
+- protocol-defined changes to results and provenance after Provider order changes.
 
-该 pack 不加入 rules/hooks 等 Agent surface，避免 resolution failure 与 adapter failure 混在一起。
+This pack excludes Agent surfaces such as rules and hooks so that resolution failures are not conflated with adapter failures.
 
-`fixture-tagged` 专门覆盖一个/多个 tags、tag union、重复或类型错误的负向变体，以及未识别 frontmatter 字段的原样保留。Portable fixtures 的 frontmatter 只使用标准 `name` 和 `description`；带 tags 的 Skill 明确属于 PipeBuilder resolution extension，不冒充最小跨平台标准。
+`fixture-tagged` specifically covers one or more tags, tag union, negative variants with duplicate tags or invalid types, and verbatim preservation of unrecognized frontmatter fields. Portable fixture frontmatter uses only the standard `name` and `description`. A Skill with tags is explicitly a PipeBuilder resolution extension and does not claim to be the minimal cross-platform standard.
 
 ---
 
-## 7. Pack D：Invalid、conflict 与 security
+## 7. Pack D: Invalid, Conflict, and Security Scenarios
 
-负向 fixture 必须“一 case 一主错误”。不要创建一个同时缺 `SKILL.md`、frontmatter 错误、路径越界和 secret 泄漏的目录，否则只能验证 fail-fast 顺序。
+Each negative fixture must have one primary error per case. Do not create a directory that simultaneously lacks `SKILL.md`, has invalid frontmatter, escapes its path boundary, and leaks a secret; such a fixture would verify only fail-fast ordering.
 
-至少覆盖：
+At minimum, cover:
 
-### Skill package
+### Skill Package
 
-- 缺失 `SKILL.md`；
-- malformed frontmatter；
-- name 缺失、非法或与目录不一致；
-- description 空；
-- tags 非列表、重复或元素非字符串；
-- 不允许的编码或不可读文件；
-- 非法 symlink/循环。
+- missing `SKILL.md`;
+- malformed frontmatter;
+- missing or invalid `name`, or a `name` that differs from the directory;
+- empty `description`;
+- `tags` that are not a list, contain duplicates, or contain non-string elements;
+- prohibited encoding or an unreadable file;
+- invalid symlinks or cycles.
 
-### Agent surface
+### Agent Surface
 
-- unknown `.pipe-agents/<agent>` directory；
-- 当前 adapter 的 gated/unsupported surface；
-- rule/command/agent 文件扩展名错误；
-- frontmatter/schema 错误；
-- 同 semantic key 不同定义；
-- Skill-level 与 Space-level 冲突；
-- config 无法安全 round-trip。
+- an unknown directory under `.pipe-agents/<agent>`;
+- a gated or unsupported surface for the current adapter;
+- an incorrect extension for a rule, command, or agent file;
+- invalid frontmatter or schema;
+- different definitions under the same semantic key;
+- a conflict between Skill-level and Space-level sources;
+- configuration that cannot be round-tripped safely.
 
 ### Security
 
-- 原生 source tree 中的 absolute/path traversal/symlink escape；
-- hook 外部路径或高风险 wrapper；
-- MCP secret literal；
-- 宽泛 allow policy；
-- generated target 被人工修改后再次 build 会恢复 source 定义；
-- 与 plan/旧 lock 无关的 sibling 文件保持不变；
-- 旧 `tagents/`、Space root `.pipe-agents/` 与新 `.pipebuilder/agents/` 单独或同时存在。
+- absolute paths, path traversal, or symlink escapes in a native source tree;
+- external hook paths or high-risk wrappers;
+- MCP secret literals;
+- broad `allow` policies;
+- rebuilding after manual modification of a generated target restores the source definition;
+- sibling files unrelated to the plan or old lock remain unchanged;
+- legacy `tagents/`, Space-root `.pipe-agents/`, and the new `.pipebuilder/agents/`, each alone or in combination.
 
-需要 symlink、junction、case-folding 或权限的输入由 `case.py` 在 sandbox 中创建，不把平台特有 inode 行为伪装成普通 Git fixture。
+Inputs requiring symlinks, junctions, case folding, or permissions are created by `case.py` inside the sandbox. Platform-specific inode behavior must not be disguised as an ordinary Git fixture.
 
 ---
 
-## 8. Pack E：Codex live Skill
+## 8. Pack E: Codex Live Skill
 
-首版真实模型只使用一个可复用 Skill package：
+The initial real-model coverage uses one reusable Skill package:
 
 ```text
 fixture-live-codex/
@@ -403,33 +403,33 @@ fixture-live-codex/
             └── rules/
 ```
 
-模型不在 fixture 中固定；普通运行使用 client default，release job 可显式 `--model`。下表是可按兼容风险拆分的目标 case：
+The model is not pinned in the fixture. Normal runs use the client default, while release jobs may pass `--model` explicitly. The following target cases may be separated according to compatibility risk:
 
-| Live case | 验证内容 | Machine oracle |
+| Live case | Validation | Machine oracle |
 | --- | --- | --- |
-| `explicit-skill` | Skill 可发现并显式加载 | 返回本次 nonce 和 skill id |
-| `auto-discovery` | description 自动匹配 | receipt 标记 Skill body 已加载；非 release-hard gate |
-| `progressive-resources` | reference、asset、Python script | reference nonce、asset digest、script JSON receipt |
-| `workspace-context` | generated `AGENTS.md` 原生发现 | 返回 `.code-workspace` 中的 folder identity |
-| `skill-hook` | Skill hook 被真实会话执行 | hook receipt 文件 |
-| `subagent` | config agent role 可发现并启动 | subagent receipt/structured result |
-| `mcp-tool` | 本地 MCP server 被加载并调用 | MCP tool receipt 和 nonce |
+| `explicit-skill` | The Skill is discoverable and can be loaded explicitly | Returns the nonce and Skill ID for the current run |
+| `auto-discovery` | Automatic matching by `description` | Receipt indicates that the Skill body was loaded; not a hard release gate |
+| `progressive-resources` | Reference, asset, and Python script | Reference nonce, asset digest, and script JSON receipt |
+| `workspace-context` | Native discovery of the generated `AGENTS.md` | Returns the folder identity from `.code-workspace` |
+| `skill-hook` | The Skill hook executes in a real session | Hook receipt file |
+| `subagent` | The configured agent role is discoverable and can launch | Subagent receipt or structured result |
+| `mcp-tool` | The local MCP server loads and is called | MCP tool receipt and nonce |
 
-Rules 的语法和 allow/deny 优先由 E1 `codex execpolicy check` 做确定性验证；E2 可以补一个 harmless command policy case，但不让模型尝试破坏性命令。
+Rules syntax and allow/deny behavior are validated deterministically in E1 primarily through `codex execpolicy check`. E2 may add a harmless command-policy case, but the model must not attempt destructive commands.
 
-### 8.1 Per-run nonce
+### 8.1 Per-Run Nonce
 
-每个 live case 生成随机 nonce，在 build 前填入该 case 唯一的 reference、asset、hook 或 MCP response。Prompt 不包含 expected nonce。
+Each live case generates a random nonce and injects it before the build into a reference, asset, hook, or MCP response unique to that case. The prompt does not contain the expected nonce.
 
 ```text
 HARNESSBUILDER_LIVE_<random>
 ```
 
-只有真正加载对应 surface 才能得到 nonce。测试比较 nonce/receipt，不比较自然语言全文。
+The nonce can be obtained only by actually loading the corresponding surface. Tests compare nonces and receipts, not complete natural-language responses.
 
-### 8.2 Receipt schema
+### 8.2 Receipt Schema
 
-所有 Python probe 输出：
+Every Python probe emits:
 
 ```json
 {
@@ -442,22 +442,22 @@ HARNESSBUILDER_LIVE_<random>
 }
 ```
 
-Receipt 只能写到 sandbox 的 capture 目录，不读取真实 home，不记录 token 或凭据。
+Receipts may be written only to the sandbox capture directory. They must not read the real home directory or record tokens or credentials.
 
-### 8.3 Live case 隔离
+### 8.3 Live-Case Isolation
 
-- 每个 capability 独立 Codex session；
-- `--ephemeral`；
-- 独立 PipeSpace sandbox 和 capture；
-- model、client version、prompt digest、nonce digest 和每次重试进入 report；
-- session 失败不能复用前一次生成的 receipt；
-- 自动触发测试与显式 Skill 测试分开统计。
+- one independent Codex session per capability;
+- `--ephemeral`;
+- independent PipeSpace sandbox and capture directory;
+- model, client version, prompt digest, nonce digest, and every retry recorded in the report;
+- a failed session must not reuse a receipt generated by a previous attempt;
+- automatic-trigger tests and explicit-Skill tests are reported separately.
 
 ---
 
-## 9. Space-level overlay fixture
+## 9. Space-Level Overlay Fixture
 
-PipeSpace `.pipebuilder/agents/<agent>` 单独维护，并保持各平台原生配置树：
+PipeSpace `.pipebuilder/agents/<agent>` is maintained separately and preserves each platform's native configuration tree:
 
 ```text
 space-overlays/
@@ -466,67 +466,67 @@ space-overlays/
 └── conflict-with-skill/
 ```
 
-覆盖：
+Coverage:
 
-- PipeSpace-only workspace-specific command/hook/rule；
-- 与 Skill artifact additive merge；
-- 相同 digest 去重；
-- 同 semantic key 不同定义失败；
-- scope 不提供隐式 override；
-- provenance 区分 `space` 和 `skill:<name>`。
+- a PipeSpace-only command, hook, or rule specific to the platform project;
+- additive merging with Skill artifacts;
+- deduplication of identical digests;
+- failure for different definitions under the same semantic key;
+- no implicit override based on scope;
+- provenance that distinguishes `space` from `skill:<name>`.
 
-这套 fixture 不包含 `SKILL.md`，也不应被 Provider index 发现。
-
----
-
-## 10. 五种完整 PipeSpace topology
-
-Fixture pack 最终通过以下 E2E topology 消费：
-
-### T1：Portable smoke
-
-四 Agent + Pack A，检查 common package 在四个平台完全一致。
-
-### T2：Adapter full smoke
-
-每个平台单独执行一次 Pack A + 对应 capability Skill；另有一次 all-agents build 同时选择四个 capability Skills，检查 merge 和 ownership。
-
-### T3：Resolution matrix
-
-四 Agent + Pack C，检查 space-local/explicit/tag/shadow/unselected 的最终结果和 provenance。
-
-### T4：Negative matrix
-
-每个 case 只安装 Pack D 的一个错误输入，断言 stable diagnostic、零非预期写入和可恢复性。
-
-### T5：Codex live
-
-构建 Pack E 后使用 Codex live profile。当前 baseline 为一个组合哨兵请求，同时验证 AGENTS、显式 Skill 与 SessionStart hook；将来只有在定位波动或独立发布门禁需要时再拆成多个模型请求。
-
-PipeSpace overlay fixture 分别加入 T2 的 merge/conflict case，不另造一套虚假的 Skill。
+This fixture set does not contain `SKILL.md` and must not be discovered by the Provider index.
 
 ---
 
-## 11. Fixture 变更门禁
+## 10. Five Complete PipeSpace Topologies
 
-任何新增 Agent capability 必须同时更新：
+Fixture packs are ultimately consumed through the following E2E topologies:
 
-1. Adapter capability matrix；
-2. 对应 full-capability Skill；
-3. isolated E0 case；
-4. all-capabilities smoke golden；
-5. conflict/invalid case；
-6. E1 client verification；
-7. `COVERAGE.md` requirement mapping；
-8. 若属于 Codex live 核心路径，再增加一个短 E2 case。
+### T1: Portable Smoke
 
-删除或重命名 fixture 必须证明没有 requirement 失去唯一覆盖。Golden 更新不能替代 capability review。
+Use all four Agents with Pack A to verify that the common package is identical across all four platforms.
+
+### T2: Adapter Full Smoke
+
+Run Pack A plus the corresponding capability Skill separately for each platform. A separate all-agents build selects all four capability Skills simultaneously to validate merging and ownership.
+
+### T3: Resolution Matrix
+
+Use all four Agents with Pack C to validate final results and provenance for Space-local, explicit, tag, shadow, and unselected cases.
+
+### T4: Negative Matrix
+
+Each case installs exactly one erroneous Pack D input and asserts a stable diagnostic, zero unintended writes, and recoverability.
+
+### T5: Codex Live
+
+Build Pack E and then use the Codex live profile. The current baseline is one combined sentinel request that validates AGENTS, an explicit Skill, and the SessionStart hook together. It should be split into multiple model requests only when needed to isolate instability or establish an independent release gate.
+
+PipeSpace overlay fixtures are added to the T2 merge and conflict cases; they are not represented by a separate, artificial Skill.
 
 ---
 
-## 12. 当前 baseline 与扩展清单
+## 11. Fixture Change Gate
 
-当前已提交一套静态 all-agent golden fixture，并由动态 sandbox case 构造下面这些等价能力：
+Adding any Agent capability requires simultaneous updates to:
+
+1. the Adapter capability matrix;
+2. the corresponding full-capability Skill;
+3. an isolated E0 case;
+4. the all-capabilities smoke golden;
+5. a conflict or invalid case;
+6. E1 client verification;
+7. the requirement mapping in `COVERAGE.md`;
+8. a short E2 case if the capability is part of the core Codex live path.
+
+Deleting or renaming a fixture requires proof that no requirement loses its only coverage. Updating goldens is not a substitute for capability review.
+
+---
+
+## 12. Current Baseline and Extension Checklist
+
+The repository currently contains one static all-agent golden fixture, while dynamic sandbox cases construct the following equivalent capabilities:
 
 ```text
 portable common package
@@ -536,12 +536,12 @@ invalid/conflict/security variants
 live Codex AGENTS + Skill + hook sentinel
 ```
 
-当前 baseline 还包括：
+The current baseline also includes:
 
-- 动态 multiple Provider、space-local、显式名单、tag 和 shadow 输入；
-- 每个 v1 stable diagnostic 的真实失败路径；PB012 仅保留历史编号，不属于 v1 stable contract；
-- 同目录、目录解耦、多 folder 和特殊字符 workspace topology；
-- 四 Agent E0 projection、Codex E1 client report；
-- 一个 Codex release-relevant 组合 live case。
+- dynamic inputs for multiple Providers, Space-local selection, explicit lists, tags, and shadowing;
+- a real failure path for every v1 stable diagnostic; PB012 retains only its historical number and is not part of the v1 stable contract;
+- same-directory, decoupled-directory, multi-folder, and special-character `.code-workspace` topologies;
+- E0 projections for all four Agents and the Codex E1 client report;
+- one combined Codex live case relevant to releases.
 
-新增实体 fixture pack 前必须证明它比动态 case 更容易审查或能锁定新的二进制/客户端契约；不能只为达到目录数量复制已有输入。
+Before adding a physical fixture pack, demonstrate that it is easier to review than a dynamic case or that it freezes a new binary or client contract. Existing inputs must not be duplicated merely to increase the number of directories.

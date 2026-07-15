@@ -285,9 +285,14 @@ class AdapterRejectionCases(PipeBuilderE2ECase):
         )
         for agent, one, two in cases:
             self.box.close(); self.box = __import__("support").Sandbox()
-            self.box.manifest(agents=[agent])
+            self.box.skill("provider", "collision")
+            self.box.manifest(
+                agents=[agent],
+                skills=["collision"],
+                providers=[{"type": "folder", "path": "provider"}],
+            )
             self.box.write_text(f".pipebuilder/agents/{agent}/{one}", "one\n")
-            self.box.write_text(f".pipebuilder/agents/{agent}/{two}", "two\n")
+            self.box.write_text(f"provider/collision/.pipe-agents/{agent}/{two}", "two\n")
             with self.subTest(agent=agent):
                 self.expect_code(self.box.builder("check"), "PB010")
 

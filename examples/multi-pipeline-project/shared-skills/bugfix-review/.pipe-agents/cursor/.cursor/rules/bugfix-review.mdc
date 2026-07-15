@@ -1,0 +1,6 @@
+---
+description: Require evidence-backed bug diagnosis and regression checks.
+alwaysApply: true
+---
+
+Do not present a static code hypothesis as a verified root cause. Require observable evidence and include a focused regression check.
