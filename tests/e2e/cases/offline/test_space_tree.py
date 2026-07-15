@@ -12,7 +12,7 @@ from support.model import CaseMetadata
 class PipeSpaceTreeCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
         tier="offline",
-        requirements=("HSPACE-TREE", "PB017", "TREE-OWNERSHIP", "TREE-RECOVERY"),
+        requirements=("CHILD-DISCOVERY", "PB017", "TREE-OWNERSHIP", "TREE-RECOVERY"),
         tags=("tree", "children", "ownership", "recovery"),
         parallel_safe=False,
     )
@@ -41,136 +41,182 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
                 "skillProviders": providers or [],
             },
         )
-        self.box.write_json(f"{relative}/{name}.code-workspace", {"folders": [{"name": "project", "path": "."}]})
+        self.box.write_json(
+            f"{relative}/{name}.code-workspace",
+            {"folders": [{"name": "project", "path": "."}]},
+        )
         return root
 
-    def write_tree(self, children: list[tuple[str, str]]) -> None:
-        self.box.write_json(
-            "pipespace-tree.json",
-            {
-                "schema": "pipespace-tree.v1",
-                "children": [{"path": path, "expectName": name} for path, name in children],
-            },
-        )
-
-    def reset(self) -> None:
+    def reset(self, *, scan_depth: int | None = None) -> None:
         self.box.close()
         self.box = Sandbox()
-        self.box.manifest(name="root-space", agents=["codex"])
+        self.box.manifest(
+            name="root-space",
+            agents=["codex"],
+            children_scan_depth=scan_depth,
+        )
 
-    def assert_tree_operation_locks_absent(self) -> None:
+    def assert_operation_locks_absent(self) -> None:
         self.assertFalse((self.box.root / ".pipebuilder/tree-build.lock").exists())
-        for root in (self.box.root, *sorted((self.box.root / "children").glob("*"))):
-            self.assertFalse((root / ".pipebuilder/build.lock").exists())
+        for path in self.box.root.rglob(".pipebuilder/build.lock"):
+            self.fail(f"operation lock leaked: {path}")
 
-    def test_check_explain_build_verify_and_reverse_clean(self):
+    def test_unified_commands_discover_build_verify_and_reverse_clean(self):
         first = self.add_child("children/child-01", "child-01")
+        grandchild = self.add_child("children/child-01/grandchild", "grandchild")
         second = self.add_child("children/child-02", "child-02")
-        self.write_tree([("children/child-01", "child-01"), ("children/child-02", "child-02")])
+        expected = [
+            ".",
+            "children/child-01",
+            "children/child-01/grandchild",
+            "children/child-02",
+        ]
 
         before = snapshot_tree(self.box.root)
-        checked = self.expect_ok(self.box.builder("check-tree"))
-        self.assertEqual([item["path"] for item in checked["details"]["members"]], [".", "children/child-01", "children/child-02"])
+        checked = self.expect_ok(self.box.builder("check"))
+        self.assertEqual([item["path"] for item in checked["details"]["members"]], expected)
         self.assertEqual(snapshot_tree(self.box.root), before)
 
-        explained = self.expect_ok(self.box.builder("explain-tree"))
-        self.assertEqual(explained["summary"]["members"], 3)
+        explained = self.expect_ok(self.box.builder("explain"))
+        self.assertEqual(explained["summary"]["members"], 4)
+        self.assertEqual(explained["details"]["scanDepth"], 3)
         self.assertEqual(snapshot_tree(self.box.root), before)
 
-        built = self.expect_ok(self.box.builder("build-tree"))
-        self.assertEqual(built["summary"]["members"], 3)
-        self.assertTrue((self.box.root / ".pipebuilder/tree-lock.json").is_file())
-        self.assertFalse((self.box.root / ".pipebuilder/tree-journal.json").exists())
-        for root in (self.box.root, first, second):
+        built = self.expect_ok(self.box.builder("build"))
+        self.assertEqual(built["summary"]["members"], 4)
+        for root in (self.box.root, first, grandchild, second):
             self.assertTrue((root / ".pipebuilder/lock.json").is_file())
             self.assertTrue((root / "AGENTS.md").is_file())
-        receipt = json.loads((self.box.root / ".pipebuilder/tree-lock.json").read_text(encoding="utf-8"))
-        self.assertEqual(receipt["schema"], "pipespace-tree-lock.v1")
-        self.assertEqual([item["path"] for item in receipt["members"]], [".", "children/child-01", "children/child-02"])
-        self.assert_tree_operation_locks_absent()
+        receipt = json.loads(
+            (self.box.root / ".pipebuilder/tree-lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(receipt["tree"]["manifest"], "pipespace.json")
+        self.assertEqual([item["path"] for item in receipt["members"]], expected)
+        self.assert_operation_locks_absent()
 
-        verified = self.expect_ok(self.box.builder("verify-tree"))
-        self.assertEqual(verified["summary"], {"members": 3, "verified": 3})
+        verified = self.expect_ok(self.box.builder("verify"))
+        self.assertEqual(verified["summary"], {"members": 4, "verified": 4})
 
-        cleaned = self.expect_ok(self.box.builder("clean-tree"))
-        self.assertEqual([item["path"] for item in cleaned["details"]["members"]], ["children/child-02", "children/child-01", "."])
-        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
-        self.assertFalse((self.box.root / ".pipebuilder/tree-journal.json").exists())
-        for root in (self.box.root, first, second):
+        cleaned = self.expect_ok(self.box.builder("clean"))
+        self.assertEqual(
+            [item["path"] for item in cleaned["details"]["members"]],
+            list(reversed(expected)),
+        )
+        for root in (self.box.root, first, grandchild, second):
             self.assertFalse((root / "AGENTS.md").exists())
             self.assertFalse((root / ".pipebuilder/lock.json").exists())
             self.assertTrue((root / "pipespace.json").is_file())
-        self.assert_tree_operation_locks_absent()
-
-    def test_single_space_build_remains_root_only(self):
-        child = self.add_child("children/child-01", "child-01")
-        self.write_tree([("children/child-01", "child-01")])
-        self.expect_ok(self.box.builder("build"))
-        self.assertTrue((self.box.root / "AGENTS.md").is_file())
-        self.assertFalse((child / "AGENTS.md").exists())
         self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
+        self.assert_operation_locks_absent()
 
-    def test_tree_manifest_rejects_escape_reserved_nested_and_identity_mismatch(self):
-        cases = (
-            "escape",
-            "reserved-root",
-            "reserved-name",
-            "drive-path",
-            "nested-children",
-            "nested-tree",
-            "identity",
-            "root-identity",
+    def test_scan_depth_bounds_discovery_and_zero_forces_single_space(self):
+        for depth, expected in (
+            (0, None),
+            (1, None),
+            (2, [".", "level-1/child-01"]),
+            (3, [".", "level-1/child-01", "level-1/child-01/grandchild"]),
+        ):
+            self.reset(scan_depth=depth)
+            child = self.add_child("level-1/child-01", "child-01")
+            grandchild = self.add_child(
+                "level-1/child-01/grandchild",
+                "grandchild",
+            )
+            result = self.expect_ok(self.box.builder("build"))
+            with self.subTest(depth=depth):
+                if expected is None:
+                    self.assertNotIn("members", result["summary"])
+                    self.assertFalse((child / "AGENTS.md").exists())
+                    self.assertFalse((grandchild / "AGENTS.md").exists())
+                else:
+                    receipt = json.loads(
+                        (self.box.root / ".pipebuilder/tree-lock.json").read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    self.assertEqual(
+                        [item["path"] for item in receipt["members"]],
+                        expected,
+                    )
+
+    def test_verify_is_available_for_a_single_space(self):
+        self.reset(scan_depth=0)
+        self.expect_ok(self.box.builder("build"))
+        verified = self.expect_ok(self.box.builder("verify"))
+        self.assertEqual(verified["summary"], {"members": 1, "verified": 1})
+        self.assertEqual(verified["details"]["members"][0]["path"], ".")
+
+    def test_hidden_generated_and_symlinked_directories_are_not_scanned(self):
+        hidden = self.add_child(".hidden/child", "hidden-child")
+        generated = self.add_child(".cursor/child", "generated-child")
+        dependency = self.add_child("node_modules/child", "dependency-child")
+        outside = self.box.base / "outside"
+        outside.mkdir()
+        self.box.write_json(
+            "pipespace.json",
+            {
+                "schema": "pipespace.v1",
+                "name": "linked-child",
+                "agents": ["codex"],
+                "skills": [],
+                "tags": [],
+                "skillProviders": [],
+            },
+            base=outside,
         )
-        for case in cases:
-            self.reset()
-            if case == "escape":
-                outside = self.box.base / "outside"
-                outside.mkdir()
-                self.write_tree([("../outside", "outside")])
-            elif case == "reserved-root":
-                self.add_child(".pipebuilder/child-01", "child-01")
-                self.write_tree([(".pipebuilder/child-01", "child-01")])
-            elif case == "reserved-name":
-                self.add_child("children/con", "child-01")
-                self.write_tree([("children/con", "child-01")])
-            elif case == "drive-path":
-                self.write_tree([("C:/child-01", "child-01")])
-            elif case == "nested-children":
-                self.add_child("children/child-01", "child-01")
-                self.add_child("children/child-01/grandchild", "grandchild")
-                self.write_tree(
-                    [("children/child-01", "child-01"), ("children/child-01/grandchild", "grandchild")]
-                )
-            elif case == "nested-tree":
-                self.add_child("children/child-01", "child-01")
-                self.box.write_json(
-                    "children/child-01/pipespace-tree.json",
-                    {"schema": "pipespace-tree.v1", "children": []},
-                )
-                self.write_tree([("children/child-01", "child-01")])
-            elif case == "identity":
-                self.add_child("children/child-01", "actual-name")
-                self.write_tree([("children/child-01", "expected-name")])
-            else:
-                self.add_child("children/child-01", "root-space")
-                self.write_tree([("children/child-01", "root-space")])
-            before = snapshot_tree(self.box.root)
-            with self.subTest(case=case):
-                self.expect_code(self.box.builder("check-tree"), "PB017")
-                self.assertEqual(snapshot_tree(self.box.root), before)
-
-    def test_symlink_child_is_rejected_without_writes(self):
-        target = self.add_child("real-child", "child-01")
-        children = self.box.root / "children"
-        children.mkdir()
+        self.box.write_json(
+            "linked-child.code-workspace",
+            {"folders": [{"path": "."}]},
+            base=outside,
+        )
+        link = self.box.root / "linked-child"
         try:
-            os.symlink(target, children / "child-01", target_is_directory=True)
+            os.symlink(outside, link, target_is_directory=True)
         except (OSError, NotImplementedError) as exc:
             self.skipTest(f"directory symlink unavailable: {exc}")
-        self.write_tree([("children/child-01", "child-01")])
-        before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("check-tree"), "PB017")
-        self.assertEqual(snapshot_tree(self.box.root), before)
+
+        result = self.expect_ok(self.box.builder("build"))
+        self.assertNotIn("members", result["summary"])
+        self.assertFalse((hidden / "AGENTS.md").exists())
+        self.assertFalse((generated / "AGENTS.md").exists())
+        self.assertFalse((dependency / "AGENTS.md").exists())
+        self.assertFalse((outside / "AGENTS.md").exists())
+
+    def test_children_schema_is_strict_and_legacy_manifest_is_rejected(self):
+        invalid_values = (
+            [],
+            {},
+            {"scanDepth": True},
+            {"scanDepth": -1},
+            {"scanDepth": 33},
+            {"scanDepth": 1, "paths": []},
+        )
+        for value in invalid_values:
+            self.reset()
+            manifest = json.loads(
+                (self.box.root / "pipespace.json").read_text(encoding="utf-8")
+            )
+            manifest["children"] = value
+            self.box.write_json("pipespace.json", manifest)
+            with self.subTest(value=value):
+                self.expect_code(self.box.builder("check"), "PB001")
+
+        self.reset()
+        self.box.write_json(
+            "pipespace-tree.json",
+            {"schema": "pipespace-tree.v1", "children": []},
+        )
+        self.expect_code(self.box.builder("check"), "PB015")
+
+    def test_membership_change_is_verified_then_rebuilt_without_extra_command(self):
+        self.add_child("children/child-01", "child-01")
+        self.expect_ok(self.box.builder("build"))
+        second = self.add_child("children/child-02", "child-02")
+        self.expect_code(self.box.builder("verify"), "PB017")
+        rebuilt = self.expect_ok(self.box.builder("build"))
+        self.assertEqual(rebuilt["summary"]["members"], 3)
+        self.assertTrue((second / "AGENTS.md").is_file())
+        self.expect_ok(self.box.builder("verify"))
 
     def test_root_post_cannot_stale_a_child_plan(self):
         child = self.add_child("children/child-01", "child-01")
@@ -194,15 +240,21 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
                 }
             ],
         )
-        self.write_tree([("children/child-01", "child-01")])
 
-        self.expect_code(self.box.builder("build-tree"), "PB017")
+        self.expect_code(self.box.builder("build"), "PB017")
         self.assertTrue((self.box.root / ".pipebuilder/lock.json").is_file())
         self.assertFalse((child / ".pipebuilder/lock.json").exists())
-        journal = json.loads((self.box.root / ".pipebuilder/tree-journal.json").read_text(encoding="utf-8"))
-        self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "stale-plan"])
+        journal = json.loads(
+            (self.box.root / ".pipebuilder/tree-journal.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            [item["stage"] for item in journal["members"]],
+            ["post-succeeded", "stale-plan"],
+        )
         self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
-        self.assert_tree_operation_locks_absent()
+        self.assert_operation_locks_absent()
 
     def test_post_failure_records_partial_journal_and_rerun_converges(self):
         child = self.add_child(
@@ -218,75 +270,38 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
         )
         provider = child / "provider"
         provider.mkdir()
-        self.box.write_text("children/child-01/provider/fail.py", "raise SystemExit(23)\n")
-        self.write_tree([("children/child-01", "child-01")])
+        self.box.write_text(
+            "children/child-01/provider/fail.py",
+            "raise SystemExit(23)\n",
+        )
 
-        self.expect_code(self.box.builder("build-tree"), "PB016")
+        self.expect_code(self.box.builder("build"), "PB016")
         journal_path = self.box.root / ".pipebuilder/tree-journal.json"
         journal = json.loads(journal_path.read_text(encoding="utf-8"))
         self.assertEqual(journal["status"], "partial")
-        self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "post-failed"])
-        self.assertTrue((child / ".pipebuilder/lock.json").is_file())
-        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
+        self.assertEqual(
+            [item["stage"] for item in journal["members"]],
+            ["post-succeeded", "post-failed"],
+        )
 
         manifest = json.loads((child / "pipespace.json").read_text(encoding="utf-8"))
         manifest["skillProviders"] = []
         self.box.write_json("children/child-01/pipespace.json", manifest)
-        self.expect_ok(self.box.builder("build-tree"))
+        self.expect_ok(self.box.builder("build"))
         self.assertFalse(journal_path.exists())
-        self.expect_ok(self.box.builder("verify-tree"))
+        self.expect_ok(self.box.builder("verify"))
 
-    def test_final_verification_failure_records_partial_journal(self):
-        provider = self.box.root / "root-provider"
-        provider.mkdir()
-        self.box.write_text(
-            "root-provider/mutate.py",
-            "from pathlib import Path\n"
-            "root = Path(__file__).resolve().parent.parent\n"
-            "(root / 'AGENTS.md').write_text('post drift\\n', encoding='utf-8')\n",
-        )
-        self.box.manifest(
-            name="root-space",
-            agents=["codex"],
-            providers=[
-                {
-                    "type": "folder",
-                    "path": "root-provider",
-                    "command": {"cwd": ".", "args": [sys.executable, "mutate.py"]},
-                }
-            ],
-        )
-        self.add_child("children/child-01", "child-01")
-        self.write_tree([("children/child-01", "child-01")])
-
-        self.expect_code(self.box.builder("build-tree"), "PB017")
-        journal = json.loads((self.box.root / ".pipebuilder/tree-journal.json").read_text(encoding="utf-8"))
-        self.assertEqual(journal["status"], "partial")
-        self.assertEqual([item["stage"] for item in journal["members"]], ["post-succeeded", "post-succeeded"])
-        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
-        self.assert_tree_operation_locks_absent()
-
-    def test_clean_tree_preflights_every_member_before_deleting(self):
+    def test_clean_preflights_every_member_before_deleting(self):
         first = self.add_child("children/child-01", "child-01")
         second = self.add_child("children/child-02", "child-02")
-        self.write_tree([("children/child-01", "child-01"), ("children/child-02", "child-02")])
-        self.expect_ok(self.box.builder("build-tree"))
+        self.expect_ok(self.box.builder("build"))
         drifted = first / "AGENTS.md"
         drifted.unlink()
         drifted.mkdir()
         before = snapshot_tree(self.box.root)
-        self.expect_code(self.box.builder("clean-tree"), "PB010")
+
+        self.expect_code(self.box.builder("clean"), "PB010")
         self.assertEqual(snapshot_tree(self.box.root), before)
         self.assertTrue((self.box.root / "AGENTS.md").is_file())
         self.assertTrue((second / "AGENTS.md").is_file())
-        self.assert_tree_operation_locks_absent()
-
-    def test_tree_receipt_rejects_membership_drift(self):
-        self.add_child("children/child-01", "child-01")
-        self.add_child("children/child-02", "child-02")
-        self.write_tree([("children/child-01", "child-01"), ("children/child-02", "child-02")])
-        self.expect_ok(self.box.builder("build-tree"))
-        self.write_tree([("children/child-02", "child-02"), ("children/child-01", "child-01")])
-        self.expect_code(self.box.builder("verify-tree"), "PB017")
-        self.expect_code(self.box.builder("build-tree"), "PB017")
-        self.expect_code(self.box.builder("clean-tree"), "PB017")
+        self.assert_operation_locks_absent()

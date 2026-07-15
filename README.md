@@ -211,7 +211,7 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.5.0 includes four platform Adapters. Keep their validation levels distinct:
+PipeBuilder 0.1.1 includes four platform Adapters. Keep their validation levels distinct:
 
 | Agent | Current generation capabilities | Validation status |
 | --- | --- | --- |
@@ -272,18 +272,14 @@ python3 pipebuilder.py init [SPACE]
 python3 pipebuilder.py check [SPACE]
 python3 pipebuilder.py explain [SPACE] --format json
 python3 pipebuilder.py build [SPACE] [--offline] [--dry-run]
+python3 pipebuilder.py verify [SPACE]
 python3 pipebuilder.py clean [SPACE]
 ```
 
-One-level PipeSpace Tree:
-
-```bash
-python3 pipebuilder.py check-tree [ROOT]
-python3 pipebuilder.py explain-tree [ROOT] --format json
-python3 pipebuilder.py build-tree [ROOT]
-python3 pipebuilder.py verify-tree [ROOT]
-python3 pipebuilder.py clean-tree [ROOT]
-```
+Every command uses the same `pipespace.json`. By default, PipeBuilder automatically finds nested
+PipeSpaces within three directory levels and operates on the complete hierarchy. Configure the
+depth with `"children": {"scanDepth": N}` or set it to `0` for root-only operation. Hidden,
+generated, and symlinked directories are skipped.
 
 A Tree orchestrates only one explicitly declared level of children. It neither scans
 directories nor recurses implicitly. Regular `build` and `clean` always process only the
@@ -319,7 +315,6 @@ Start with the [documentation index](docs/README.md):
 
 - [PipeSpace and Skill Provider specification](docs/pipebuilder-space-json-spec.md)
 - [Four-agent Adapter specification](docs/pipebuilder-agent-adapters.md)
-- [PipeSpace Tree specification](docs/pipebuilder-space-tree-spec.md)
 - [E2E guide](tests/e2e/README.md)
 - [E2E coverage matrix](tests/e2e/COVERAGE.md)
 

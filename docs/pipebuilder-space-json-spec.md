@@ -6,7 +6,7 @@ Date: 2026-07-14
 
 This document defines the normative behavior of PipeSpace identity, `pipespace.json`, the workspace file, Skill packages, Skill Providers, Skill selection, and the lock.
 
-When an ordinary PipeSpace physically contains and manages multiple child PipeSpaces, each member still follows this document independently. Tree relationships, ordering, aggregate receipts, and recovery semantics are defined by the [General PipeSpace Children Tree Specification](pipebuilder-space-tree-spec.md) and are not part of `pipespace.v1`.
+When a PipeSpace contains nested PipeSpaces, the same commands discover and orchestrate them automatically. Discovery is configured by the optional `children` field in this schema; there is no separate hierarchy manifest or command family.
 
 ---
 
@@ -27,7 +27,8 @@ Its `pipespace.json` is:
   "agents": ["codex", "cursor", "codebuddy", "claude-code"],
   "skills": [],
   "tags": [],
-  "skillProviders": []
+  "skillProviders": [],
+  "children": {"scanDepth": 3}
 }
 ```
 
@@ -103,7 +104,10 @@ An explicit empty array means that there is currently no configuration of that k
       "type": "folder",
       "path": "../game-team-skills"
     }
-  ]
+  ],
+  "children": {
+    "scanDepth": 3
+  }
 }
 ```
 
@@ -122,8 +126,37 @@ In v1, unknown top-level fields are errors by default so that spelling mistakes 
 | `skills` | string[] | yes | none | Explicit Skill list; use `[]` when empty |
 | `tags` | string[] | yes | none | PipeSpace tags; use `[]` when empty |
 | `skillProviders` | object[] | yes | none | External Skill sources; use `[]` when empty, with priority descending in array order |
+| `children` | object | no | `{"scanDepth": 3}` | Nested PipeSpace discovery settings |
 
 Array values must be unique. Duplicate values are errors rather than being silently deduplicated, so configuration problems remain visible.
+
+### 4.1 `children`
+
+`children` accepts exactly one field:
+
+```json
+{
+  "children": {
+    "scanDepth": 3
+  }
+}
+```
+
+`scanDepth` must be an integer from `0` through `32`. It counts directory edges below the current PipeSpace root. The default is `3`; `0` disables child discovery and makes every command root-only.
+
+PipeBuilder searches deterministically for nested `pipespace.json` files up to that depth. It skips hidden directories, Agent and Builder generated roots, `.git`, and symlinked directories. Each discovered directory remains an independent PipeSpace with its own manifest, workspace, ownership lock, and outputs. Nested children are supported as long as they fall within the root's configured scan depth.
+
+The public commands do not have separate hierarchy variants:
+
+```text
+check
+explain
+build
+verify
+clean
+```
+
+When children are found, `check`, `explain`, and `build --dry-run` plan every member before writes. `build` applies members in root-to-child path order and verifies that an earlier Provider post command did not stale a later member's plan. `verify` checks the aggregate receipt and every member lock and artifact. `clean` preflights every member before deleting anything, then cleans in reverse child-to-root order. A failed or interrupted hierarchy operation records a journal under the root `.pipebuilder` directory so rerunning the same unified command can converge.
 
 ---
 
@@ -554,14 +587,14 @@ PB013 build-busy
 PB014 stale-build-lock
 PB015 legacy-layout-detected
 PB016 provider-post-command-failed
-PB017 invalid-hspace-tree
+PB017 invalid-pipespace-hierarchy
 ```
 
 `PB012` is reserved as an early draft number but is not part of the stable `pipespace.v1` contract. The manifest accepts only the four built-in Agents, and `PB001` rejects an unknown Agent before adapter dispatch, so an artificial failure path must not be created for `PB012`.
 
 `PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or explicitly by a human.
 
-`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` is dedicated to declaration, member-identity, aggregate-state, and whole-Tree consistency errors in `pipespace-tree.v1`.
+`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors.
 
 When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for E2E input and golden-expectation rules.
 

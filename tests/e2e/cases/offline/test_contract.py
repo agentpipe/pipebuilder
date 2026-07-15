@@ -117,7 +117,7 @@ class CliContractCases(PipeBuilderE2ECase):
         self.assertIn("OK check fixture-space", text.stdout)
         version = self.box.run_command([str(Path(__import__("sys").executable)), str(PIPEBUILDER), "--version"])
         self.assertEqual(version.returncode, 0)
-        self.assertRegex(version.stdout.strip(), r"^PipeBuilder \d+\.\d+\.\d+$")
+        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.1")
 
     def test_json_report_contract_for_build_and_clean(self):
         build = self.expect_ok(self.box.builder("build"))
@@ -156,8 +156,9 @@ class CliContractCases(PipeBuilderE2ECase):
         shutil.copy2(PIPEBUILDER, release)
         help_result = self.box.run_command([str(Path(__import__("sys").executable)), str(release), "--help"], cwd=self.box.base)
         self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
-        for expected in ("Quick start", "Git Provider", ".pipebuilder/lock.json", "--offline"):
+        for expected in ("Quick start", "Git Provider", ".pipebuilder/lock.json", "--offline", "verify"):
             self.assertIn(expected, help_result.stdout)
+        self.assertNotIn("build-tree", help_result.stdout)
         standalone = self.box.run_command(
             [str(Path(__import__("sys").executable)), str(release), "build", str(self.box.root), "--format", "json"],
             cwd=self.box.base,

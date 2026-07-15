@@ -5,9 +5,7 @@ Start with the repository-level [README](../README.md) for the problems PipeBuil
 ## Using PipeBuilder
 
 - [PipeSpace and Skill Provider Specification](pipebuilder-space-json-spec.md)
-  `pipespace.json`, the workspace file, Providers, Skill selection, directory decoupling, ownership locks, and security boundaries.
-- [PipeSpace Tree Specification](pipebuilder-space-tree-spec.md)
-  Explicit orchestration for building, verifying, cleaning, and recovering one level of child PipeSpaces.
+  `pipespace.json`, automatic child discovery, the workspace file, Providers, Skill selection, directory decoupling, ownership locks, and security boundaries.
 - [THarness Migration Audit](pipebuilder-tharness-migration-audit.md)
   Items that must be removed or adapted when migrating from the legacy THarness/HarnessBuilder namespace.
 

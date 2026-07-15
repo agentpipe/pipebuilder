@@ -149,6 +149,7 @@ class Sandbox:
         providers: list[dict[str, str]] | None = None,
         folders: list[dict[str, str]] | None = None,
         description: str | None = None,
+        children_scan_depth: int | None = None,
     ) -> None:
         value: dict[str, Any] = {
             "schema": "pipespace.v1",
@@ -160,6 +161,8 @@ class Sandbox:
         }
         if description is not None:
             value["description"] = description
+        if children_scan_depth is not None:
+            value["children"] = {"scanDepth": children_scan_depth}
         self.write_json("pipespace.json", value)
         self.write_json(f"{name}.code-workspace", {"folders": folders or [{"name": "project", "path": "."}]})
 

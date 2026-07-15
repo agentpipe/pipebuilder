@@ -20,12 +20,8 @@ Quick start
     python3 pipebuilder.py check [SPACE] [--format text|json] [--offline]
     python3 pipebuilder.py explain [SPACE] [--format text|json] [--offline]
     python3 pipebuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
+    python3 pipebuilder.py verify [SPACE] [--format text|json]
     python3 pipebuilder.py clean [SPACE] [--format text|json]
-    python3 pipebuilder.py check-tree [ROOT] [--format text|json] [--offline]
-    python3 pipebuilder.py explain-tree [ROOT] [--format text|json] [--offline]
-    python3 pipebuilder.py build-tree [ROOT] [--format text|json] [--offline] [--dry-run]
-    python3 pipebuilder.py verify-tree [ROOT] [--format text|json]
-    python3 pipebuilder.py clean-tree [ROOT] [--format text|json]
     python3 pipebuilder.py --version
     python3 pipebuilder.py --help
 
@@ -46,14 +42,12 @@ Minimal pipespace.json:
 Minimal my-space.code-workspace:
     {"folders":[{"path":"."}]}
 
-Optional single-level PipeSpace Tree: the root remains a regular PipeSpace and
-declares explicit children in its own directory:
-    {"schema":"pipespace-tree.v1",
-     "children":[{"path":"children/child-01", "expectName":"child-01"}]}
-
-Tree commands do not scan directories. Before writing, build-tree locks and
-plans the root and all direct children, then builds in root-to-children order.
-clean-tree cleans in reverse children-to-root order. v1 is non-recursive.
+Commands automatically discover nested PipeSpaces by finding pipespace.json
+within three directory levels. Configure or disable discovery in pipespace.json:
+    {"children":{"scanDepth":3}}
+The complete hierarchy is planned before writes, built root-to-children, and
+cleaned children-to-root. Hidden, generated, and symlinked directories are not
+scanned.
 
 Optional space-level sources:
     .pipebuilder/agents/<agent>/
@@ -123,12 +117,13 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.5.0"
+VERSION = "0.1.1"
 REPORT_SCHEMA = "pipebuilder-report.v1"
 LOCK_SCHEMA = "pipebuilder-lock.v1"
 SPACE_SCHEMA = "pipespace.v1"
-TREE_SCHEMA = "pipespace-tree.v1"
 TREE_LOCK_SCHEMA = "pipespace-tree-lock.v1"
+DEFAULT_CHILD_SCAN_DEPTH = 3
+MAX_CHILD_SCAN_DEPTH = 32
 AGENTS = ("codex", "cursor", "codebuddy", "claude-code")
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 BARE_TOML_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -141,12 +136,13 @@ LEGACY_NAMES = (
     "private",
     "harness-space.json",
     "harness-space-tree.json",
+    "pipespace-tree.json",
     ".harness-builder",
     ".harness-agents",
     ".harness-space.yaml",
     ".harness-lock.yaml",
 )
-TREE_RESERVED_ROOTS = {
+DISCOVERY_RESERVED_ROOTS = {
     ".agents",
     ".claude",
     ".codebuddy",
@@ -156,6 +152,15 @@ TREE_RESERVED_ROOTS = {
     ".harness-builder",
     ".pipebuilder",
 }
+DISCOVERY_EXCLUDED_DIRS = DISCOVERY_RESERVED_ROOTS | {
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "out",
+    "target",
+}
+DISCOVERY_EXCLUDED_KEYS = frozenset(item.casefold() for item in DISCOVERY_EXCLUDED_DIRS)
 ADAPTER_VERSIONS = {"codex": "2", "cursor": "1", "codebuddy": "2", "claude-code": "2"}
 ADAPTER_STATUS = {
     "codex": "client-verified",
@@ -192,7 +197,7 @@ DIAGNOSTIC_ACTIONS = {
     "PB014": "Confirm the process is gone, then remove the stale build.lock.",
     "PB015": "Migrate the legacy HarnessBuilder / THarness layout before building.",
     "PB016": "Correct the Provider post command or its runtime dependencies and retry.",
-    "PB017": "Correct pipespace-tree.json, its child paths, or the recorded Tree state and retry.",
+    "PB017": "Correct nested PipeSpace inputs or the recorded hierarchy state and retry.",
     "PBW001": "Review the selected Provider and shadowed Skill candidates.",
     "PBW002": "Prefer a standard Skill for new Claude Code workflows.",
     "PBW003": "Review the generated platform security surface before use.",
@@ -516,6 +521,7 @@ class Manifest:
     skills: list[str]
     tags: list[str]
     providers: list[dict[str, Any]]
+    child_scan_depth: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -531,6 +537,7 @@ class SpaceTree:
     path: Path
     parent_name: str
     children: list[TreeChild]
+    scan_depth: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -665,7 +672,7 @@ def load_manifest(root: Path) -> Manifest:
         fail("PB001", "pipespace.json must contain a JSON object", sources=(path.as_posix(),))
     required = {"schema", "name", "agents", "skills", "tags", "skillProviders"}
     missing = sorted(required - raw.keys())
-    unknown = sorted(raw.keys() - required - {"description"})
+    unknown = sorted(raw.keys() - required - {"description", "children"})
     if missing:
         fail("PB001", "Missing manifest fields: " + ", ".join(missing), sources=(path.as_posix(),))
     if unknown:
@@ -767,180 +774,68 @@ def load_manifest(root: Path) -> Manifest:
     description = raw.get("description")
     if description is not None and not isinstance(description, str):
         fail("PB001", "manifest.description must be a string", sources=(path.as_posix(),))
-    return Manifest(path, name, description, agents, skills, tags, providers)
-
-
-def tree_path_key(value: str) -> str:
-    return unicodedata.normalize("NFC", value).casefold()
-
-
-def validate_tree_child_root(tree_root: Path, configured: str, manifest_path: Path, index: int) -> Path:
-    parts = configured.split("/")
-    windows_reserved = {"con", "prn", "aux", "nul"} | {
-        f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10)
-    }
+    children = raw.get("children", {"scanDepth": DEFAULT_CHILD_SCAN_DEPTH})
+    if not isinstance(children, dict) or set(children) != {"scanDepth"}:
+        fail(
+            "PB001",
+            "manifest.children accepts exactly scanDepth",
+            sources=(path.as_posix(),),
+            semantic_key="children",
+        )
+    scan_depth = children.get("scanDepth")
     if (
-        not configured
-        or configured.startswith("/")
-        or re.match(r"^[A-Za-z]:", configured) is not None
-        or Path(configured).is_absolute()
-        or "\\" in configured
-        or any(part in {"", ".", ".."} for part in parts)
+        isinstance(scan_depth, bool)
+        or not isinstance(scan_depth, int)
+        or not 0 <= scan_depth <= MAX_CHILD_SCAN_DEPTH
     ):
         fail(
-            "PB017",
-            f"children[{index}].path must be a safe relative POSIX path below the Tree root",
-            sources=(manifest_path.as_posix(),),
-            semantic_key=f"children[{index}].path",
-        )
-    for part in parts:
-        portable_name = part.rstrip(" .")
-        stem = portable_name.split(".", 1)[0].casefold()
-        if (
-            portable_name != part
-            or stem in windows_reserved
-            or any(character in part for character in '<>:"|?*')
-            or any(ord(character) < 32 for character in part)
-        ):
-            fail(
-                "PB017",
-                f"children[{index}].path is not portable across supported platforms: {configured}",
-                sources=(manifest_path.as_posix(),),
-                semantic_key=f"children[{index}].path",
-            )
-    if tree_path_key(parts[0]) in {tree_path_key(item) for item in TREE_RESERVED_ROOTS}:
-        fail(
-            "PB017",
-            f"children[{index}].path must not use a Builder, Git, or Agent managed root: {parts[0]}",
-            sources=(manifest_path.as_posix(),),
-            semantic_key=f"children[{index}].path",
-        )
-    current = tree_root
-    for part in parts:
-        current = current / part
-        if current.is_symlink():
-            fail(
-                "PB017",
-                f"Tree child path must not contain a symlink: {configured}",
-                sources=(current.as_posix(),),
-                semantic_key=f"children[{index}].path",
-            )
-        if not current.exists() or not current.is_dir():
-            fail(
-                "PB017",
-                f"Tree child PipeSpace directory does not exist: {configured}",
-                sources=(current.as_posix(),),
-                semantic_key=f"children[{index}].path",
-            )
-    resolved = current.resolve()
-    try:
-        relative = resolved.relative_to(tree_root)
-    except ValueError:
-        fail(
-            "PB017",
-            f"Tree child escapes Tree root: {configured}",
-            sources=(resolved.as_posix(),),
-            semantic_key=f"children[{index}].path",
-        )
-    if not relative.parts:
-        fail(
-            "PB017",
-            "Tree child must not be the Tree root",
-            sources=(manifest_path.as_posix(),),
-            semantic_key=f"children[{index}].path",
-        )
-    return resolved
-
-
-def load_space_tree(root: Path) -> SpaceTree:
-    root = root.resolve()
-    path = root / "pipespace-tree.json"
-    if path.is_symlink():
-        fail("PB017", "pipespace-tree.json must not be a symlink", sources=(path.as_posix(),))
-    if path.exists() and not path.is_file():
-        fail("PB017", "pipespace-tree.json must be a regular file", sources=(path.as_posix(),))
-    raw = read_json(path, "PB017", "PipeSpace Tree manifest")
-    required = {"schema", "children"}
-    if not isinstance(raw, dict) or set(raw) != required:
-        fail(
-            "PB017",
-            "pipespace-tree.json accepts exactly schema and children",
+            "PB001",
+            f"manifest.children.scanDepth must be an integer from 0 to {MAX_CHILD_SCAN_DEPTH}",
             sources=(path.as_posix(),),
+            semantic_key="children.scanDepth",
         )
-    if raw.get("schema") != TREE_SCHEMA:
-        fail("PB017", f"Tree manifest.schema must be {TREE_SCHEMA}", sources=(path.as_posix(),))
-    children_raw = raw.get("children")
-    if not isinstance(children_raw, list) or not children_raw:
-        fail("PB017", "Tree manifest.children must be a non-empty array", sources=(path.as_posix(),))
+    return Manifest(path, name, description, agents, skills, tags, providers, scan_depth)
 
+
+def is_discovery_excluded(path: Path) -> bool:
+    return path.name.startswith(".") or path.name.casefold() in DISCOVERY_EXCLUDED_KEYS
+
+
+def discover_space_tree(root: Path) -> SpaceTree:
+    root = root.resolve()
     parent = load_manifest(root)
     children: list[TreeChild] = []
-    path_keys: set[str] = set()
-    real_keys: set[str] = set()
-    name_keys: set[str] = {parent.name.casefold()}
-    for index, item in enumerate(children_raw):
-        if not isinstance(item, dict) or set(item) != {"path", "expectName"}:
-            fail(
-                "PB017",
-                f"children[{index}] accepts exactly path and expectName",
-                sources=(path.as_posix(),),
-                semantic_key=f"children[{index}]",
-            )
-        configured = item.get("path")
-        expect_name = item.get("expectName")
-        if not isinstance(configured, str) or not configured:
-            fail(
-                "PB017",
-                f"children[{index}].path must be a non-empty string",
-                sources=(path.as_posix(),),
-                semantic_key=f"children[{index}].path",
-            )
-        if not isinstance(expect_name, str) or not NAME_RE.fullmatch(expect_name):
-            fail(
-                "PB017",
-                f"children[{index}].expectName must match ^[a-z][a-z0-9-]*$",
-                sources=(path.as_posix(),),
-                semantic_key=f"children[{index}].expectName",
-            )
-        normalized = Path(configured).as_posix()
-        configured_key = tree_path_key(normalized)
-        if configured_key in path_keys:
-            fail("PB017", f"Duplicate portable Tree child path: {configured}", sources=(path.as_posix(),))
-        child_root = validate_tree_child_root(root, normalized, path, index)
-        real_key = os.path.normcase(str(child_root))
-        name_key = expect_name.casefold()
-        if real_key in real_keys:
-            fail("PB017", f"Tree child resolves to a duplicate directory: {configured}", sources=(path.as_posix(),))
-        if name_key in name_keys:
-            fail("PB017", f"Duplicate Tree child expectName: {expect_name}", sources=(path.as_posix(),))
-        if (child_root / "pipespace-tree.json").exists() or (child_root / "pipespace-tree.json").is_symlink():
-            fail(
-                "PB017",
-                f"Nested PipeSpace Trees are unsupported in {TREE_SCHEMA}: {configured}",
-                sources=((child_root / "pipespace-tree.json").as_posix(),),
-            )
-        child_manifest = load_manifest(child_root)
-        if child_manifest.name != expect_name:
-            fail(
-                "PB017",
-                f"Tree child {configured} expected name {expect_name}, got {child_manifest.name}",
-                sources=(child_manifest.path.as_posix(),),
-                semantic_key=f"children[{index}].expectName",
-            )
-        path_keys.add(configured_key)
-        real_keys.add(real_key)
-        name_keys.add(name_key)
-        children.append(TreeChild(normalized, expect_name, child_root))
 
-    for index, left in enumerate(children):
-        for right in children[index + 1 :]:
-            if left.root in right.root.parents or right.root in left.root.parents:
-                fail(
-                    "PB017",
-                    f"Tree children must not contain one another: {left.path} and {right.path}",
-                    sources=(path.as_posix(),),
+    def scan(directory: Path, depth: int) -> None:
+        if depth >= parent.child_scan_depth:
+            return
+        try:
+            entries = sorted(
+                directory.iterdir(),
+                key=lambda item: unicodedata.normalize("NFC", item.name).casefold(),
+            )
+        except OSError as exc:
+            fail("PB017", f"Cannot scan nested PipeSpaces: {exc}", sources=(directory.as_posix(),))
+        for entry in entries:
+            if entry.is_symlink() or is_discovery_excluded(entry) or not entry.is_dir():
+                continue
+            manifest_path = entry / "pipespace.json"
+            if manifest_path.is_symlink():
+                fail("PB017", "Nested pipespace.json must not be a symlink", sources=(manifest_path.as_posix(),))
+            if manifest_path.exists():
+                child_manifest = load_manifest(entry)
+                children.append(
+                    TreeChild(
+                        entry.relative_to(root).as_posix(),
+                        child_manifest.name,
+                        entry.resolve(),
+                    )
                 )
-    return SpaceTree(root, path, parent.name, children)
+            scan(entry, depth + 1)
+
+    if parent.child_scan_depth:
+        scan(root, 0)
+    return SpaceTree(root, parent.path, parent.name, children, parent.child_scan_depth)
 
 
 def tree_members(tree: SpaceTree) -> list[TreeMember]:
@@ -1029,7 +924,16 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
                 sources=(root.as_posix(),),
                 action="Use --name with a lowercase kebab-case name, or rename the Space directory.",
             )
-        manifest = Manifest(manifest_path, name, None, list(AGENTS), [], [], [])
+        manifest = Manifest(
+            manifest_path,
+            name,
+            None,
+            list(AGENTS),
+            [],
+            [],
+            [],
+            DEFAULT_CHILD_SCAN_DEPTH,
+        )
         manifest_content = json_bytes(
             {
                 "schema": SPACE_SCHEMA,
@@ -3010,7 +2914,7 @@ def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | No
     path = tree_lock_path(root)
     if not path.exists():
         if required:
-            fail("PB017", "Tree receipt not found; run build-tree first", sources=(path.as_posix(),))
+            fail("PB017", "Hierarchy receipt not found; run build first", sources=(path.as_posix(),))
         return None
     if path.is_symlink():
         fail("PB017", "Tree receipt must not be a symlink", sources=(path.as_posix(),))
@@ -3029,7 +2933,7 @@ def load_tree_lock(root: Path, *, required: bool = False) -> dict[str, Any] | No
         or not isinstance(tree, dict)
         or set(tree) != {"parentName", "manifest", "manifestDigest"}
         or not isinstance(tree.get("parentName"), str)
-        or tree.get("manifest") != "pipespace-tree.json"
+        or tree.get("manifest") != "pipespace.json"
         or not valid_digest(tree.get("manifestDigest"))
         or not isinstance(members, list)
         or not members
@@ -3053,7 +2957,7 @@ def assert_tree_receipt_matches(tree: SpaceTree, receipt: dict[str, Any]) -> Non
     if receipt["tree"]["parentName"] != tree.parent_name or receipt["tree"]["manifestDigest"] != sha256_file(tree.path):
         fail(
             "PB017",
-            "Tree manifest changed since the recorded build; restore it or clean-tree before changing membership",
+            "Root pipespace.json changed since the recorded hierarchy build",
             sources=(tree.path.as_posix(), path.as_posix()),
         )
     expected = [(item.kind, item.path, item.expect_name) for item in tree_members(tree)]
@@ -3083,7 +2987,7 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
     lock_path = member.root / ".pipebuilder" / "lock.json"
     lock = load_previous_lock(member.root)
     if lock is None:
-        fail("PB017", f"Tree member has no ownership lock: {member.path}", sources=(lock_path.as_posix(),))
+        fail("PB017", f"PipeSpace has no ownership lock: {member.path}", sources=(lock_path.as_posix(),))
     manifest = load_manifest(member.root)
     workspace = load_workspace(member.root, manifest)
     space = lock.get("pipespace", {})
@@ -3096,7 +3000,7 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
     ):
         fail(
             "PB017",
-            f"Tree member inputs drifted from its ownership lock: {member.path}",
+            f"PipeSpace inputs drifted from its ownership lock: {member.path}",
             sources=(manifest.path.as_posix(), workspace.path.as_posix(), lock_path.as_posix()),
         )
     for artifact in lock["artifacts"]:
@@ -3105,17 +3009,24 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
         if target.is_symlink() or not target.is_file():
             fail(
                 "PB017",
-                f"Tree member artifact is missing or has an unsafe type: {member.path}/{artifact['target']}",
+                f"PipeSpace artifact is missing or has an unsafe type: {member.path}/{artifact['target']}",
                 sources=(target.as_posix(),),
             )
         executable = bool(target.stat().st_mode & stat.S_IXUSR)
         if sha256_file(target) != artifact["digest"] or executable != artifact["executable"]:
             fail(
                 "PB017",
-                f"Tree member artifact drifted: {member.path}/{artifact['target']}",
+                f"PipeSpace artifact drifted: {member.path}/{artifact['target']}",
                 sources=(target.as_posix(), lock_path.as_posix()),
             )
     return lock, sha256_file(lock_path)
+
+
+def verify_single_space(root: Path) -> dict[str, Any]:
+    manifest = load_manifest(root)
+    member = TreeMember("parent", ".", manifest.name, root)
+    _, digest = verify_member_state(member)
+    return {"members": [{"kind": "parent", "path": ".", "name": manifest.name, "lockDigest": digest}]}
 
 
 def make_tree_lock(tree: SpaceTree, members: list[TreeMember]) -> dict[str, Any]:
@@ -3145,7 +3056,7 @@ def make_tree_lock(tree: SpaceTree, members: list[TreeMember]) -> dict[str, Any]
 
 def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> dict[str, Any]:
     return {
-        "treeManifest": "pipespace-tree.json",
+        "scanDepth": models[0].manifest.child_scan_depth,
         "members": [
             {
                 "kind": member.kind,
@@ -3160,17 +3071,15 @@ def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> 
 
 def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any], list[Diagnostic]]:
     with BuildLock(tree.root, "tree-build.lock", "PipeSpace Tree build"):
-        tree = load_space_tree(tree.root)
+        tree = discover_space_tree(tree.root)
         members = tree_members(tree)
         with ExitStack() as locks:
             for member in sorted(members, key=lambda item: os.path.normcase(str(item.root))):
                 locks.enter_context(BuildLock(member.root))
             existing = load_tree_lock(tree.root)
-            if existing is not None:
-                assert_tree_receipt_matches(tree, existing)
             members, models = tree_plan(tree, offline=offline)
             fingerprints = [model_fingerprint(model) for model in models]
-            journal = new_tree_journal(tree, members, "build-tree")
+            journal = new_tree_journal(tree, members, "build")
             persist_tree_journal(tree, journal)
             if existing is not None:
                 remove_tree_document(tree.root, tree_lock_path(tree.root))
@@ -3193,7 +3102,7 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
                         "PB017",
                         f"Tree member changed after full-tree planning: {member.path}",
                         sources=(member.root.as_posix(),),
-                        action="Ensure root/earlier child post commands do not modify another PipeSpace, then rerun build-tree.",
+                        action="Ensure earlier post commands do not modify another PipeSpace, then rerun build.",
                     )
                 try:
                     generated, removed = apply_build(fresh_model)
@@ -3261,16 +3170,14 @@ def verify_space_tree(tree: SpaceTree) -> dict[str, Any]:
 
 def clean_space_tree(tree: SpaceTree) -> tuple[dict[str, Any], list[Diagnostic]]:
     with BuildLock(tree.root, "tree-build.lock", "PipeSpace Tree clean"):
-        tree = load_space_tree(tree.root)
+        tree = discover_space_tree(tree.root)
         members = tree_members(tree)
         with ExitStack() as locks:
             for member in sorted(members, key=lambda item: os.path.normcase(str(item.root))):
                 locks.enter_context(BuildLock(member.root))
             existing = load_tree_lock(tree.root)
-            if existing is not None:
-                assert_tree_receipt_matches(tree, existing)
             planned = {member.path: preflight_member_clean(member) for member in members}
-            journal = new_tree_journal(tree, members, "clean-tree")
+            journal = new_tree_journal(tree, members, "clean")
             persist_tree_journal(tree, journal)
             if existing is not None:
                 remove_tree_document(tree.root, tree_lock_path(tree.root))
@@ -3368,12 +3275,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     add_common_subcommand(subparsers.add_parser("build", help="Build a PipeSpace"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
+    add_common_subcommand(subparsers.add_parser("verify", help="Verify generated artifacts"), offline=False)
     add_common_subcommand(subparsers.add_parser("clean", help="Remove owned generated artifacts"), offline=False)
-    add_common_subcommand(subparsers.add_parser("build-tree", help="Build a root PipeSpace and its explicit children"), dry_run=True)
-    add_common_subcommand(subparsers.add_parser("check-tree", help="Validate and plan an PipeSpace Tree without writes"))
-    add_common_subcommand(subparsers.add_parser("explain-tree", help="Explain every member of an PipeSpace Tree"))
-    add_common_subcommand(subparsers.add_parser("verify-tree", help="Verify an PipeSpace Tree receipt and member artifacts"), offline=False)
-    add_common_subcommand(subparsers.add_parser("clean-tree", help="Clean children in reverse order, then the root"), offline=False)
     return parser.parse_args(argv)
 
 
@@ -3381,77 +3284,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     root = Path(args.space).resolve()
     try:
-        if args.command in {"build-tree", "check-tree", "explain-tree", "verify-tree", "clean-tree"}:
-            if not root.is_dir():
-                fail("PB017", f"PipeSpace Tree root is not a directory: {root}")
-            tree = load_space_tree(root)
-            if args.command == "verify-tree":
-                details = verify_space_tree(tree)
-                value = report(
-                    "verify-tree",
-                    "ok",
-                    root,
-                    name=tree.parent_name,
-                    summary={"members": len(details["members"]), "verified": len(details["members"])},
-                    details=details,
-                )
-                print_report(value, args.format)
-                return 0
-            if args.command == "clean-tree":
-                details, warnings = clean_space_tree(tree)
-                value = report(
-                    "clean-tree",
-                    "ok",
-                    root,
-                    name=tree.parent_name,
-                    diagnostics=warnings,
-                    summary={
-                        "members": len(details["members"]),
-                        "removed": sum(item["removed"] for item in details["members"]),
-                    },
-                    details=details if args.format == "json" else None,
-                )
-                print_report(value, args.format)
-                return 0
-            if args.command == "build-tree" and not args.dry_run:
-                details, warnings = build_space_tree(tree, offline=args.offline)
-                value = report(
-                    "build-tree",
-                    "ok",
-                    root,
-                    name=tree.parent_name,
-                    diagnostics=warnings,
-                    summary={
-                        "members": len(details["members"]),
-                        "generated": sum(item["generated"] for item in details["members"]),
-                        "removed": sum(item["removed"] for item in details["members"]),
-                        "postCommands": sum(item["postCommands"] for item in details["members"]),
-                    },
-                    details=details if args.format == "json" else None,
-                )
-                print_report(value, args.format)
-                return 0
-            members, models = tree_plan(tree, offline=args.offline)
-            command = "build-tree --dry-run" if args.command == "build-tree" else args.command
-            details = tree_models_details(members, models)
-            value = report(
-                command,
-                "ok",
-                root,
-                name=tree.parent_name,
-                diagnostics=(warning for model in models for warning in model.warnings),
-                summary={
-                    "members": len(members),
-                    "planned": sum(len(model.operations) for model in models),
-                    "skills": sum(len(model.skills) for model in models),
-                    "postCommands": sum(
-                        1 for model in models for provider in model.providers if provider.command is not None
-                    ),
-                },
-                details=details if args.command == "explain-tree" or args.format == "json" else None,
-            )
-            print_report(value, args.format)
-            return 0
         if args.command == "init":
             if root.exists() and not root.is_dir():
                 fail("PB001", f"PipeSpace root is not a directory: {root}")
@@ -3471,6 +3303,87 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if not root.is_dir():
             fail("PB001", f"PipeSpace root is not a directory: {root}")
+        tree = discover_space_tree(root)
+        if tree.children:
+            if args.command == "verify":
+                details = verify_space_tree(tree)
+                value = report(
+                    "verify",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    summary={"members": len(details["members"]), "verified": len(details["members"])},
+                    details=details,
+                )
+                print_report(value, args.format)
+                return 0
+            if args.command == "clean":
+                details, warnings = clean_space_tree(tree)
+                value = report(
+                    "clean",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    diagnostics=warnings,
+                    summary={
+                        "members": len(details["members"]),
+                        "removed": sum(item["removed"] for item in details["members"]),
+                    },
+                    details=details if args.format == "json" else None,
+                )
+                print_report(value, args.format)
+                return 0
+            if args.command == "build" and not args.dry_run:
+                details, warnings = build_space_tree(tree, offline=args.offline)
+                value = report(
+                    "build",
+                    "ok",
+                    root,
+                    name=tree.parent_name,
+                    diagnostics=warnings,
+                    summary={
+                        "members": len(details["members"]),
+                        "generated": sum(item["generated"] for item in details["members"]),
+                        "removed": sum(item["removed"] for item in details["members"]),
+                        "postCommands": sum(item["postCommands"] for item in details["members"]),
+                    },
+                    details=details if args.format == "json" else None,
+                )
+                print_report(value, args.format)
+                return 0
+            members, models = tree_plan(tree, offline=args.offline)
+            command = "build --dry-run" if args.command == "build" else args.command
+            details = tree_models_details(members, models)
+            value = report(
+                command,
+                "ok",
+                root,
+                name=tree.parent_name,
+                diagnostics=(warning for model in models for warning in model.warnings),
+                summary={
+                    "members": len(members),
+                    "planned": sum(len(model.operations) for model in models),
+                    "skills": sum(len(model.skills) for model in models),
+                    "postCommands": sum(
+                        1 for model in models for provider in model.providers if provider.command is not None
+                    ),
+                },
+                details=details if args.command == "explain" or args.format == "json" else None,
+            )
+            print_report(value, args.format)
+            return 0
+        if args.command == "verify":
+            details = verify_single_space(root)
+            value = report(
+                "verify",
+                "ok",
+                root,
+                name=tree.parent_name,
+                summary={"members": 1, "verified": 1},
+                details=details,
+            )
+            print_report(value, args.format)
+            return 0
         if args.command == "clean":
             with BuildLock(root):
                 removed, warnings = clean(root)

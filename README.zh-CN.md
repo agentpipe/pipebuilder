@@ -195,7 +195,7 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.5.0 内置四个平台 Adapter。不同验证等级必须分开理解：
+PipeBuilder 0.1.1 内置四个平台 Adapter。不同验证等级必须分开理解：
 
 | Agent | 当前生成能力 | 验证状态 |
 | --- | --- | --- |
@@ -252,18 +252,13 @@ python3 pipebuilder.py init [SPACE]
 python3 pipebuilder.py check [SPACE]
 python3 pipebuilder.py explain [SPACE] --format json
 python3 pipebuilder.py build [SPACE] [--offline] [--dry-run]
+python3 pipebuilder.py verify [SPACE]
 python3 pipebuilder.py clean [SPACE]
 ```
 
-一层 PipeSpace Tree：
-
-```bash
-python3 pipebuilder.py check-tree [ROOT]
-python3 pipebuilder.py explain-tree [ROOT] --format json
-python3 pipebuilder.py build-tree [ROOT]
-python3 pipebuilder.py verify-tree [ROOT]
-python3 pipebuilder.py clean-tree [ROOT]
-```
+所有命令统一读取 `pipespace.json`。默认情况下，PipeBuilder 自动发现三层目录内嵌套的
+PipeSpace，并对完整层级执行操作。可通过 `"children": {"scanDepth": N}` 调整深度，
+设为 `0` 时只处理根 Space。扫描会跳过隐藏目录、生成目录和符号链接目录。
 
 Tree 只编排显式声明的一层 children，不扫描目录，也不隐式递归。普通 `build` 和 `clean`
 始终只处理指定的单个 PipeSpace。
@@ -297,7 +292,6 @@ Builder 管理的输出：
 
 - [PipeSpace 与 Skill Provider 协议](docs/pipebuilder-space-json-spec.md)
 - [四 Agent Adapter 规范](docs/pipebuilder-agent-adapters.md)
-- [PipeSpace Tree 协议](docs/pipebuilder-space-tree-spec.md)
 - [E2E 运行说明](tests/e2e/README.md)
 - [E2E 覆盖矩阵](tests/e2e/COVERAGE.md)
 

@@ -24,9 +24,9 @@ This document counts independent black-box test methods; a table or subtest with
 | init | `test_contract.InitCases` | Directory and default required-file creation, directory name/explicit name, existing-file validation, idempotency, and zero writes on failure |
 | static golden | `test_contract.GoldenBuildCases` | Public `examples/all-agents-golden` input, complete managed target sets for all four Agents, full contents of key files, lock digest/provenance, and byte stability on the second build |
 | public examples | `test_examples.PublicExampleCases` | A temporary copy of `examples/multi-pipeline-project` builds two PipeSpaces with distinct Skills and Rules, both workspace files resolve to the same project, and project bytes remain unchanged |
-| manifest | `test_manifest_workspace.ManifestValidationCases` | malformed/non-object input, required/unknown fields, schema, name, agents, skills, tags, providers, and description |
+| manifest | `test_manifest_workspace.ManifestValidationCases`, `test_space_tree.PipeSpaceTreeCases` | malformed/non-object input, required/unknown fields, schema, name, agents, skills, tags, providers, description, and strict child scan-depth settings |
 | workspace | `test_manifest_workspace.WorkspaceValidationCases` | Required file, malformed input, folder shape, colocated paths, directory decoupling, multiple folders, duplicate realpaths, Unicode/spaces/quotes/`#`/`$` |
-| legacy namespace | `test_manifest_workspace.LegacyNamespaceCases` | `tagents`, `private`, root `.pipe-agents`, and legacy YAML/lock/workspace sources; zero writes |
+| legacy namespace | `test_manifest_workspace.LegacyNamespaceCases`, `test_space_tree.PipeSpaceTreeCases` | `tagents`, `private`, root `.pipe-agents`, legacy YAML/lock/workspace sources, and removed `pipespace-tree.json`; zero writes |
 | folder provider/selection | `test_providers_skills.ProviderResolutionCases` | Zero/missing/multiple providers, colocated/external/symlink roots, file roots, realpath aliases, Unicode/shell metacharacters, digest updates, local priority, explicit+tag+local union, shadow provenance, and provider order |
 | Git provider | `test_providers_skills.GitProviderCases` | branch/tag, subdir, commit lock, online advancement, offline locked reuse, PipeSpace-local cache, missing cache/ref/subdir, digest tampering, archive symlinks, and mixed priority |
 | common Skill | `test_providers_skills.SkillPackageCases` | Binary, hidden, executable, YAML block scalar, unknown nested frontmatter, BOM/CRLF, deep directories, `.DS_Store`, `.pipe-agents` exclusion, symlink, and invalid/missing Skill |
@@ -38,7 +38,7 @@ This document counts independent black-box test methods; a table or subtest with
 | ownership/clean | `test_lifecycle_security.OwnershipLifecycleCases` | Clean removes only owned artifacts, idempotency, rebuild, Skill deselection, Agent removal, source updates, managed-file deletion, Builder version changes, and no ownership inference without a lock |
 | lock/concurrency | `test_lifecycle_security.LockAndInterruptionCases` | Lock contention between two real processes, active/stale/malformed locks, hard crashes, apply failures, preservation of the old lock, and recovery convergence |
 | filesystem security | `test_lifecycle_security.FilesystemBoundaryCases` | Forged locks, unowned targets, type drift, Builder state/target symlink escape, NFC/NFD/case collisions, Windows reserved names, invalid locks, and recursive providers |
-| generic PipeSpace children Tree | `test_space_tree.PipeSpaceTreeCases` | Explicit embedded children; whole-tree check/explain/build/verify; non-recursive single Space; reverse clean; independent ownership/locks; rejection of escapes, reserved paths, symlinks, and nesting; member identity and order drift; cross-member stale plans; journals for post/final acceptance failures; and convergence on rerun |
+| automatic child PipeSpaces | `test_space_tree.PipeSpaceTreeCases` | Unified check/explain/build/verify/clean; default and configured depth; recursive discovery; root-only depth zero; hidden/generated/symlink exclusions; reverse clean; independent ownership; membership drift and rebuild; cross-member stale plans; partial journals; and convergence on rerun |
 | release/runner | `test_contract.CliContractCases` | Independent execution after copying the single file, SHA256 report, credential redaction in command records, and exclusion of auth/home from failure artifacts |
 
 ## Stable diagnostics
@@ -60,8 +60,8 @@ This document counts independent black-box test methods; a table or subtest with
 | PB013 | real concurrent active lock | covered |
 | PB014 | stale dead-pid lock/crash recovery | covered |
 | PB015 | every legacy marker | covered |
-| PB016 | Provider post command start/cwd/exit failure, Tree partial journal | covered |
-| PB017 | Tree schema/path/identity/receipt/stale-plan/member-state | covered |
+| PB016 | Provider post command start/cwd/exit failure, hierarchy partial journal | covered |
+| PB017 | hierarchy discovery/receipt/stale-plan/member-state | covered |
 | PBW001 | provider shadow | covered |
 | PBW002 | Claude command migration | covered |
 
