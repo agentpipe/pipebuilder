@@ -202,7 +202,7 @@ class Sandbox:
         return self.root / base / name
 
     def controlled_env(self, extra: dict[str, str] | None = None, *, inherit_auth: bool = False) -> dict[str, str]:
-        allow = ("PATH", "SYSTEMROOT", "WINDIR")
+        allow = ("PATH", "PATHEXT", "SYSTEMROOT", "WINDIR")
         if inherit_auth:
             allow += ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR")
         env = {key: os.environ.get(key, "") for key in allow}
