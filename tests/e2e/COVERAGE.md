@@ -1,8 +1,8 @@
 # PipeBuilder E2E Coverage Matrix
 
 Status: implemented
-Baseline date: 2026-07-15
-Latest local validation: full E0 105/105, Cursor E1 4/4, and Claude Code E1 4/4.
+Baseline date: 2026-07-16
+Latest local validation: full E0 111/111, Cursor E1 4/4, and Claude Code E1 4/4.
 The previously recorded Codex baselines are E1 5/5 and E2 1/1; Codex was not installed for
 the current local run.
 
@@ -12,7 +12,7 @@ This document counts independent black-box test methods; a table or subtest with
 
 | Tier | Current coverage | External dependencies | Default gate |
 | --- | --- | --- | --- |
-| E0 offline | 105 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
+| E0 offline | 111 cases covering 200+ positive and negative scenarios | Python 3.7+, Git, and a real filesystem; no network access | Required for PRs |
 | E1 client | 5 Codex, 4 Cursor, and 4 Claude Code automated cases | The corresponding real client; no model request | main/release |
 | E2 live | 1 combined Codex sentinel case | Codex CLI, authentication, network, and model | opt-in/release |
 
@@ -21,7 +21,7 @@ This document counts independent black-box test methods; a table or subtest with
 | Requirement | Primary case/module | Acceptance coverage |
 | --- | --- | --- |
 | CLI/report | `test_contract.CliContractCases` | cwd/explicit space, text/JSON, version, zero-write check/explain/dry-run, compile, and the Python 3.7 syntax baseline |
-| init | `test_contract.InitCases` | Directory and default required-file creation, directory name/explicit name, existing-file validation, idempotency, and zero writes on failure |
+| init | `test_contract.InitCases` | Directory and default required-file creation, directory name/explicit name, project-local self-hosted bootstrap, relative-path validation, existing-file validation, idempotency, and zero writes on failure |
 | static golden | `test_contract.GoldenBuildCases` | Public `examples/all-agents-golden` input, complete managed target sets for all four Agents, full contents of key files, lock digest/provenance, and byte stability on the second build |
 | public examples | `test_examples.PublicExampleCases` | A temporary copy of `examples/multi-pipeline-project` builds two PipeSpaces with distinct Skills and Rules, both workspace files resolve to the same project, and project bytes remain unchanged |
 | manifest | `test_manifest_workspace.ManifestValidationCases`, `test_space_tree.PipeSpaceTreeCases` | malformed/non-object input, required/unknown fields, schema, name, agents, skills, tags, providers, description, and strict child scan-depth settings |
@@ -40,6 +40,7 @@ This document counts independent black-box test methods; a table or subtest with
 | filesystem security | `test_lifecycle_security.FilesystemBoundaryCases` | Forged locks, unowned targets, type drift, Builder state/target symlink escape, NFC/NFD/case collisions, Windows reserved names, invalid locks, and recursive providers |
 | automatic child PipeSpaces | `test_space_tree.PipeSpaceTreeCases` | Unified check/explain/build/verify/clean; default and configured depth; recursive discovery; root-only depth zero; hidden/generated/symlink exclusions; reverse clean; independent ownership; membership drift and rebuild; cross-member stale plans; partial journals; and convergence on rerun |
 | release/runner | `test_contract.CliContractCases` | Independent execution after copying the single file, SHA256 report, credential redaction in command records, and exclusion of auth/home from failure artifacts |
+| Agent Skill release | `test_skill_release.SkillReleaseCases` | Root Skill metadata, project-local shared-Skill README flow, latest-Release links, deterministic three-file ZIP, extracted CLI execution, full-Skill updater replacement, dry run, and invalid-ZIP preservation |
 
 ## Stable diagnostics
 

@@ -41,18 +41,18 @@ generated for that pipeline. It is not a copy of the project.
 each use a separate task pipeline:
 
 ```text
-team-workspace/
-├── project/                         # the same project
-├── shared-skills/                   # reusable team capability packs
+project/
+├── ...                              # business code
 └── pipespaces/
-    ├── feature-development/         # implementation and testing capabilities
-    ├── bugfix-review/               # diagnosis and review capabilities
-    └── release-maintenance/         # build and release capabilities
+    ├── shared/skills/               # reusable cross-agent Skills
+    ├── project-dev/                 # implementation pipeline
+    ├── project-bugfix/              # diagnosis pipeline
+    └── project-release/             # release pipeline
 ```
 
-Each PipeSpace can select a different combination of Skills, Rules, Hooks, MCP, and agents.
-Its `.code-workspace` file references the PipeSpace itself and one or more project folders, so
-pipeline configuration does not have to live in the project.
+Keeping `pipespaces/` inside the project is the recommended starting layout. Each PipeSpace
+selects its own Skills, Rules, Hooks, MCP, and agents while its `.code-workspace` references
+the project root.
 
 A local folder or Git repository that supplies capability packs is a **Skill Provider**.
 
@@ -86,7 +86,67 @@ shared-skills/bugfix-review/
 Teams can therefore select and version complete capability packs instead of maintaining
 separate platform configuration scattered across projects.
 
-## Quick Start in 60 Seconds
+## Bootstrap PipeBuilder and the First PipeSpace
+
+Create the shared Skill Provider inside the project and extract the latest Release there:
+
+```text
+<project>/pipespaces/
+├── shared/skills/pipebuilder/
+└── <project>-dev/
+```
+
+macOS or Linux:
+
+```bash
+PROJECT_ROOT="/path/to/project"
+SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
+mkdir -p "${SHARED_SKILLS}"
+curl -fsSL "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
+```
+
+PowerShell:
+
+```powershell
+$ProjectRoot = "C:\path\to\project"
+$SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
+New-Item -ItemType Directory -Force $SharedSkills | Out-Null
+Invoke-WebRequest "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
+```
+
+Create the first project-local PipeSpace. The relative paths are resolved from the new
+PipeSpace:
+
+```bash
+PROJECT_NAME="project"
+SPACE="${PROJECT_ROOT}/pipespaces/${PROJECT_NAME}-dev"
+BUILDER="${SHARED_SKILLS}/pipebuilder/pipebuilder.py"
+python3 "${BUILDER}" init "${SPACE}" \
+  --name "${PROJECT_NAME}-dev" \
+  --project ../.. \
+  --shared-skills ../shared/skills
+python3 "${BUILDER}" check "${SPACE}"
+python3 "${BUILDER}" explain "${SPACE}"
+python3 "${BUILDER}" build "${SPACE}" --dry-run
+python3 "${BUILDER}" build "${SPACE}"
+python3 "${BUILDER}" verify "${SPACE}"
+```
+
+`init` writes the workspace folder inventory, configures the shared folder Provider, and
+selects `pipebuilder`. The first build projects the Skill into every configured Agent.
+
+PipeSpaces may also live outside the project. Keep the shared Skills and PipeSpaces together,
+then pass `--project` and `--shared-skills` paths relative to the new PipeSpace.
+
+Update the shared Skill from the latest Release with:
+
+```bash
+python3 <project>/pipespaces/shared/skills/pipebuilder/scripts/update.py
+```
+
+## Standalone CLI Quick Start
 
 Runtime requires only Python 3.7+ and the single `pipebuilder.py` file. Git is required only
 when using a Git Skill Provider. No third-party Python packages are required.
@@ -353,9 +413,9 @@ git push origin v0.1.2
 ```
 
 The release workflow reruns the complete E0 platform matrix, verifies that the tag matches
-`VERSION`, and publishes a GitHub Release containing `pipebuilder.py` and
-`pipebuilder.py.sha256`. An existing tag can also be released or retried through the workflow's
-manual dispatch input.
+`VERSION`, and publishes `pipebuilder.py`, `pipebuilder.py.sha256`, and
+`pipebuilder-skill.zip`. An existing tag can also be released or retried through the
+workflow's manual dispatch input.
 
 ## License
 

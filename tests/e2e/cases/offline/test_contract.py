@@ -8,7 +8,7 @@ from pathlib import Path
 
 from support import PipeBuilderE2ECase
 from support.model import CaseMetadata
-from support.sandbox import EXAMPLES, PIPEBUILDER, Sandbox, snapshot_tree
+from support.sandbox import EXAMPLES, PIPEBUILDER, REPO_ROOT, Sandbox, snapshot_tree
 
 
 class GoldenBuildCases(PipeBuilderE2ECase):
@@ -248,3 +248,120 @@ class InitCases(PipeBuilderE2ECase):
         before = snapshot_tree(self.box.root)
         self.expect_code(self.box.builder("init"), "PB004")
         self.assertEqual(snapshot_tree(self.box.root), before)
+
+    def test_project_local_bootstrap_creates_a_buildable_self_hosted_pipespace(self):
+        project = self.box.base / "sample-project"
+        shared = project / "pipespaces/shared/skills/pipebuilder"
+        space = project / "pipespaces/sample-project-dev"
+        (shared / "scripts").mkdir(parents=True)
+        for relative in ("SKILL.md", "pipebuilder.py", "scripts/update.py"):
+            shutil.copy2(REPO_ROOT / relative, shared / relative)
+
+        initialized = self.box.run_command(
+            [
+                str(Path(__import__("sys").executable)),
+                str(PIPEBUILDER),
+                "init",
+                str(space),
+                "--name",
+                "sample-project-dev",
+                "--project",
+                "../..",
+                "--shared-skills",
+                "../shared/skills",
+                "--format",
+                "json",
+            ],
+            cwd=project,
+        )
+        self.expect_ok(initialized)
+        manifest = json.loads((space / "pipespace.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["skills"], ["pipebuilder"])
+        self.assertEqual(
+            manifest["skillProviders"],
+            [{"type": "folder", "path": "../shared/skills"}],
+        )
+        workspace = json.loads(
+            (space / "sample-project-dev.code-workspace").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            workspace["folders"],
+            [
+                {"name": "pipeline", "path": "."},
+                {"name": "project", "path": "../.."},
+            ],
+        )
+        repeated = self.box.run_command(
+            [
+                str(Path(__import__("sys").executable)),
+                str(PIPEBUILDER),
+                "init",
+                str(space),
+                "--name",
+                "sample-project-dev",
+                "--project",
+                "../..",
+                "--shared-skills",
+                "../shared/skills",
+                "--format",
+                "json",
+            ],
+            cwd=project,
+        )
+        repeated_payload = self.expect_ok(repeated)
+        self.assertEqual(repeated_payload["summary"], {"created": 0, "validated": 2})
+        for command in ("check", "build", "verify"):
+            result = self.box.run_command(
+                [
+                    str(Path(__import__("sys").executable)),
+                    str(PIPEBUILDER),
+                    command,
+                    str(space),
+                    "--format",
+                    "json",
+                ],
+                cwd=project,
+            )
+            self.expect_ok(result)
+        self.assertTrue((space / ".agents/skills/pipebuilder/SKILL.md").is_file())
+        self.assertTrue((space / ".cursor/skills/pipebuilder/SKILL.md").is_file())
+
+    def test_bootstrap_paths_are_relative_existing_and_contain_pipebuilder(self):
+        project = self.box.base / "sample-project"
+        project.mkdir()
+        space = project / "pipespaces/sample-project-dev"
+        missing_shared = project / "pipespaces/shared/skills"
+        missing_shared.mkdir(parents=True)
+
+        absolute = self.box.run_command(
+            [
+                str(Path(__import__("sys").executable)),
+                str(PIPEBUILDER),
+                "init",
+                str(space),
+                "--project",
+                str(project),
+                "--format",
+                "json",
+            ],
+            cwd=project,
+        )
+        self.expect_code(absolute, "PB001")
+        missing_skill = self.box.run_command(
+            [
+                str(Path(__import__("sys").executable)),
+                str(PIPEBUILDER),
+                "init",
+                str(space),
+                "--project",
+                "../..",
+                "--shared-skills",
+                "../shared/skills",
+                "--format",
+                "json",
+            ],
+            cwd=project,
+        )
+        self.expect_code(missing_skill, "PB005")
+        self.assertFalse((space / "pipespace.json").exists())
+        self.assertFalse(any(space.glob("*.code-workspace")))

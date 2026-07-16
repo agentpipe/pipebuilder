@@ -35,18 +35,17 @@ PipeBuilder 解决这两个问题：
 `<project>` 是业务代码实体。需求开发、缺陷修复和代码审查可以分别使用独立的任务管线：
 
 ```text
-team-workspace/
-├── project/                         # 同一份 project
-├── shared-skills/                   # 团队复用的能力包
+project/
+├── ...                              # 业务代码
 └── pipespaces/
-    ├── feature-development/         # 实现、测试相关能力
-    ├── bugfix-review/               # 诊断、审查相关能力
-    └── release-maintenance/         # 构建、发布相关能力
+    ├── shared/skills/               # 跨 Agent 公共 Skills
+    ├── project-dev/                 # 实现管线
+    ├── project-bugfix/              # 诊断管线
+    └── project-release/             # 发布管线
 ```
 
-每个 PipeSpace 可以选择不同的 Skills、Rules、Hooks、MCP 和 Agent 组合。它的
-`.code-workspace` 文件引用 PipeSpace 自身和一个或多个 project folder，因此管线配置
-不必全部进入 project。
+首推把 `pipespaces/` 放在项目内。每个 PipeSpace 选择自己的 Skills、Rules、Hooks、
+MCP 和 Agent 组合，并通过 `.code-workspace` 引用项目根目录。
 
 负责提供能力包的本地 folder 或 Git repository 称为 **Skill Provider**。
 
@@ -77,7 +76,66 @@ shared-skills/bugfix-review/
 
 因此，团队选择和版本化的是完整能力包，而不是散落在每个 project 里的多份平台配置。
 
-## 60 秒快速开始
+## 自举 PipeBuilder 与首个 PipeSpace
+
+先在项目内创建公共 Skill Provider，并把最新 Release 解压到这里：
+
+```text
+<project>/pipespaces/
+├── shared/skills/pipebuilder/
+└── <project>-dev/
+```
+
+macOS 或 Linux：
+
+```bash
+PROJECT_ROOT="/path/to/project"
+SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
+mkdir -p "${SHARED_SKILLS}"
+curl -fsSL "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
+```
+
+PowerShell：
+
+```powershell
+$ProjectRoot = "C:\path\to\project"
+$SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
+New-Item -ItemType Directory -Force $SharedSkills | Out-Null
+Invoke-WebRequest "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
+```
+
+创建第一个项目内 PipeSpace。两个相对路径都从新 PipeSpace 出发解析：
+
+```bash
+PROJECT_NAME="project"
+SPACE="${PROJECT_ROOT}/pipespaces/${PROJECT_NAME}-dev"
+BUILDER="${SHARED_SKILLS}/pipebuilder/pipebuilder.py"
+python3 "${BUILDER}" init "${SPACE}" \
+  --name "${PROJECT_NAME}-dev" \
+  --project ../.. \
+  --shared-skills ../shared/skills
+python3 "${BUILDER}" check "${SPACE}"
+python3 "${BUILDER}" explain "${SPACE}"
+python3 "${BUILDER}" build "${SPACE}" --dry-run
+python3 "${BUILDER}" build "${SPACE}"
+python3 "${BUILDER}" verify "${SPACE}"
+```
+
+`init` 会写入 workspace folder、配置公共 folder Provider，并选择 `pipebuilder`。
+第一次 build 后，PipeBuilder Skill 会投影到所有已配置 Agent。
+
+PipeSpace 也可以放在项目外。让公共 Skills 与各 PipeSpace 保持在同一管线根下，再传入
+相对新 PipeSpace 的 `--project` 和 `--shared-skills` 路径即可。
+
+从最新 Release 更新公共 Skill：
+
+```bash
+python3 <project>/pipespaces/shared/skills/pipebuilder/scripts/update.py
+```
+
+## 单文件 CLI 快速开始
 
 运行时只需要 Python 3.7+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
 时才需要系统安装 Git；不需要安装 Python 第三方包。
@@ -328,9 +386,9 @@ git tag -a v0.1.2 -m "PipeBuilder v0.1.2"
 git push origin v0.1.2
 ```
 
-发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后创建包含
-`pipebuilder.py` 和 `pipebuilder.py.sha256` 的 GitHub Release。也可以通过工作流的
-手动输入发布或重试已有 tag。
+发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后发布
+`pipebuilder.py`、`pipebuilder.py.sha256` 和 `pipebuilder-skill.zip`。也可以通过
+工作流的手动输入发布或重试已有 tag。
 
 ## 许可证
 
