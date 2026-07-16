@@ -195,7 +195,7 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.1.1 需要 Python 3.7+，支持三大桌面平台：
+PipeBuilder 0.1.2 需要 Python 3.7+，支持三大桌面平台：
 
 | 平台 | 状态 | 已测试版本 |
 | --- | --- | --- |
@@ -324,8 +324,8 @@ E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客
 通过后，创建并推送匹配的 tag：
 
 ```bash
-git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
-git push origin v0.1.1
+git tag -a v0.1.2 -m "PipeBuilder v0.1.2"
+git push origin v0.1.2
 ```
 
 发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后创建包含

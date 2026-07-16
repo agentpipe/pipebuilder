@@ -211,7 +211,7 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.1.1 requires Python 3.7+ and supports all three major desktop platforms:
+PipeBuilder 0.1.2 requires Python 3.7+ and supports all three major desktop platforms:
 
 | Platform | Status | Tested versions |
 | --- | --- | --- |
@@ -348,8 +348,8 @@ Set `VERSION` in `pipebuilder.py` and keep the documented version and version co
 in sync. After the main E0 workflow passes, create and push the matching tag:
 
 ```bash
-git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
-git push origin v0.1.1
+git tag -a v0.1.2 -m "PipeBuilder v0.1.2"
+git push origin v0.1.2
 ```
 
 The release workflow reruns the complete E0 platform matrix, verifies that the tag matches

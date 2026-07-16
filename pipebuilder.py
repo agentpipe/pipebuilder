@@ -117,7 +117,7 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 REPORT_SCHEMA = "pipebuilder-report.v1"
 LOCK_SCHEMA = "pipebuilder-lock.v1"
 SPACE_SCHEMA = "pipespace.v1"
@@ -868,7 +868,7 @@ def load_workspace(root: Path, manifest: Manifest) -> Workspace:
         if not resolved.is_dir():
             fail("PB004", f"Workspace folder does not exist: {configured}", sources=(path.as_posix(), configured))
         if "name" not in item:
-            name = (root / configured).name
+            name = resolved.name
             if not name:
                 fail(
                     "PB004",

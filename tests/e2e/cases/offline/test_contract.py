@@ -118,7 +118,7 @@ class CliContractCases(PipeBuilderE2ECase):
         self.assertIn("OK check fixture-space", text.stdout)
         version = self.box.run_command([str(Path(__import__("sys").executable)), str(PIPEBUILDER), "--version"])
         self.assertEqual(version.returncode, 0)
-        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.1")
+        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.2")
 
     def test_json_report_contract_for_build_and_clean(self):
         build = self.expect_ok(self.box.builder("build"))

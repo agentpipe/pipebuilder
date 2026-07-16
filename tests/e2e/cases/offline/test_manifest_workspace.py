@@ -192,6 +192,23 @@ class WorkspaceValidationCases(PipeBuilderE2ECase):
         self.assertIn(f"`{self.box.root.name}`: `.`", guidance)
         self.assertIn("`external-project`: `../external-project`", guidance)
 
+    def test_folder_name_is_derived_from_resolved_parent_traversal(self):
+        self.box.root = self.box.base / "nested" / "a" / "b" / "space"
+        self.box.root.mkdir(parents=True)
+        configured = "../../.."
+        expected = (self.box.root / configured).resolve()
+        self.box.manifest(agents=["codex"], folders=[{"path": configured}])
+
+        payload = self.expect_ok(self.box.builder("explain"))
+        self.assertEqual(
+            payload["details"]["workspace"]["folders"],
+            [{"name": expected.name, "path": configured}],
+        )
+        self.expect_ok(self.box.builder("build"))
+        guidance = (self.box.root / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn(f"`{expected.name}`: `{configured}`", guidance)
+        self.assertNotIn(f"- `..`: `{configured}`", guidance)
+
     def test_same_directory_external_and_multiple_folders_are_preserved_in_order(self):
         external = self.box.base / "café project #1 'quoted' $dollar"
         external.mkdir()
