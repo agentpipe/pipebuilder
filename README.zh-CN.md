@@ -6,59 +6,31 @@
 [![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 面向团队的跨 AI 编程 Agent 能力复用与任务管线空间构建工具。
+> 跨 AI 编程 Agent 复用同一套 Skill；让一个 project 拥有多条任务专属 Agent
+> 管线，每条管线独立选择自己的能力集合。
 
-Codex、Cursor、Claude Code 等 AI 编程 Agent 使用不同的 Skills、Rules、Hooks、MCP
-和 workspace 规范。同一套团队能力需要反复适配，时间久了还会出现配置漂移和行为不一致。
+PipeBuilder 是面向团队的**跨 Agent Skill 复用**与**任务专属 AI 编程 Agent 管线**
+构建工具。团队只需维护一份能力来源，就能在 Cursor、Claude Code、Codex 和 CodeBuddy
+之间共享标准 Agent Skill；每条任务管线则只加载自己真正需要的 Skills、Rules、Hooks、
+Commands 和平台原生配置。
 
-同一个 `<project>` 在需求开发、缺陷修复、代码审查等任务中，需要不同侧重点的 Agent
-能力，部分任务专属能力不应同时加载。如果把所有配置都堆进 project 根目录，无关 Skills
-与 Rules 会扩大上下文、产生冲突，无关 Hooks 也可能在错误任务中执行。
+PipeBuilder 解决两个反复出现的 Agent 工程问题：
 
-PipeBuilder 解决这两个问题：
+1. **同一个 Skill 需要为不同编程 Agent 反复适配。** 多份副本逐渐漂移，修复无法同步，
+   平台专属扩展也散落在不同仓库。
+2. **一个 project 被迫承载所有任务的 Agent 能力。** 无关 Skills 扩大上下文，相互冲突的
+   Rules 争夺注意力，无关 Hooks 还可能在错误任务中运行。
 
-- **一套能力，跨 Agent 复用**：标准 Skill 由各平台共享；平台原生的 Rules、Hooks、
-  Commands、Agents 和 MCP 配置可以随同一个能力包分发。
-- **一个 project，多条 Agent 管线**：每条任务管线只组合自己需要的 Agent 和能力，
-  同时引用同一份 project。
-- **通过 Skill Provider 复用并版本化团队能力**：Skill Provider 既可以来自本地
-  folder，也可以来自 Git repository，团队可以在本机共享能力包，也可以固定仓库版本。
-- **生成平台原生配置**：不要求 Agent 理解 PipeBuilder 协议，构建结果仍是
-  `AGENTS.md`、`CLAUDE.md`、`.cursor/`、`.claude/` 等原生文件。
+PipeBuilder 是构建期配置编译器，不是 CI/CD 流水线，也不是多 Agent 运行时编排器。
+它生成各编程 Agent 能直接识别的原生文件。
 
-**PipeSpace** 是与 `<project>` 解耦、面向特定任务的 agent pipeline root/space。
-它通过 workspace 文件引用一个或多个 project folder，并承载该管线生成的配置；
-它不是 project 的副本。
+## 跨 Agent 复用 Agent Skills
 
-## 一个 project，多条 Agent 开发管线
-
-`<project>` 是业务代码实体。需求开发、缺陷修复和代码审查可以分别使用独立的任务管线：
-
-```text
-project/
-├── ...                              # 业务代码
-└── pipespaces/
-    ├── shared/skills/               # 跨 Agent 公共 Skills
-    ├── project-dev/                 # 实现管线
-    ├── project-bugfix/              # 诊断管线
-    └── project-release/             # 发布管线
-```
-
-首推把 `pipespaces/` 放在项目内。每个 PipeSpace 选择自己的 Skills、Rules、Hooks、
-MCP 和 Agent 组合，并通过 `.code-workspace` 引用项目根目录。
-
-负责提供能力包的本地 folder 或 Git repository 称为 **Skill Provider**。
-
-> PipeSpace 隔离的是 Agent 配置、上下文和管线组合，不是代码写入。多个 Agent
-> 并行修改同一个 project 时，仍应使用 Git 分支、worktree 或独立 clone。
-
-## 一套能力，跨 Agent 复用
-
-一个能力包由两部分组成：
+一个可复用能力包把可移植的 Agent Skill 和可选的平台原生扩展放在一起：
 
 ```text
 shared-skills/bugfix-review/
-├── SKILL.md                          # 各 Agent 共用的标准 Skill
+├── SKILL.md                          # 跨 Agent 共享的可移植 Skill
 ├── scripts/
 ├── references/
 └── .pipe-agents/                    # 可选的平台原生扩展
@@ -68,13 +40,50 @@ shared-skills/bugfix-review/
     └── claude-code/.claude/settings.json
 ```
 
-- `SKILL.md`、脚本和参考资料属于可移植部分，安装到各平台的标准 Skill 目录。
-- `.pipe-agents/<agent>/` 保留该平台的原生目录和格式，由对应 Adapter 合并到目标
-  PipeSpace。
-- PipeBuilder 不声称把同一份 Rule 或 Hook 无损翻译到所有平台；它让一个能力包同时
-  携带标准 Skill 和必要的平台原生扩展。
+- `SKILL.md`、scripts、references 和 assets 构成可移植 Skill，并安装到各 Agent 的标准
+  Skill 目录。
+- `.pipe-agents/<agent>/` 保留对应 Agent 的原生格式。PipeBuilder 通过匹配的 Adapter
+  投影这些文件，不假装不同平台的 Rules 或 Hooks 可以无损互译。
+- Folder 和 Git **Skill Provider** 用于共享完整能力包；Git Provider 会把 branch 或
+  tag 解析并固定到 lock 中的 commit，保证构建可复现。
 
-因此，团队选择和版本化的是完整能力包，而不是散落在每个 project 里的多份平台配置。
+最终，团队只维护一份跨 Agent Skill 来源；平台差异与 Skill 放在一起，不再复制到每个
+project 和 Agent 目录。
+
+## 一个 project，多条任务专属 Agent 管线
+
+**PipeSpace** 是与业务代码 `<project>` 解耦的任务专属 Agent 管线根。每个 PipeSpace
+独立选择 Agents、Skills、tags、Skill Providers 和管线级原生覆盖，同时通过 workspace
+文件引用同一份 project：
+
+```text
+project/
+├── ...                              # 业务代码
+└── pipespaces/
+    ├── shared/skills/               # 可跨 Agent 复用的能力包
+    ├── feature-development/         # 功能开发 Skills 与 Agent 配置
+    ├── bugfix-review/               # 诊断与审查能力
+    └── release/                     # 仅发布任务使用的能力
+```
+
+首推把 `pipespaces/` 放在 project 内。每条管线生成的 Agent 配置留在自己的 PipeSpace，
+不会污染 project 根目录：
+
+```text
+Skill Providers + PipeSpace 本地 Skills + PipeSpace Agent 原生覆盖
+                              ↓
+                 pipespace.json 选择能力子集
+                              ↓
+                    PipeBuilder Adapter plan
+                              ↓
+        各 Agent 的原生 Skills / Rules / Hooks / 配置
+```
+
+需求开发、缺陷修复、代码审查和发布由此拥有独立的能力集合；既不复制 project，也不把
+所有 Skill 同时加载进同一个 Agent workspace。
+
+> PipeSpace 隔离的是 Agent 配置、上下文和能力组合，不是代码写入。多个 Agent 并行修改
+> 同一个 project 时，仍应使用 Git 分支、worktree 或独立 clone。
 
 ## 自举 PipeBuilder 与首个 PipeSpace
 
@@ -224,6 +233,10 @@ feature-development/
 }
 ```
 
+PipeSpace 本地可复用 Skills 位于 `.pipebuilder/skills/`，来源优先级最高；管线专属的
+Agent 原生配置位于 `.pipebuilder/agents/<agent>/`，用于补充从 Skill Provider 选择的
+共享能力包。
+
 workspace 文件同时包含 PipeSpace 自身和一个或多个外部 project folder。`pipeline`
 folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` folder 指向 project：
 
@@ -274,13 +287,15 @@ PipeBuilder 0.1.3 需要 Python 3.7+，支持三大桌面平台：
 当前实现支持的结构，但尚未建立真实客户端 E1。状态会写入 `explain` 和
 `.pipebuilder/lock.json`。
 
-## Skill Provider
+## Skill 来源与 Skill Provider
 
-PipeBuilder 支持三类 Skill 来源：
+PipeBuilder 从一个隐式本地来源和两类已配置 Provider 解析 Skills：
 
-1. `.pipebuilder/skills/`：当前 PipeSpace 的本地能力，优先级最高。
-2. Folder Skill Provider：引用本机或仓库内的共享能力目录。
-3. Git Skill Provider：按 branch 或 tag 获取能力仓库，并在 lock 中固定到 commit。
+1. `.pipebuilder/skills/`：当前 PipeSpace 隐式的 `space-local` 来源，优先级最高；
+   它不是 `skillProviders[]` 中的配置项。
+2. Folder Skill Provider：已配置的 Provider，引用本机或仓库内的共享能力目录。
+3. Git Skill Provider：已配置的 Provider，按 branch 或 tag 获取能力仓库，并在 lock
+   中固定解析后的 commit。
 
 Folder Skill Provider：
 
@@ -326,8 +341,9 @@ python3 pipebuilder.py clean [SPACE]
 PipeSpace，并对完整层级执行操作。可通过 `"children": {"scanDepth": N}` 调整深度，
 设为 `0` 时只处理根 Space。扫描会跳过隐藏目录、生成目录和符号链接目录。
 
-Tree 只编排显式声明的一层 children，不扫描目录，也不隐式递归。普通 `build` 和 `clean`
-始终只处理指定的单个 PipeSpace。
+不存在单独的 Tree manifest 或命令族。发现嵌套 PipeSpace 后，所有成员都会在写入前完成
+只读规划；`build` 按根到子级顺序应用，`verify` 检查层级总收据及每个成员，`clean`
+则先清理子级再清理根。
 
 自动化应使用 `--format json`，并依赖 `pipebuilder-report.v1` 中稳定的 diagnostic code，
 不要解析面向人的提示文本。
