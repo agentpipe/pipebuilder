@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -18,7 +19,7 @@ import zipfile
 from pathlib import Path
 
 
-REPOSITORY = "aikenc/pipebuilder"
+REPOSITORY = "agentpipe/pipebuilder"
 ARCHIVE = "pipebuilder-skill.zip"
 SKILL_NAME = "pipebuilder"
 MEMBERS = (
@@ -47,6 +48,25 @@ def download(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "pipebuilder-skill-updater"})
     with urllib.request.urlopen(request, timeout=120) as response:
         return response.read()
+
+
+def checksum_url(archive_url: str) -> str:
+    return archive_url + ".sha256"
+
+
+def verify_checksum(payload: bytes, checksum_payload: bytes) -> str:
+    try:
+        checksum_text = checksum_payload.decode("ascii").strip()
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("release checksum must be ASCII") from exc
+    match = re.fullmatch(r"([0-9a-fA-F]{64})(?:\s+\*?\S+)?", checksum_text)
+    if match is None:
+        raise RuntimeError("release checksum is not a valid SHA-256 record")
+    expected = match.group(1).lower()
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != expected:
+        raise RuntimeError("release archive SHA-256 mismatch")
+    return actual
 
 
 def inspect_archive(payload: bytes) -> tuple[dict[str, bytes], str]:
@@ -153,8 +173,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     archive_url = args.archive_url or release_url(args.tag)
+    archive_checksum_url = checksum_url(archive_url)
     try:
         archive_payload = download(archive_url)
+        archive_checksum = verify_checksum(
+            archive_payload,
+            download(archive_checksum_url),
+        )
         files, version = inspect_archive(archive_payload)
     except (OSError, RuntimeError, urllib.error.URLError) as exc:
         print(f"update failed: {exc}", file=sys.stderr)
@@ -180,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
                 "changed": changed,
                 "version": version,
                 "archive": archive_url,
+                "archiveSha256": archive_checksum,
+                "checksum": archive_checksum_url,
                 "target": str(root),
                 "files": list(MEMBERS),
             },

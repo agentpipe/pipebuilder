@@ -117,7 +117,7 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 REPORT_SCHEMA = "pipebuilder-report.v1"
 LOCK_SCHEMA = "pipebuilder-lock.v1"
 SPACE_SCHEMA = "pipespace.v1"
@@ -2666,13 +2666,23 @@ def process_alive(pid: int) -> bool:
     if os.name == "nt":
         try:
             import ctypes
+            from ctypes import wintypes
 
             kernel32 = ctypes.windll.kernel32
             synchronize = 0x00100000
+            wait_timeout = 0x00000102
+            kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
             handle = kernel32.OpenProcess(synchronize, False, pid)
             if handle:
-                kernel32.CloseHandle(handle)
-                return True
+                try:
+                    return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+                finally:
+                    kernel32.CloseHandle(handle)
             return False
         except Exception:
             return False

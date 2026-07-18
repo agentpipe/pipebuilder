@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
+[![E2E](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml)
 [![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -92,7 +92,7 @@ macOS 或 Linux：
 PROJECT_ROOT="/path/to/project"
 SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
 mkdir -p "${SHARED_SKILLS}"
-curl -fsSL "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+curl -fsSL "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
 unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
 ```
 
@@ -102,7 +102,7 @@ PowerShell：
 $ProjectRoot = "C:\path\to\project"
 $SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
 New-Item -ItemType Directory -Force $SharedSkills | Out-Null
-Invoke-WebRequest "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Invoke-WebRequest "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
 Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
 ```
 
@@ -141,7 +141,7 @@ python3 <project>/pipespaces/shared/skills/pipebuilder/scripts/update.py
 时才需要系统安装 Git；不需要安装 Python 第三方包。
 
 ```bash
-curl -O https://raw.githubusercontent.com/aikenc/pipebuilder/main/pipebuilder.py
+curl -O https://raw.githubusercontent.com/agentpipe/pipebuilder/main/pipebuilder.py
 python3 pipebuilder.py --version
 
 python3 pipebuilder.py init ./demo-space
@@ -169,7 +169,7 @@ demo-space/
 包含一份示例 project、共享能力包，以及两条使用不同能力组合的 PipeSpace：
 
 ```bash
-git clone https://github.com/aikenc/pipebuilder.git
+git clone https://github.com/agentpipe/pipebuilder.git
 cd pipebuilder
 
 python3 pipebuilder.py check examples/multi-pipeline-project/pipespaces/feature-development
@@ -253,7 +253,7 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.1.2 需要 Python 3.7+，支持三大桌面平台：
+PipeBuilder 0.1.3 需要 Python 3.7+，支持三大桌面平台：
 
 | 平台 | 状态 | 已测试版本 |
 | --- | --- | --- |
@@ -371,7 +371,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) 运行上表所列
+[GitHub Actions](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml) 运行上表所列
 E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客户端 E1 用例，但这些
 用例目前只在已安装对应客户端的环境中运行，尚未接入 GitHub 托管 Actions。CodeBuddy
 仍为 `generated-only`。
@@ -382,13 +382,14 @@ E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客
 通过后，创建并推送匹配的 tag：
 
 ```bash
-git tag -a v0.1.2 -m "PipeBuilder v0.1.2"
-git push origin v0.1.2
+git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
+git push origin v0.1.3
 ```
 
 发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后发布
-`pipebuilder.py`、`pipebuilder.py.sha256` 和 `pipebuilder-skill.zip`。也可以通过
-工作流的手动输入发布或重试已有 tag。
+`pipebuilder.py`、`pipebuilder.py.sha256`、`pipebuilder-skill.zip` 和
+`pipebuilder-skill.zip.sha256`。Skill 更新器会先验证 ZIP 校验和，再替换已安装文件。
+也可以通过工作流的手动输入发布或重试已有 tag。
 
 ## 许可证
 

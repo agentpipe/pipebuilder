@@ -78,6 +78,7 @@ jobs:
               dist/pipebuilder.py \
               dist/pipebuilder.py.sha256 \
               dist/pipebuilder-skill.zip \
+              dist/pipebuilder-skill.zip.sha256 \
               --clobber \
               --repo "$GITHUB_REPOSITORY"
           else
@@ -85,6 +86,7 @@ jobs:
               dist/pipebuilder.py \
               dist/pipebuilder.py.sha256 \
               dist/pipebuilder-skill.zip \
+              dist/pipebuilder-skill.zip.sha256 \
               --verify-tag \
               --generate-notes \
               --title "PipeBuilder $RELEASE_TAG" \

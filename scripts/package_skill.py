@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import zipfile
 from pathlib import Path
@@ -50,6 +51,11 @@ def build_archive(root: Path, output: Path) -> None:
                 zip_info(f"{SKILL_NAME}/{relative}", source.stat().st_mode),
                 source.read_bytes(),
             )
+    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    output.with_name(output.name + ".sha256").write_text(
+        f"{digest}  {output.name}\n",
+        encoding="ascii",
+    )
 
 
 def main() -> int:

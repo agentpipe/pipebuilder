@@ -2,7 +2,7 @@
 
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
-[![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
+[![E2E](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml)
 [![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -102,7 +102,7 @@ macOS or Linux:
 PROJECT_ROOT="/path/to/project"
 SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
 mkdir -p "${SHARED_SKILLS}"
-curl -fsSL "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+curl -fsSL "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
 unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
 ```
 
@@ -112,7 +112,7 @@ PowerShell:
 $ProjectRoot = "C:\path\to\project"
 $SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
 New-Item -ItemType Directory -Force $SharedSkills | Out-Null
-Invoke-WebRequest "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Invoke-WebRequest "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
 Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
 ```
 
@@ -152,7 +152,7 @@ Runtime requires only Python 3.7+ and the single `pipebuilder.py` file. Git is r
 when using a Git Skill Provider. No third-party Python packages are required.
 
 ```bash
-curl -O https://raw.githubusercontent.com/aikenc/pipebuilder/main/pipebuilder.py
+curl -O https://raw.githubusercontent.com/agentpipe/pipebuilder/main/pipebuilder.py
 python3 pipebuilder.py --version
 
 python3 pipebuilder.py init ./demo-space
@@ -181,7 +181,7 @@ contains one example project, shared capability packs, and two PipeSpaces with d
 capability selections:
 
 ```bash
-git clone https://github.com/aikenc/pipebuilder.git
+git clone https://github.com/agentpipe/pipebuilder.git
 cd pipebuilder
 
 python3 pipebuilder.py check examples/multi-pipeline-project/pipespaces/feature-development
@@ -271,7 +271,7 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.1.2 requires Python 3.7+ and supports all three major desktop platforms:
+PipeBuilder 0.1.3 requires Python 3.7+ and supports all three major desktop platforms:
 
 | Platform | Status | Tested versions |
 | --- | --- | --- |
@@ -396,7 +396,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) runs the E0
+[GitHub Actions](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml) runs the E0
 platform matrix listed above. The repository also includes installed-client E1 cases for
 Codex, Cursor, and Claude Code, but those cases currently run only in environments where the
 clients are installed; they are not part of the hosted GitHub Actions workflow. CodeBuddy
@@ -408,14 +408,15 @@ Set `VERSION` in `pipebuilder.py` and keep the documented version and version co
 in sync. After the main E0 workflow passes, create and push the matching tag:
 
 ```bash
-git tag -a v0.1.2 -m "PipeBuilder v0.1.2"
-git push origin v0.1.2
+git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
+git push origin v0.1.3
 ```
 
 The release workflow reruns the complete E0 platform matrix, verifies that the tag matches
-`VERSION`, and publishes `pipebuilder.py`, `pipebuilder.py.sha256`, and
-`pipebuilder-skill.zip`. An existing tag can also be released or retried through the
-workflow's manual dispatch input.
+`VERSION`, and publishes `pipebuilder.py`, `pipebuilder.py.sha256`,
+`pipebuilder-skill.zip`, and `pipebuilder-skill.zip.sha256`. The Skill updater verifies the
+ZIP checksum before replacing installed files. An existing tag can also be released or
+retried through the workflow's manual dispatch input.
 
 ## License
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import shutil
 import sys
 import zipfile
@@ -51,20 +53,26 @@ class SkillReleaseCases(PipeBuilderE2ECase):
         for name in ("README.md", "README.zh-CN.md"):
             content = (REPO_ROOT / name).read_text(encoding="utf-8")
             self.assertIn(
-                "https://github.com/aikenc/pipebuilder/releases/latest/download/pipebuilder-skill.zip",
+                "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip",
                 content,
             )
-            self.assertNotIn("raw.githubusercontent.com/aikenc/pipebuilder/main/SKILL.md", content)
+            self.assertEqual(
+                set(re.findall(r"(?:github\.com|githubusercontent\.com)/([^/\s\"]+)/pipebuilder", content)),
+                {"agentpipe"},
+            )
+            self.assertNotIn("raw.githubusercontent.com/agentpipe/pipebuilder/main/SKILL.md", content)
             self.assertIn("pipespaces/shared/skills", content)
             self.assertIn("--project ../..", content)
             self.assertIn("--shared-skills ../shared/skills", content)
         updater = (REPO_ROOT / "scripts/update.py").read_text(encoding="utf-8")
+        self.assertIn('REPOSITORY = "agentpipe/pipebuilder"', updater)
         self.assertIn("latest/download", updater)
         workflow = (REPO_ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         for artifact in (
             "dist/pipebuilder.py",
             "dist/pipebuilder.py.sha256",
             "dist/pipebuilder-skill.zip",
+            "dist/pipebuilder-skill.zip.sha256",
         ):
             self.assertIn(artifact, workflow)
 
@@ -72,6 +80,14 @@ class SkillReleaseCases(PipeBuilderE2ECase):
         first = self.package("first.zip")
         second = self.package("second.zip")
         self.assertEqual(first.read_bytes(), second.read_bytes())
+        self.assertEqual(
+            first.with_name(first.name + ".sha256").read_text(encoding="ascii").split()[0],
+            hashlib.sha256(first.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            first.with_name(first.name + ".sha256").read_bytes(),
+            second.with_name(second.name + ".sha256").read_bytes().replace(b"second.zip", b"first.zip"),
+        )
         with zipfile.ZipFile(str(first), "r") as archive:
             self.assertEqual(tuple(archive.namelist()), SKILL_MEMBERS)
             extract_root = self.box.base / "extracted"
@@ -88,7 +104,7 @@ class SkillReleaseCases(PipeBuilderE2ECase):
             cwd=extracted,
         )
         self.assertEqual(version.returncode, 0, version.stdout + version.stderr)
-        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.2")
+        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.3")
 
     def test_updater_replaces_all_three_files_from_release_zip(self):
         archive = self.package()
@@ -121,6 +137,10 @@ class SkillReleaseCases(PipeBuilderE2ECase):
         }
         bad_archive = archive.with_name("bad.zip")
         bad_archive.write_bytes(b"not a ZIP")
+        bad_archive.with_name(bad_archive.name + ".sha256").write_text(
+            f"{hashlib.sha256(bad_archive.read_bytes()).hexdigest()}  {bad_archive.name}\n",
+            encoding="ascii",
+        )
         failed = self.box.run_command(
             [
                 sys.executable,
@@ -132,6 +152,29 @@ class SkillReleaseCases(PipeBuilderE2ECase):
         )
         self.assertNotEqual(failed.returncode, 0)
         self.assertIn("not a valid ZIP", failed.stderr)
+        self.assertEqual(
+            before,
+            {
+                relative: (installed / relative).read_bytes()
+                for relative in ("SKILL.md", "pipebuilder.py", "scripts/update.py")
+            },
+        )
+
+        checksum = archive.with_name(archive.name + ".sha256")
+        valid_checksum = checksum.read_bytes()
+        checksum.write_text(f"{'0' * 64}  {archive.name}\n", encoding="ascii")
+        mismatch = self.box.run_command(
+            [
+                sys.executable,
+                str(installed / "scripts/update.py"),
+                "--archive-url",
+                archive.as_uri(),
+            ],
+            cwd=installed,
+        )
+        self.assertNotEqual(mismatch.returncode, 0)
+        self.assertIn("SHA-256 mismatch", mismatch.stderr)
+        checksum.write_bytes(valid_checksum)
         self.assertEqual(
             before,
             {
