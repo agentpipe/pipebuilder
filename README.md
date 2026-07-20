@@ -14,13 +14,24 @@ agent pipelines**. It lets teams define a capability once, reuse its standard Ag
 across Cursor, Claude Code, Codex, and CodeBuddy, and keep each task pipeline limited to the
 Skills, Rules, Hooks, Commands, and native configuration it actually needs.
 
-PipeBuilder addresses two recurring AI Agent engineering problems:
+## Two Problems PipeBuilder Solves
+
+![Two recurring AI Agent engineering problems: Skill copies drift across agents, while loading every Rule for every task creates noise and conflicts.](docs/assets/pipebuilder-pain-points.jpg)
 
 1. **The same Skill is repeatedly adapted for different coding agents.** Copies drift, fixes
    do not propagate, and platform-native extensions become scattered across repositories.
 2. **One project accumulates every Agent capability for every task.** Irrelevant Skills expand
    context, conflicting Rules compete for attention, and unrelated Hooks can run during the
    wrong workflow.
+
+## Build Only What Each Task Needs
+
+![PipeBuilder combines reusable Skills with task-specific pipeline declarations and generates focused, multi-agent-ready workspaces for development, bug fixing, and review.](docs/assets/pipebuilder-overview.jpg)
+
+PipeBuilder combines reusable capability packs with PipeSpace declarations, then compiles only
+the selected capabilities into each target Agent's native format. Development, bug fixing,
+review, and release can each have their own focused configuration without duplicating the
+project or loading every capability everywhere.
 
 PipeBuilder is a configuration compiler, not a CI/CD pipeline or multi-Agent runtime
 orchestrator. It generates files that each coding agent already understands.

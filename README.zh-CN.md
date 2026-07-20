@@ -14,12 +14,22 @@ PipeBuilder 是面向团队的**跨 Agent Skill 复用**与**任务专属 AI 编
 之间共享标准 Agent Skill；每条任务管线则只加载自己真正需要的 Skills、Rules、Hooks、
 Commands 和平台原生配置。
 
-PipeBuilder 解决两个反复出现的 Agent 工程问题：
+## PipeBuilder 解决的两个问题
+
+![AI Agent 工程中的两个常见问题：同一 Skill 为不同 Agent 产生大量逐渐漂移的副本，而所有任务共用全部 Rules 又会带来噪声和冲突。](docs/assets/pipebuilder-pain-points.jpg)
 
 1. **同一个 Skill 需要为不同编程 Agent 反复适配。** 多份副本逐渐漂移，修复无法同步，
    平台专属扩展也散落在不同仓库。
 2. **一个 project 被迫承载所有任务的 Agent 能力。** 无关 Skills 扩大上下文，相互冲突的
    Rules 争夺注意力，无关 Hooks 还可能在错误任务中运行。
+
+## 只构建每个任务真正需要的能力
+
+![PipeBuilder 组合可复用 Skills 与任务专属管线声明，为开发、缺陷修复和代码审查生成聚焦且支持多 Agent 的 workspace。](docs/assets/pipebuilder-overview.jpg)
+
+PipeBuilder 将可复用能力包与 PipeSpace 声明组合起来，只把当前任务选中的能力编译成各
+目标 Agent 的原生格式。需求开发、缺陷修复、代码审查和发布可以分别拥有聚焦的配置，
+无需复制 project，也无需让所有任务加载全部能力。
 
 PipeBuilder 是构建期配置编译器，不是 CI/CD 流水线，也不是多 Agent 运行时编排器。
 它生成各编程 Agent 能直接识别的原生文件。
