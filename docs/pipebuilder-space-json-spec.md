@@ -71,6 +71,23 @@ The following fields must be explicitly present:
 
 An explicit empty array means that there is currently no configuration of that kind. This keeps the manifest as the stable entry point for identity, schema version, and build selection. Low-friction creation is provided by `pipebuilder init`, not by omitting the manifest.
 
+For the recommended project-local bootstrap, `init` accepts paths relative to the new
+PipeSpace:
+
+```bash
+python3 pipebuilder.py init <project>/pipespaces/<project>-dev \
+  --name <project>-dev \
+  --project ../.. \
+  --shared-skills ../shared/skills
+```
+
+`--project` generates `pipeline: .` and `project: <path>` workspace folders.
+`--shared-skills` requires `<path>/pipebuilder/SKILL.md`, adds that folder as a Provider,
+and selects `pipebuilder`. Both paths must be relative and resolve to existing directories.
+When the required files already exist, `init` validates that they match the requested
+bootstrap configuration and does not overwrite them. Omitting both options preserves the
+minimal empty scaffold.
+
 ---
 
 ## 3. Complete Example

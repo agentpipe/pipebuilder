@@ -2,71 +2,48 @@
 
 [English](README.md) | [Simplified Chinese](README.zh-CN.md)
 
-[![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
+[![E2E](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml)
 [![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> Reuse team capabilities across AI coding agents and build task-specific pipeline spaces.
+> Reuse Agent Skills across coding agents. Give one project multiple task-specific Agent
+> pipelines, each with an independently selected capability set.
 
-AI coding agents such as Codex, Cursor, and Claude Code use different conventions for Skills,
-Rules, Hooks, MCP, and workspaces. Teams repeatedly adapt the same capabilities, and those
-copies drift into inconsistent configuration and behavior over time.
+PipeBuilder is a build-time tool for **cross-agent Skill reuse** and **task-specific AI coding
+agent pipelines**. It lets teams define a capability once, reuse its standard Agent Skill
+across Cursor, Claude Code, Codex, and CodeBuddy, and keep each task pipeline limited to the
+Skills, Rules, Hooks, Commands, and native configuration it actually needs.
 
-A single `<project>` also needs different agent capabilities for feature development, bug
-fixing, code review, and other tasks. Task-specific capabilities should not all load at once.
-Putting every configuration in the project root expands context, creates conflicts, and can
-run unrelated Hooks during the wrong task.
+## Two Problems PipeBuilder Solves
 
-PipeBuilder addresses both problems:
+![Two recurring AI Agent engineering problems: Skill copies drift across agents, while loading every Rule for every task creates noise and conflicts.](docs/assets/pipebuilder-pain-points.jpg)
 
-- **Reuse one capability across agents**: a standard Skill is shared across platforms, while
-  platform-native Rules, Hooks, Commands, Agents, and MCP configuration can ship in the same
-  capability pack.
-- **Give one project multiple agent pipelines**: each task pipeline composes only the agents
-  and capabilities it needs while referencing the same project.
-- **Reuse and version team capabilities through Skill Providers**: a Skill Provider can be a
-  local folder or a Git repository, so teams can share capability packs locally or pin
-  repository versions.
-- **Generate platform-native configuration**: agents do not need to understand a PipeBuilder
-  protocol. Build output remains native files such as `AGENTS.md`, `CLAUDE.md`, `.cursor/`,
-  and `.claude/`.
+1. **The same Skill is repeatedly adapted for different coding agents.** Copies drift, fixes
+   do not propagate, and platform-native extensions become scattered across repositories.
+2. **One project accumulates every Agent capability for every task.** Irrelevant Skills expand
+   context, conflicting Rules compete for attention, and unrelated Hooks can run during the
+   wrong workflow.
 
-A **PipeSpace** is a task-specific agent pipeline root/space decoupled from `<project>`. It
-references one or more project folders through a workspace file and carries the configuration
-generated for that pipeline. It is not a copy of the project.
+## Build Only What Each Task Needs
 
-## One Project, Multiple Agent Pipelines
+![PipeBuilder combines reusable Skills with task-specific pipeline declarations and generates focused, multi-agent-ready workspaces for development, bug fixing, and review.](docs/assets/pipebuilder-overview.jpg)
 
-`<project>` is the business-code entity. Feature development, bug fixing, and code review can
-each use a separate task pipeline:
+PipeBuilder combines reusable capability packs with PipeSpace declarations, then compiles only
+the selected capabilities into each target Agent's native format. Development, bug fixing,
+review, and release can each have their own focused configuration without duplicating the
+project or loading every capability everywhere.
 
-```text
-team-workspace/
-├── project/                         # the same project
-├── shared-skills/                   # reusable team capability packs
-└── pipespaces/
-    ├── feature-development/         # implementation and testing capabilities
-    ├── bugfix-review/               # diagnosis and review capabilities
-    └── release-maintenance/         # build and release capabilities
-```
+PipeBuilder is a configuration compiler, not a CI/CD pipeline or multi-Agent runtime
+orchestrator. It generates files that each coding agent already understands.
 
-Each PipeSpace can select a different combination of Skills, Rules, Hooks, MCP, and agents.
-Its `.code-workspace` file references the PipeSpace itself and one or more project folders, so
-pipeline configuration does not have to live in the project.
+## Reuse Agent Skills Across Coding Agents
 
-A local folder or Git repository that supplies capability packs is a **Skill Provider**.
-
-> A PipeSpace separates agent configuration, context, and pipeline composition; it does not
-> isolate code writes. When multiple agents modify the same project in parallel, continue to
-> use Git branches, worktrees, or independent clones.
-
-## Reuse One Capability Across Agents
-
-A capability pack has two parts:
+A reusable capability pack keeps the portable Agent Skill and optional platform-native
+extensions together:
 
 ```text
 shared-skills/bugfix-review/
-├── SKILL.md                          # standard Skill shared by agents
+├── SKILL.md                          # portable Skill shared across agents
 ├── scripts/
 ├── references/
 └── .pipe-agents/                    # optional platform-native extensions
@@ -76,23 +53,123 @@ shared-skills/bugfix-review/
     └── claude-code/.claude/settings.json
 ```
 
-- `SKILL.md`, scripts, and references are portable and install into each platform's standard
-  Skill directory.
-- `.pipe-agents/<agent>/` preserves the native directory and format for that platform. Its
-  Adapter merges those files into the target PipeSpace.
-- PipeBuilder does not claim to translate one Rule or Hook losslessly across every platform.
-  It lets one capability pack carry both a standard Skill and the necessary native extensions.
+- `SKILL.md`, scripts, references, and assets form the portable Skill installed into each
+  agent's standard Skill directory.
+- `.pipe-agents/<agent>/` preserves the original native format for that agent. PipeBuilder
+  projects it through the matching Adapter instead of pretending Rules or Hooks translate
+  losslessly between platforms.
+- Folder and Git **Skill Providers** let teams share complete capability packs. Git Providers
+  resolve a branch or tag to a locked commit for reproducible builds.
 
-Teams can therefore select and version complete capability packs instead of maintaining
-separate platform configuration scattered across projects.
+The result is one maintained source for a cross-agent Skill, with native differences kept
+beside it instead of copied into every project and Agent directory.
 
-## Quick Start in 60 Seconds
+## One Project, Multiple Task-Specific Agent Pipelines
+
+A **PipeSpace** is a task-specific Agent pipeline root decoupled from the business-code
+`<project>`. Every PipeSpace independently selects its agents, Skills, tags, Skill Providers,
+and PipeSpace-native overrides, while its workspace file references the same project:
+
+```text
+project/
+├── ...                              # business code
+└── pipespaces/
+    ├── shared/skills/               # reusable cross-agent capability packs
+    ├── feature-development/         # feature Skills and Agent configuration
+    ├── bugfix-review/               # diagnosis and review capabilities
+    └── release/                     # release-only capabilities
+```
+
+Keeping `pipespaces/` inside the project is the recommended starting layout. Generated Agent
+configuration stays in each PipeSpace rather than polluting the project root:
+
+```text
+Skill Providers + PipeSpace-local Skills + PipeSpace Agent overrides
+                              |
+                 pipespace.json selects a subset
+                              |
+                              v
+                   PipeBuilder Adapter plan
+                              |
+                              v
+       native Skills / Rules / Hooks / configuration per Agent
+```
+
+This gives feature development, bug fixing, code review, and release work independent
+capability sets without duplicating the project or loading every Skill into one Agent
+workspace.
+
+> A PipeSpace isolates Agent configuration, context, and capability composition; it does not
+> isolate code writes. Use Git branches, worktrees, or independent clones when agents modify
+> the same project in parallel.
+
+## Bootstrap PipeBuilder and the First PipeSpace
+
+Create the shared Skill Provider inside the project and extract the latest Release there:
+
+```text
+<project>/pipespaces/
+├── shared/skills/pipebuilder/
+└── <project>-dev/
+```
+
+macOS or Linux:
+
+```bash
+PROJECT_ROOT="/path/to/project"
+SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
+mkdir -p "${SHARED_SKILLS}"
+curl -fsSL "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
+```
+
+PowerShell:
+
+```powershell
+$ProjectRoot = "C:\path\to\project"
+$SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
+New-Item -ItemType Directory -Force $SharedSkills | Out-Null
+Invoke-WebRequest "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
+```
+
+Create the first project-local PipeSpace. The relative paths are resolved from the new
+PipeSpace:
+
+```bash
+PROJECT_NAME="project"
+SPACE="${PROJECT_ROOT}/pipespaces/${PROJECT_NAME}-dev"
+BUILDER="${SHARED_SKILLS}/pipebuilder/pipebuilder.py"
+python3 "${BUILDER}" init "${SPACE}" \
+  --name "${PROJECT_NAME}-dev" \
+  --project ../.. \
+  --shared-skills ../shared/skills
+python3 "${BUILDER}" check "${SPACE}"
+python3 "${BUILDER}" explain "${SPACE}"
+python3 "${BUILDER}" build "${SPACE}" --dry-run
+python3 "${BUILDER}" build "${SPACE}"
+python3 "${BUILDER}" verify "${SPACE}"
+```
+
+`init` writes the workspace folder inventory, configures the shared folder Provider, and
+selects `pipebuilder`. The first build projects the Skill into every configured Agent.
+
+PipeSpaces may also live outside the project. Keep the shared Skills and PipeSpaces together,
+then pass `--project` and `--shared-skills` paths relative to the new PipeSpace.
+
+Update the shared Skill from the latest Release with:
+
+```bash
+python3 <project>/pipespaces/shared/skills/pipebuilder/scripts/update.py
+```
+
+## Standalone CLI Quick Start
 
 Runtime requires only Python 3.7+ and the single `pipebuilder.py` file. Git is required only
 when using a Git Skill Provider. No third-party Python packages are required.
 
 ```bash
-curl -O https://raw.githubusercontent.com/aikenc/pipebuilder/main/pipebuilder.py
+curl -O https://raw.githubusercontent.com/agentpipe/pipebuilder/main/pipebuilder.py
 python3 pipebuilder.py --version
 
 python3 pipebuilder.py init ./demo-space
@@ -121,7 +198,7 @@ contains one example project, shared capability packs, and two PipeSpaces with d
 capability selections:
 
 ```bash
-git clone https://github.com/aikenc/pipebuilder.git
+git clone https://github.com/agentpipe/pipebuilder.git
 cd pipebuilder
 
 python3 pipebuilder.py check examples/multi-pipeline-project/pipespaces/feature-development
@@ -177,6 +254,11 @@ feature-development/
 }
 ```
 
+PipeSpace-local reusable Skills live in `.pipebuilder/skills/` and take the highest source
+priority. Pipeline-specific native Agent configuration lives in
+`.pipebuilder/agents/<agent>/`; it complements the shared capability packs selected from
+Skill Providers.
+
 The workspace file includes the PipeSpace itself and one or more external project folders.
 The `pipeline` folder lets clients discover native configuration generated at the PipeSpace
 root, while the `project` folder points to the project:
@@ -211,7 +293,7 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.1.1 requires Python 3.7+ and supports all three major desktop platforms:
+PipeBuilder 0.1.3 requires Python 3.7+ and supports all three major desktop platforms:
 
 | Platform | Status | Tested versions |
 | --- | --- | --- |
@@ -232,16 +314,16 @@ Four Agent Adapters are included:
 output and supported structure have been validated, but real-client E1 has not been
 established. The status is recorded in `explain` and `.pipebuilder/lock.json`.
 
-## Skill Providers
+## Skill Sources and Skill Providers
 
-PipeBuilder supports three Skill sources:
+PipeBuilder resolves Skills from one implicit local source and two configured Provider types:
 
-1. `.pipebuilder/skills/`: local capabilities in the current PipeSpace, with the highest
-   precedence.
-2. Folder Skill Provider: references a shared capability folder on the local machine or in a
-   repository.
-3. Git Skill Provider: fetches a capability repository by branch or tag and pins it to a
-   commit in the lock.
+1. `.pipebuilder/skills/`: the implicit `space-local` source for the current PipeSpace, with
+   the highest precedence. It is not an entry in `skillProviders[]`.
+2. Folder Skill Provider: a configured Provider that references a shared capability folder on
+   the local machine or in a repository.
+3. Git Skill Provider: a configured Provider that fetches a capability repository by branch
+   or tag and pins the resolved commit in the lock.
 
 Folder Skill Provider:
 
@@ -289,9 +371,10 @@ PipeSpaces within three directory levels and operates on the complete hierarchy.
 depth with `"children": {"scanDepth": N}` or set it to `0` for root-only operation. Hidden,
 generated, and symlinked directories are skipped.
 
-A Tree orchestrates only one explicitly declared level of children. It neither scans
-directories nor recurses implicitly. Regular `build` and `clean` always process only the
-specified PipeSpace.
+There is no separate Tree manifest or command family. When nested PipeSpaces are found,
+read-only planning covers every member before writes; `build` applies root to children,
+`verify` checks the aggregate hierarchy receipt and every member, and `clean` removes children
+before the root.
 
 Automation should use `--format json` and depend on stable diagnostic codes in
 `pipebuilder-report.v1` instead of parsing human-readable messages.
@@ -336,7 +419,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) runs the E0
+[GitHub Actions](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml) runs the E0
 platform matrix listed above. The repository also includes installed-client E1 cases for
 Codex, Cursor, and Claude Code, but those cases currently run only in environments where the
 clients are installed; they are not part of the hosted GitHub Actions workflow. CodeBuddy
@@ -348,14 +431,15 @@ Set `VERSION` in `pipebuilder.py` and keep the documented version and version co
 in sync. After the main E0 workflow passes, create and push the matching tag:
 
 ```bash
-git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
-git push origin v0.1.1
+git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
+git push origin v0.1.3
 ```
 
 The release workflow reruns the complete E0 platform matrix, verifies that the tag matches
-`VERSION`, and publishes a GitHub Release containing `pipebuilder.py` and
-`pipebuilder.py.sha256`. An existing tag can also be released or retried through the workflow's
-manual dispatch input.
+`VERSION`, and publishes `pipebuilder.py`, `pipebuilder.py.sha256`,
+`pipebuilder-skill.zip`, and `pipebuilder-skill.zip.sha256`. The Skill updater verifies the
+ZIP checksum before replacing installed files. An existing tag can also be released or
+retried through the workflow's manual dispatch input.
 
 ## License
 

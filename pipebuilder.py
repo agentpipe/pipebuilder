@@ -117,7 +117,7 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.3"
 REPORT_SCHEMA = "pipebuilder-report.v1"
 LOCK_SCHEMA = "pipebuilder-lock.v1"
 SPACE_SCHEMA = "pipespace.v1"
@@ -868,7 +868,7 @@ def load_workspace(root: Path, manifest: Manifest) -> Workspace:
         if not resolved.is_dir():
             fail("PB004", f"Workspace folder does not exist: {configured}", sources=(path.as_posix(), configured))
         if "name" not in item:
-            name = (root / configured).name
+            name = resolved.name
             if not name:
                 fail(
                     "PB004",
@@ -895,7 +895,24 @@ def default_space_name(root: Path) -> str:
     return root.name
 
 
-def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest, list[str], list[str]]:
+def init_relative_directory(root: Path, configured: str | None, option: str) -> tuple[str, Path] | None:
+    if configured is None:
+        return None
+    if not configured.strip() or Path(configured).is_absolute():
+        fail("PB001", f"{option} must be a non-empty relative path", sources=(root.as_posix(),))
+    normalized = Path(os.path.normpath(configured)).as_posix()
+    resolved = (root / normalized).resolve()
+    if not resolved.is_dir():
+        fail("PB005", f"{option} directory not found: {configured}", sources=(configured,))
+    return normalized, resolved
+
+
+def init_space(
+    root: Path,
+    requested_name: str | None = None,
+    project_path: str | None = None,
+    shared_skills_path: str | None = None,
+) -> tuple[Manifest, list[str], list[str]]:
     """Create missing required inputs and validate required inputs that already exist."""
     detect_legacy(root)
     manifest_path = root / "pipespace.json"
@@ -905,6 +922,28 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
     if requested_name is not None and not NAME_RE.fullmatch(requested_name):
         fail("PB002", "--name must match ^[a-z][a-z0-9-]*$", sources=(manifest_path.as_posix(),))
 
+    project = init_relative_directory(root, project_path, "--project")
+    shared_skills = init_relative_directory(root, shared_skills_path, "--shared-skills")
+    if project is not None and project[1] == root.resolve():
+        fail("PB004", "--project must not resolve to the PipeSpace root", sources=(project[0],))
+    if shared_skills is not None:
+        pipebuilder_skill = shared_skills[1] / "pipebuilder"
+        if not pipebuilder_skill.is_dir() or not (pipebuilder_skill / "SKILL.md").is_file():
+            fail(
+                "PB005",
+                f"--shared-skills does not contain pipebuilder/SKILL.md: {shared_skills[0]}",
+                sources=(shared_skills[0],),
+            )
+        provider = Provider(
+            "init-shared-skills",
+            shared_skills[1],
+            shared_skills[1],
+            shared_skills[0],
+            1,
+            tree_digest(shared_skills[1]),
+        )
+        read_skill(provider, pipebuilder_skill)
+
     if manifest_path.exists() or manifest_path.is_symlink():
         manifest = load_manifest(root)
         if requested_name is not None and requested_name != manifest.name:
@@ -913,6 +952,20 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
                 f"--name {requested_name!r} does not match existing manifest.name {manifest.name!r}",
                 sources=(manifest_path.as_posix(),),
             )
+        if shared_skills is not None:
+            matching_providers = [
+                item
+                for item in manifest.providers
+                if item["type"] == "folder"
+                and Path(os.path.normpath(item["path"])).as_posix() == shared_skills[0]
+                and item.get("subdir", ".") == "."
+            ]
+            if "pipebuilder" not in manifest.skills or not matching_providers:
+                fail(
+                    "PB001",
+                    "Existing pipespace.json does not match --shared-skills bootstrap configuration",
+                    sources=(manifest_path.as_posix(),),
+                )
         validated.append(manifest_path.name)
         manifest_content: bytes | None = None
     else:
@@ -929,9 +982,13 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
             name,
             None,
             list(AGENTS),
+            ["pipebuilder"] if shared_skills is not None else [],
             [],
-            [],
-            [],
+            (
+                [{"type": "folder", "path": shared_skills[0], "subdir": "."}]
+                if shared_skills is not None
+                else []
+            ),
             DEFAULT_CHILD_SCAN_DEPTH,
         )
         manifest_content = json_bytes(
@@ -939,19 +996,43 @@ def init_space(root: Path, requested_name: str | None = None) -> tuple[Manifest,
                 "schema": SPACE_SCHEMA,
                 "name": name,
                 "agents": list(AGENTS),
-                "skills": [],
+                "skills": ["pipebuilder"] if shared_skills is not None else [],
                 "tags": [],
-                "skillProviders": [],
+                "skillProviders": (
+                    [{"type": "folder", "path": shared_skills[0]}]
+                    if shared_skills is not None
+                    else []
+                ),
             }
         )
 
     workspace_path = root / f"{manifest.name}.code-workspace"
     if workspace_path.exists() or workspace_path.is_symlink():
-        load_workspace(root, manifest)
+        workspace = load_workspace(root, manifest)
+        if project is not None:
+            expected = [("pipeline", "."), ("project", project[0])]
+            actual = [(folder.name, folder.path) for folder in workspace.folders]
+            if actual != expected:
+                fail(
+                    "PB004",
+                    "Existing workspace does not match --project bootstrap configuration",
+                    sources=(workspace_path.as_posix(),),
+                )
         validated.append(workspace_path.name)
         workspace_content: bytes | None = None
     else:
-        workspace_content = json_bytes({"folders": [{"name": "project", "path": "."}]})
+        workspace_content = json_bytes(
+            {
+                "folders": (
+                    [
+                        {"name": "pipeline", "path": "."},
+                        {"name": "project", "path": project[0]},
+                    ]
+                    if project is not None
+                    else [{"name": "project", "path": "."}]
+                )
+            }
+        )
 
     # All existing required inputs have been validated before the first write.
     for path, content, logical_type in (
@@ -2585,13 +2666,23 @@ def process_alive(pid: int) -> bool:
     if os.name == "nt":
         try:
             import ctypes
+            from ctypes import wintypes
 
             kernel32 = ctypes.windll.kernel32
             synchronize = 0x00100000
+            wait_timeout = 0x00000102
+            kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            kernel32.OpenProcess.restype = wintypes.HANDLE
+            kernel32.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+            kernel32.WaitForSingleObject.restype = wintypes.DWORD
+            kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+            kernel32.CloseHandle.restype = wintypes.BOOL
             handle = kernel32.OpenProcess(synchronize, False, pid)
             if handle:
-                kernel32.CloseHandle(handle)
-                return True
+                try:
+                    return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+                finally:
+                    kernel32.CloseHandle(handle)
             return False
         except Exception:
             return False
@@ -3296,6 +3387,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     init_parser = subparsers.add_parser("init", help="Initialize the required PipeSpace files")
     add_common_subcommand(init_parser, offline=False)
     init_parser.add_argument("--name", help="Space name for a new manifest (default: directory name)")
+    init_parser.add_argument("--project", help="Project directory relative to the new PipeSpace")
+    init_parser.add_argument(
+        "--shared-skills",
+        help="Shared Skill Provider relative to the new PipeSpace; selects pipebuilder",
+    )
     add_common_subcommand(subparsers.add_parser("build", help="Build a PipeSpace"), dry_run=True)
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
@@ -3313,7 +3409,12 @@ def main(argv: list[str] | None = None) -> int:
                 fail("PB001", f"PipeSpace root is not a directory: {root}")
             root.mkdir(parents=True, exist_ok=True)
             with BuildLock(root):
-                manifest, created, validated = init_space(root, args.name)
+                manifest, created, validated = init_space(
+                    root,
+                    args.name,
+                    args.project,
+                    args.shared_skills,
+                )
             value = report(
                 "init",
                 "ok",

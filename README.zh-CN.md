@@ -2,64 +2,45 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-[![E2E](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml)
+[![E2E](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml/badge.svg)](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml)
 [![Python 3.7+](https://img.shields.io/badge/Python-3.7%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 面向团队的跨 AI 编程 Agent 能力复用与任务管线空间构建工具。
+> 跨 AI 编程 Agent 复用同一套 Skill；让一个 project 拥有多条任务专属 Agent
+> 管线，每条管线独立选择自己的能力集合。
 
-Codex、Cursor、Claude Code 等 AI 编程 Agent 使用不同的 Skills、Rules、Hooks、MCP
-和 workspace 规范。同一套团队能力需要反复适配，时间久了还会出现配置漂移和行为不一致。
+PipeBuilder 是面向团队的**跨 Agent Skill 复用**与**任务专属 AI 编程 Agent 管线**
+构建工具。团队只需维护一份能力来源，就能在 Cursor、Claude Code、Codex 和 CodeBuddy
+之间共享标准 Agent Skill；每条任务管线则只加载自己真正需要的 Skills、Rules、Hooks、
+Commands 和平台原生配置。
 
-同一个 `<project>` 在需求开发、缺陷修复、代码审查等任务中，需要不同侧重点的 Agent
-能力，部分任务专属能力不应同时加载。如果把所有配置都堆进 project 根目录，无关 Skills
-与 Rules 会扩大上下文、产生冲突，无关 Hooks 也可能在错误任务中执行。
+## PipeBuilder 解决的两个问题
 
-PipeBuilder 解决这两个问题：
+![AI Agent 工程中的两个常见问题：同一 Skill 为不同 Agent 产生大量逐渐漂移的副本，而所有任务共用全部 Rules 又会带来噪声和冲突。](docs/assets/pipebuilder-pain-points.jpg)
 
-- **一套能力，跨 Agent 复用**：标准 Skill 由各平台共享；平台原生的 Rules、Hooks、
-  Commands、Agents 和 MCP 配置可以随同一个能力包分发。
-- **一个 project，多条 Agent 管线**：每条任务管线只组合自己需要的 Agent 和能力，
-  同时引用同一份 project。
-- **通过 Skill Provider 复用并版本化团队能力**：Skill Provider 既可以来自本地
-  folder，也可以来自 Git repository，团队可以在本机共享能力包，也可以固定仓库版本。
-- **生成平台原生配置**：不要求 Agent 理解 PipeBuilder 协议，构建结果仍是
-  `AGENTS.md`、`CLAUDE.md`、`.cursor/`、`.claude/` 等原生文件。
+1. **同一个 Skill 需要为不同编程 Agent 反复适配。** 多份副本逐渐漂移，修复无法同步，
+   平台专属扩展也散落在不同仓库。
+2. **一个 project 被迫承载所有任务的 Agent 能力。** 无关 Skills 扩大上下文，相互冲突的
+   Rules 争夺注意力，无关 Hooks 还可能在错误任务中运行。
 
-**PipeSpace** 是与 `<project>` 解耦、面向特定任务的 agent pipeline root/space。
-它通过 workspace 文件引用一个或多个 project folder，并承载该管线生成的配置；
-它不是 project 的副本。
+## 只构建每个任务真正需要的能力
 
-## 一个 project，多条 Agent 开发管线
+![PipeBuilder 组合可复用 Skills 与任务专属管线声明，为开发、缺陷修复和代码审查生成聚焦且支持多 Agent 的 workspace。](docs/assets/pipebuilder-overview.jpg)
 
-`<project>` 是业务代码实体。需求开发、缺陷修复和代码审查可以分别使用独立的任务管线：
+PipeBuilder 将可复用能力包与 PipeSpace 声明组合起来，只把当前任务选中的能力编译成各
+目标 Agent 的原生格式。需求开发、缺陷修复、代码审查和发布可以分别拥有聚焦的配置，
+无需复制 project，也无需让所有任务加载全部能力。
 
-```text
-team-workspace/
-├── project/                         # 同一份 project
-├── shared-skills/                   # 团队复用的能力包
-└── pipespaces/
-    ├── feature-development/         # 实现、测试相关能力
-    ├── bugfix-review/               # 诊断、审查相关能力
-    └── release-maintenance/         # 构建、发布相关能力
-```
+PipeBuilder 是构建期配置编译器，不是 CI/CD 流水线，也不是多 Agent 运行时编排器。
+它生成各编程 Agent 能直接识别的原生文件。
 
-每个 PipeSpace 可以选择不同的 Skills、Rules、Hooks、MCP 和 Agent 组合。它的
-`.code-workspace` 文件引用 PipeSpace 自身和一个或多个 project folder，因此管线配置
-不必全部进入 project。
+## 跨 Agent 复用 Agent Skills
 
-负责提供能力包的本地 folder 或 Git repository 称为 **Skill Provider**。
-
-> PipeSpace 隔离的是 Agent 配置、上下文和管线组合，不是代码写入。多个 Agent
-> 并行修改同一个 project 时，仍应使用 Git 分支、worktree 或独立 clone。
-
-## 一套能力，跨 Agent 复用
-
-一个能力包由两部分组成：
+一个可复用能力包把可移植的 Agent Skill 和可选的平台原生扩展放在一起：
 
 ```text
 shared-skills/bugfix-review/
-├── SKILL.md                          # 各 Agent 共用的标准 Skill
+├── SKILL.md                          # 跨 Agent 共享的可移植 Skill
 ├── scripts/
 ├── references/
 └── .pipe-agents/                    # 可选的平台原生扩展
@@ -69,21 +50,117 @@ shared-skills/bugfix-review/
     └── claude-code/.claude/settings.json
 ```
 
-- `SKILL.md`、脚本和参考资料属于可移植部分，安装到各平台的标准 Skill 目录。
-- `.pipe-agents/<agent>/` 保留该平台的原生目录和格式，由对应 Adapter 合并到目标
-  PipeSpace。
-- PipeBuilder 不声称把同一份 Rule 或 Hook 无损翻译到所有平台；它让一个能力包同时
-  携带标准 Skill 和必要的平台原生扩展。
+- `SKILL.md`、scripts、references 和 assets 构成可移植 Skill，并安装到各 Agent 的标准
+  Skill 目录。
+- `.pipe-agents/<agent>/` 保留对应 Agent 的原生格式。PipeBuilder 通过匹配的 Adapter
+  投影这些文件，不假装不同平台的 Rules 或 Hooks 可以无损互译。
+- Folder 和 Git **Skill Provider** 用于共享完整能力包；Git Provider 会把 branch 或
+  tag 解析并固定到 lock 中的 commit，保证构建可复现。
 
-因此，团队选择和版本化的是完整能力包，而不是散落在每个 project 里的多份平台配置。
+最终，团队只维护一份跨 Agent Skill 来源；平台差异与 Skill 放在一起，不再复制到每个
+project 和 Agent 目录。
 
-## 60 秒快速开始
+## 一个 project，多条任务专属 Agent 管线
+
+**PipeSpace** 是与业务代码 `<project>` 解耦的任务专属 Agent 管线根。每个 PipeSpace
+独立选择 Agents、Skills、tags、Skill Providers 和管线级原生覆盖，同时通过 workspace
+文件引用同一份 project：
+
+```text
+project/
+├── ...                              # 业务代码
+└── pipespaces/
+    ├── shared/skills/               # 可跨 Agent 复用的能力包
+    ├── feature-development/         # 功能开发 Skills 与 Agent 配置
+    ├── bugfix-review/               # 诊断与审查能力
+    └── release/                     # 仅发布任务使用的能力
+```
+
+首推把 `pipespaces/` 放在 project 内。每条管线生成的 Agent 配置留在自己的 PipeSpace，
+不会污染 project 根目录：
+
+```text
+Skill Providers + PipeSpace 本地 Skills + PipeSpace Agent 原生覆盖
+                              ↓
+                 pipespace.json 选择能力子集
+                              ↓
+                    PipeBuilder Adapter plan
+                              ↓
+        各 Agent 的原生 Skills / Rules / Hooks / 配置
+```
+
+需求开发、缺陷修复、代码审查和发布由此拥有独立的能力集合；既不复制 project，也不把
+所有 Skill 同时加载进同一个 Agent workspace。
+
+> PipeSpace 隔离的是 Agent 配置、上下文和能力组合，不是代码写入。多个 Agent 并行修改
+> 同一个 project 时，仍应使用 Git 分支、worktree 或独立 clone。
+
+## 自举 PipeBuilder 与首个 PipeSpace
+
+先在项目内创建公共 Skill Provider，并把最新 Release 解压到这里：
+
+```text
+<project>/pipespaces/
+├── shared/skills/pipebuilder/
+└── <project>-dev/
+```
+
+macOS 或 Linux：
+
+```bash
+PROJECT_ROOT="/path/to/project"
+SHARED_SKILLS="${PROJECT_ROOT}/pipespaces/shared/skills"
+mkdir -p "${SHARED_SKILLS}"
+curl -fsSL "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -o /tmp/pipebuilder-skill.zip
+unzip -qo /tmp/pipebuilder-skill.zip -d "${SHARED_SKILLS}"
+```
+
+PowerShell：
+
+```powershell
+$ProjectRoot = "C:\path\to\project"
+$SharedSkills = Join-Path $ProjectRoot "pipespaces/shared/skills"
+New-Item -ItemType Directory -Force $SharedSkills | Out-Null
+Invoke-WebRequest "https://github.com/agentpipe/pipebuilder/releases/latest/download/pipebuilder-skill.zip" -OutFile "$env:TEMP/pipebuilder-skill.zip"
+Expand-Archive "$env:TEMP/pipebuilder-skill.zip" -DestinationPath $SharedSkills -Force
+```
+
+创建第一个项目内 PipeSpace。两个相对路径都从新 PipeSpace 出发解析：
+
+```bash
+PROJECT_NAME="project"
+SPACE="${PROJECT_ROOT}/pipespaces/${PROJECT_NAME}-dev"
+BUILDER="${SHARED_SKILLS}/pipebuilder/pipebuilder.py"
+python3 "${BUILDER}" init "${SPACE}" \
+  --name "${PROJECT_NAME}-dev" \
+  --project ../.. \
+  --shared-skills ../shared/skills
+python3 "${BUILDER}" check "${SPACE}"
+python3 "${BUILDER}" explain "${SPACE}"
+python3 "${BUILDER}" build "${SPACE}" --dry-run
+python3 "${BUILDER}" build "${SPACE}"
+python3 "${BUILDER}" verify "${SPACE}"
+```
+
+`init` 会写入 workspace folder、配置公共 folder Provider，并选择 `pipebuilder`。
+第一次 build 后，PipeBuilder Skill 会投影到所有已配置 Agent。
+
+PipeSpace 也可以放在项目外。让公共 Skills 与各 PipeSpace 保持在同一管线根下，再传入
+相对新 PipeSpace 的 `--project` 和 `--shared-skills` 路径即可。
+
+从最新 Release 更新公共 Skill：
+
+```bash
+python3 <project>/pipespaces/shared/skills/pipebuilder/scripts/update.py
+```
+
+## 单文件 CLI 快速开始
 
 运行时只需要 Python 3.7+ 和单个 `pipebuilder.py` 文件。只有使用 Git Skill Provider
 时才需要系统安装 Git；不需要安装 Python 第三方包。
 
 ```bash
-curl -O https://raw.githubusercontent.com/aikenc/pipebuilder/main/pipebuilder.py
+curl -O https://raw.githubusercontent.com/agentpipe/pipebuilder/main/pipebuilder.py
 python3 pipebuilder.py --version
 
 python3 pipebuilder.py init ./demo-space
@@ -111,7 +188,7 @@ demo-space/
 包含一份示例 project、共享能力包，以及两条使用不同能力组合的 PipeSpace：
 
 ```bash
-git clone https://github.com/aikenc/pipebuilder.git
+git clone https://github.com/agentpipe/pipebuilder.git
 cd pipebuilder
 
 python3 pipebuilder.py check examples/multi-pipeline-project/pipespaces/feature-development
@@ -166,6 +243,10 @@ feature-development/
 }
 ```
 
+PipeSpace 本地可复用 Skills 位于 `.pipebuilder/skills/`，来源优先级最高；管线专属的
+Agent 原生配置位于 `.pipebuilder/agents/<agent>/`，用于补充从 Skill Provider 选择的
+共享能力包。
+
 workspace 文件同时包含 PipeSpace 自身和一个或多个外部 project folder。`pipeline`
 folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` folder 指向 project：
 
@@ -195,7 +276,7 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.1.1 需要 Python 3.7+，支持三大桌面平台：
+PipeBuilder 0.1.3 需要 Python 3.7+，支持三大桌面平台：
 
 | 平台 | 状态 | 已测试版本 |
 | --- | --- | --- |
@@ -216,13 +297,15 @@ PipeBuilder 0.1.1 需要 Python 3.7+，支持三大桌面平台：
 当前实现支持的结构，但尚未建立真实客户端 E1。状态会写入 `explain` 和
 `.pipebuilder/lock.json`。
 
-## Skill Provider
+## Skill 来源与 Skill Provider
 
-PipeBuilder 支持三类 Skill 来源：
+PipeBuilder 从一个隐式本地来源和两类已配置 Provider 解析 Skills：
 
-1. `.pipebuilder/skills/`：当前 PipeSpace 的本地能力，优先级最高。
-2. Folder Skill Provider：引用本机或仓库内的共享能力目录。
-3. Git Skill Provider：按 branch 或 tag 获取能力仓库，并在 lock 中固定到 commit。
+1. `.pipebuilder/skills/`：当前 PipeSpace 隐式的 `space-local` 来源，优先级最高；
+   它不是 `skillProviders[]` 中的配置项。
+2. Folder Skill Provider：已配置的 Provider，引用本机或仓库内的共享能力目录。
+3. Git Skill Provider：已配置的 Provider，按 branch 或 tag 获取能力仓库，并在 lock
+   中固定解析后的 commit。
 
 Folder Skill Provider：
 
@@ -268,8 +351,9 @@ python3 pipebuilder.py clean [SPACE]
 PipeSpace，并对完整层级执行操作。可通过 `"children": {"scanDepth": N}` 调整深度，
 设为 `0` 时只处理根 Space。扫描会跳过隐藏目录、生成目录和符号链接目录。
 
-Tree 只编排显式声明的一层 children，不扫描目录，也不隐式递归。普通 `build` 和 `clean`
-始终只处理指定的单个 PipeSpace。
+不存在单独的 Tree manifest 或命令族。发现嵌套 PipeSpace 后，所有成员都会在写入前完成
+只读规划；`build` 按根到子级顺序应用，`verify` 检查层级总收据及每个成员，`clean`
+则先清理子级再清理根。
 
 自动化应使用 `--format json`，并依赖 `pipebuilder-report.v1` 中稳定的 diagnostic code，
 不要解析面向人的提示文本。
@@ -313,7 +397,7 @@ python3 tests/e2e/run.py --tier client --agent codex --require
 python3 tests/e2e/run.py --tier live --agent codex --require
 ```
 
-[GitHub Actions](https://github.com/aikenc/pipebuilder/actions/workflows/e2e.yml) 运行上表所列
+[GitHub Actions](https://github.com/agentpipe/pipebuilder/actions/workflows/e2e.yml) 运行上表所列
 E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客户端 E1 用例，但这些
 用例目前只在已安装对应客户端的环境中运行，尚未接入 GitHub 托管 Actions。CodeBuddy
 仍为 `generated-only`。
@@ -324,13 +408,14 @@ E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客
 通过后，创建并推送匹配的 tag：
 
 ```bash
-git tag -a v0.1.1 -m "PipeBuilder v0.1.1"
-git push origin v0.1.1
+git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
+git push origin v0.1.3
 ```
 
-发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后创建包含
-`pipebuilder.py` 和 `pipebuilder.py.sha256` 的 GitHub Release。也可以通过工作流的
-手动输入发布或重试已有 tag。
+发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后发布
+`pipebuilder.py`、`pipebuilder.py.sha256`、`pipebuilder-skill.zip` 和
+`pipebuilder-skill.zip.sha256`。Skill 更新器会先验证 ZIP 校验和，再替换已安装文件。
+也可以通过工作流的手动输入发布或重试已有 tag。
 
 ## 许可证
 

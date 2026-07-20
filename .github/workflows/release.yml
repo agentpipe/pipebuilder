@@ -66,6 +66,8 @@ jobs:
           )
           PY
           python -m py_compile dist/pipebuilder.py
+          python -m py_compile scripts/update.py scripts/package_skill.py
+          python scripts/package_skill.py --output dist/pipebuilder-skill.zip
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -75,12 +77,16 @@ jobs:
             gh release upload "$RELEASE_TAG" \
               dist/pipebuilder.py \
               dist/pipebuilder.py.sha256 \
+              dist/pipebuilder-skill.zip \
+              dist/pipebuilder-skill.zip.sha256 \
               --clobber \
               --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$RELEASE_TAG" \
               dist/pipebuilder.py \
               dist/pipebuilder.py.sha256 \
+              dist/pipebuilder-skill.zip \
+              dist/pipebuilder-skill.zip.sha256 \
               --verify-tag \
               --generate-notes \
               --title "PipeBuilder $RELEASE_TAG" \

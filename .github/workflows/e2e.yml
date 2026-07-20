@@ -47,7 +47,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Compile release artifact
-        run: python -m py_compile pipebuilder.py
+        run: python -m py_compile pipebuilder.py scripts/update.py scripts/package_skill.py
       - name: Run offline E2E
         run: python tests/e2e/run.py --tier offline --jobs 4
       - name: Print failing cases
