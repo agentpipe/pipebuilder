@@ -175,6 +175,13 @@ clean
 
 When children are found, `check`, `explain`, and `build --dry-run` plan every member before writes. `build` applies members in root-to-child path order and verifies that an earlier Provider post command did not stale a later member's plan. `verify` checks the aggregate receipt and every member lock and artifact. `clean` preflights every member before deleting anything, then cleans in reverse child-to-root order. A failed or interrupted hierarchy operation records a journal under the root `.pipebuilder` directory so rerunning the same unified command can converge.
 
+For root-only operation, successful JSON `verify` returns
+`details.receiptDigest` as the digest of the exact verified `.pipebuilder/lock.json` bytes.
+No one-member aggregate `tree-lock.json` is created. When discovered children exist, the same
+field instead anchors the required aggregate `.pipebuilder/tree-lock.json`; consumers must bind
+the mode declared by their input contract and must not treat the two receipt leaves as fallback
+alternatives.
+
 ---
 
 ## 5. `agents`
@@ -231,7 +238,8 @@ At the highest priority, PipeBuilder always checks:
 <space-root>/.pipebuilder/skills
 ```
 
-If the directory does not exist, it is treated as an empty Provider without an error.
+If the directory does not exist, there is no local Provider record. PipeBuilder does not
+materialize an empty source or preserve an unused `space-local` placeholder in the lock.
 
 Its logical id is fixed:
 

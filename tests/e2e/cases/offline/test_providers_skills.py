@@ -21,6 +21,8 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
         payload = self.expect_ok(self.box.builder("build"))
         self.assertEqual(payload["summary"]["skills"], 0)
         self.assertFalse((self.box.root / ".agents").exists())
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(lock["providers"], [])
 
     def test_missing_provider_and_missing_explicit_skill_have_stable_codes(self):
         self.box.manifest(agents=["codex"], providers=[{"type": "folder", "path": "missing"}])
@@ -87,7 +89,7 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
             providers=[{"type": "folder", "path": "provider-link"}],
         )
         self.expect_ok(self.box.builder("build"))
-        first = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][1]
+        first = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][0]
         self.assertEqual(first["path"], "provider-link")
         self.assertNotEqual(first["resolvedPath"], "provider-link")
         self.box.write_text(
@@ -96,9 +98,20 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
             base=external,
         )
         self.expect_ok(self.box.builder("build"))
-        second = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][1]
+        second = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))["providers"][0]
         self.assertNotEqual(first["digest"], second["digest"])
         self.assertIn("second", (self.box.root / ".agents/skills/linked/SKILL.md").read_text(encoding="utf-8"))
+
+    def test_folder_provider_skill_source_includes_the_configured_subdir(self):
+        self.box.skill("provider/skills", "nested")
+        self.box.manifest(
+            agents=["codex"],
+            skills=["nested"],
+            providers=[{"type": "folder", "path": "provider", "subdir": "skills"}],
+        )
+        self.expect_ok(self.box.builder("build"))
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(lock["skills"][0]["source"], "provider/skills/nested")
 
     def test_folder_provider_root_must_be_a_directory(self):
         self.box.write_text("provider-file", "not a directory\n")

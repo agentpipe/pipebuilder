@@ -151,6 +151,11 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
         verified = self.expect_ok(self.box.builder("verify"))
         self.assertEqual(verified["summary"], {"members": 1, "verified": 1})
         self.assertEqual(verified["details"]["members"][0]["path"], ".")
+        self.assertEqual(
+            verified["details"]["receiptDigest"],
+            verified["details"]["members"][0]["lockDigest"],
+        )
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
 
     def test_hidden_generated_and_symlinked_directories_are_not_scanned(self):
         hidden = self.add_child(".hidden/child", "hidden-child")

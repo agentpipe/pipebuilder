@@ -319,7 +319,8 @@ established. The status is recorded in `explain` and `.pipebuilder/lock.json`.
 PipeBuilder resolves Skills from one implicit local source and two configured Provider types:
 
 1. `.pipebuilder/skills/`: the implicit `space-local` source for the current PipeSpace, with
-   the highest precedence. It is not an entry in `skillProviders[]`.
+   the highest precedence. It is not an entry in `skillProviders[]`; when the directory is
+   absent, no empty Provider record is emitted.
 2. Folder Skill Provider: a configured Provider that references a shared capability folder on
    the local machine or in a repository.
 3. Git Skill Provider: a configured Provider that fetches a capability repository by branch
@@ -378,6 +379,8 @@ before the root.
 
 Automation should use `--format json` and depend on stable diagnostic codes in
 `pipebuilder-report.v1` instead of parsing human-readable messages.
+For root-only operation, successful JSON `verify` exposes `details.receiptDigest` for the exact
+verified `.pipebuilder/lock.json`; it does not create a redundant one-member aggregate receipt.
 
 ## Ownership and Safety Boundaries
 

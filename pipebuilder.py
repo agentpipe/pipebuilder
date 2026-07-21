@@ -1322,13 +1322,16 @@ def load_providers(
     providers: list[Provider] = []
     seen_folder_roots: dict[str, str] = {}
     generated_roots = [root / name for name in (".codex", ".cursor", ".codebuddy", ".claude", ".agents")]
-    specs = [{"type": "folder", "path": ".pipebuilder/skills", "subdir": "."}, *manifest.providers]
-    for priority, item in enumerate(specs):
+    local = root / ".pipebuilder" / "skills"
+    specs = [(False, item) for item in manifest.providers]
+    if local.exists() or local.is_symlink():
+        specs.insert(0, (True, {"type": "folder", "path": ".pipebuilder/skills", "subdir": "."}))
+    for priority, (is_space_local, item) in enumerate(specs):
         if item["type"] == "git":
             providers.append(load_git_provider(root, item, priority, previous, offline))
             continue
         configured = item["path"]
-        provider_id = "space-local" if priority == 0 else f"folder:{configured}"
+        provider_id = "space-local" if is_space_local else f"folder:{configured}"
         subdir = item.get("subdir", ".")
         command = item.get("command")
         configured_path = root / configured
@@ -1338,9 +1341,6 @@ def load_providers(
             provider_root = (source_root / subdir).resolve()
         except (OSError, RuntimeError) as exc:
             fail("PB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
-        if provider_id == "space-local" and not provider_root.exists():
-            providers.append(Provider(provider_id, provider_root, source_root, configured, priority, tree_digest(provider_root), subdir=subdir))
-            continue
         if not provider_root.is_dir():
             if configured_is_symlink:
                 fail(
@@ -2521,7 +2521,11 @@ def make_lock(
             {
                 "name": skill.name,
                 "provider": skill.provider.provider_id,
-                "source": f"{skill.provider.configured_path}/{skill.name}",
+                "source": (
+                    f"{skill.provider.configured_path}/{skill.provider.subdir}/{skill.name}"
+                    if skill.provider.provider_type == "folder" and skill.provider.subdir != "."
+                    else f"{skill.provider.configured_path}/{skill.name}"
+                ),
                 "digest": skill.digest,
                 "selectedBy": skill.selected_by,
                 "matchedTags": skill.matched_tags,
@@ -3141,7 +3145,10 @@ def verify_single_space(root: Path) -> dict[str, Any]:
     manifest = load_manifest(root)
     member = TreeMember("parent", ".", manifest.name, root)
     _, digest = verify_member_state(member)
-    return {"members": [{"kind": "parent", "path": ".", "name": manifest.name, "lockDigest": digest}]}
+    return {
+        "members": [{"kind": "parent", "path": ".", "name": manifest.name, "lockDigest": digest}],
+        "receiptDigest": digest,
+    }
 
 
 def make_tree_lock(tree: SpaceTree, members: list[TreeMember]) -> dict[str, Any]:

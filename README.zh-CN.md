@@ -302,7 +302,7 @@ PipeBuilder 0.1.3 需要 Python 3.7+，支持三大桌面平台：
 PipeBuilder 从一个隐式本地来源和两类已配置 Provider 解析 Skills：
 
 1. `.pipebuilder/skills/`：当前 PipeSpace 隐式的 `space-local` 来源，优先级最高；
-   它不是 `skillProviders[]` 中的配置项。
+   它不是 `skillProviders[]` 中的配置项；目录不存在时不写入空 Provider 记录。
 2. Folder Skill Provider：已配置的 Provider，引用本机或仓库内的共享能力目录。
 3. Git Skill Provider：已配置的 Provider，按 branch 或 tag 获取能力仓库，并在 lock
    中固定解析后的 commit。
@@ -357,6 +357,8 @@ PipeSpace，并对完整层级执行操作。可通过 `"children": {"scanDepth"
 
 自动化应使用 `--format json`，并依赖 `pipebuilder-report.v1` 中稳定的 diagnostic code，
 不要解析面向人的提示文本。
+仅处理根 Space 时，成功的 JSON `verify` 通过 `details.receiptDigest` 返回已精确验证的
+`.pipebuilder/lock.json` 摘要，不再创建只有一个成员的冗余总收据。
 
 ## 所有权与安全边界
 
