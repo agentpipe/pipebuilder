@@ -1490,7 +1490,9 @@ def workspace_rule(manifest: Manifest, workspace: Workspace) -> str:
             "",
             "Folder order does not imply primary/reference, writable/read-only, validation, or commit boundaries.",
             "The .code-workspace file is the source of truth; this file is a generated projection.",
-            "Do not edit platform targets or .pipebuilder state directly.",
+            "PipeBuilder platform targets and generated state are build outputs; do not edit them directly.",
+            "Edit `.pipebuilder/agents`, `.pipebuilder/skills`, or the selected Skill's `.pipe-agents` source, then run `pipebuilder build` and `pipebuilder verify`.",
+            "If a write is denied or output drifts, use `pipebuilder explain` to locate the source and continue; this is not a Human blocker.",
             "",
         ]
     )

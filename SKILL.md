@@ -74,8 +74,8 @@ PipeBuilder verification remains the final workspace gate.
 
 ## Update the installed Skill
 
-Preview and then replace all three installed files from the latest GitHub
-Release:
+Preview and then synchronize the installed Skill directory from the latest
+GitHub Release:
 
 ```bash
 python3 <skill-root>/scripts/update.py --dry-run
@@ -83,5 +83,8 @@ python3 <skill-root>/scripts/update.py
 ```
 
 Use `--tag vX.Y.Z` to pin an update to a release tag. The updater validates the
-ZIP and its exact three-file structure before replacing `SKILL.md`,
-`pipebuilder.py`, and `scripts/update.py`.
+ZIP checksum and package manifest, restricts content to the portable Skill
+directories, and then adds, replaces, or removes managed files as one update.
+The package recursively includes `agents/`, `scripts/`, `references/`,
+`assets/`, and `.pipe-agents/`; adding a resource there does not require an
+updater file-list change.

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(/AGENTS.md)",
+      "Edit(/CLAUDE.md)",
+      "Edit(/.agents/skills/**)",
+      "Edit(/.cursor/skills/**)",
+      "Edit(/.codebuddy/skills/**)",
+      "Edit(/.codebuddy/settings.json)",
+      "Edit(/.claude/skills/**)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.pipebuilder/generated/**)",
+      "Edit(/.pipebuilder/lock.json)",
+      "Edit(/.pipebuilder/tree-lock.json)",
+      "Edit(/.pipebuilder/tree-journal.json)"
+    ]
+  }
+}
