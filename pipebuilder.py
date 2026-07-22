@@ -204,7 +204,7 @@ DIAGNOSTIC_ACTIONS = {
     "PB013": "Wait for the active build or clean operation to finish.",
     "PB014": "Confirm the process is gone, then remove the stale build.lock.",
     "PB015": "Migrate the legacy HarnessBuilder / THarness layout before building.",
-    "PB016": "Correct the Skill Builder or Provider post command and its runtime dependencies, then retry.",
+    "PB016": "For a Skill Builder, run the declared args from the Provider source root and inspect the reported output; for a legacy post command, correct its cwd/runtime, then rebuild.",
     "PB017": "Correct nested PipeSpace inputs or the recorded hierarchy state and retry.",
     "PB018": "Review Provider post commands, then remove the fail-closed flag only when their side effects are approved.",
     "PBW001": "Review the selected Provider and shadowed Skill candidates.",
@@ -1284,9 +1284,13 @@ def run_skill_builder(provider_id: str, source_root: Path, build: dict[str, Any]
     except (OSError, subprocess.SubprocessError) as exc:
         fail("PB016", f"Skill Builder failed to start: {exc}", sources=(provider_id,))
     if completed.returncode != 0:
+        diagnostic = (completed.stderr.strip() or completed.stdout.strip())
+        if len(diagnostic) > 1000:
+            diagnostic = diagnostic[:997] + "..."
+        detail = f"; output: {diagnostic}" if diagnostic else "; no output was emitted"
         fail(
             "PB016",
-            f"Skill Builder exited with status {completed.returncode}: {arguments[0]}",
+            f"Skill Builder exited with status {completed.returncode}: {arguments[0]}{detail}",
             sources=(provider_id,),
         )
     if output.is_symlink() or not output.is_dir():

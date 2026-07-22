@@ -243,7 +243,11 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
 
     def test_skill_builder_failure_or_missing_output_publishes_no_projection(self):
         source = self.box.base / "broken-builder"
-        self.box.write_text("fail.py", "raise SystemExit(7)\n", base=source)
+        self.box.write_text(
+            "fail.py",
+            "import sys\nsys.stderr.write('configure the declared builder input\\n')\nraise SystemExit(7)\n",
+            base=source,
+        )
         self.box.manifest(
             agents=["codex"],
             providers=[{
@@ -252,7 +256,9 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
                 "build": {"args": [sys.executable, "fail.py"], "output": "dist/skills"},
             }],
         )
-        self.expect_code(self.box.builder("build"), "PB016")
+        failed = self.expect_code(self.box.builder("build"), "PB016")
+        self.assertIn("configure the declared builder input", failed["diagnostics"][0]["message"])
+        self.assertIn("run the declared args", failed["diagnostics"][0]["suggestedAction"])
         self.assertFalse((self.box.root / ".agents").exists())
         self.assertFalse((self.box.root / ".pipebuilder/lock.json").exists())
 
