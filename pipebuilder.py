@@ -2577,8 +2577,56 @@ def owned_targets(previous: dict[str, Any] | None) -> set[str]:
     return result
 
 
+def skill_projection_roots(items: list[Any]) -> set[str]:
+    roots: set[str] = set()
+    for item in items:
+        if isinstance(item, Operation):
+            target, logical_type = item.target, item.logical_type
+        elif isinstance(item, dict):
+            target, logical_type = item.get("target"), item.get("logicalType")
+        else:
+            continue
+        if logical_type != "common-skill" or not isinstance(target, str):
+            continue
+        parts = normalize_target(target).split("/")
+        try:
+            index = parts.index("skills")
+        except ValueError:
+            continue
+        if index < 1 or index + 1 >= len(parts):
+            continue
+        roots.add("/".join(parts[:index + 2]))
+    return roots
+
+
+def files_in_generated_root(root: Path, relative_root: str) -> set[str]:
+    generated = root / relative_root
+    ensure_safe_parent(root, generated / "placeholder")
+    if generated.is_symlink():
+        fail("PB011", f"Generated Skill root is a symlink: {relative_root}", target=relative_root)
+    if not generated.exists():
+        return set()
+    if not generated.is_dir():
+        fail("PB010", f"Generated Skill root is not a directory: {relative_root}", target=relative_root)
+    files: set[str] = set()
+    for directory, names, filenames in os.walk(generated, followlinks=False):
+        current = Path(directory)
+        for name in names:
+            entry = current / name
+            if entry.is_symlink():
+                fail("PB011", f"Generated Skill contains a symlink: {portable_rel(root, entry)}", target=portable_rel(root, entry))
+        for name in filenames:
+            entry = current / name
+            relative = portable_rel(root, entry)
+            if entry.is_symlink() or not entry.is_file():
+                fail("PB011", f"Generated Skill contains an unsafe entry: {relative}", target=relative)
+            files.add(relative)
+    return files
+
+
 def check_target_conflicts(root: Path, operations: list[Operation], previous: dict[str, Any] | None) -> None:
     owned = owned_targets(previous)
+    generated_roots = skill_projection_roots(operations)
     for operation in operations:
         target = root / operation.target
         ensure_safe_parent(root, target)
@@ -2586,7 +2634,10 @@ def check_target_conflicts(root: Path, operations: list[Operation], previous: di
             fail("PB011", f"Generated target is a symlink: {operation.target}", target=operation.target)
         if target.exists() and not target.is_file():
             fail("PB010", f"Generated file target has incompatible kind: {operation.target}", target=operation.target)
-        if operation.target in owned or not target.exists():
+        if operation.target in owned or not target.exists() or any(
+            operation.target == generated_root or operation.target.startswith(f"{generated_root}/")
+            for generated_root in generated_roots
+        ):
             continue
         if target.is_file() and not target.is_symlink() and target.read_bytes() == operation.content:
             continue
@@ -2949,6 +3000,14 @@ def apply_build(model: BuildModel) -> tuple[int, int]:
     for target in sorted(old_targets - new_targets, reverse=True):
         remove_owned_target(model.root, target)
         removed += 1
+    for generated_root in sorted(skill_projection_roots(model.operations)):
+        planned_under_root = {
+            target for target in new_targets
+            if target == generated_root or target.startswith(f"{generated_root}/")
+        }
+        for target in sorted(files_in_generated_root(model.root, generated_root) - planned_under_root, reverse=True):
+            remove_owned_target(model.root, target)
+            removed += 1
     lock = make_lock(model.root, model.manifest, model.workspace, model.providers, model.skills, model.operations)
     lock_operation = Operation(".pipebuilder/lock.json", json_bytes(lock), ["core:lock"], "ownership-lock", "render")
     atomic_write(model.root, lock_operation)
@@ -3320,6 +3379,20 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
                 "PB017",
                 f"PipeSpace artifact drifted: {member.path}/{artifact['target']}",
                 sources=(target.as_posix(), lock_path.as_posix()),
+            )
+    locked_targets = {normalize_target(artifact["target"]) for artifact in lock["artifacts"]}
+    for generated_root in sorted(skill_projection_roots(lock["artifacts"])):
+        expected = {
+            target for target in locked_targets
+            if target == generated_root or target.startswith(f"{generated_root}/")
+        }
+        actual = files_in_generated_root(member.root, generated_root)
+        if actual != expected:
+            fail(
+                "PB017",
+                f"Generated Skill projection is not closed: {member.path}/{generated_root}",
+                sources=((member.root / generated_root).as_posix(), lock_path.as_posix()),
+                action="Run pipebuilder build to remove stale generated Skill files and restore the exact projection.",
             )
     return lock, sha256_file(lock_path)
 

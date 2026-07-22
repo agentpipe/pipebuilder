@@ -355,7 +355,10 @@ A Skill Provider may declare `build: {args, output}`. A real build executes it b
 Skill discovery and projects from the declared output directory after a zero exit.
 `check`, `explain`, and `build --dry-run` do not execute Skill Builders. On a fresh source where
 the declared output does not exist yet, run `build` first; subsequent `check` calls inspect that
-output without rebuilding it. A Provider may
+output without rebuilding it.
+Skill projection roots are closed generated namespaces: `verify` rejects extra, missing, unsafe,
+or changed files, and the next real `build` removes stale files absent from the Builder output.
+A Provider may
 alternatively declare a post-build command. `check`, `explain`, and
 `build --dry-run` only display them; only a real `build` invokes them.
 Use `build --require-no-post-commands` for a fail-closed pure projection build:

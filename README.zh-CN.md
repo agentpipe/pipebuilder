@@ -334,6 +334,8 @@ Git cache 位于当前 PipeSpace 的 `.pipebuilder/cache/git/`。`--offline` 只
 Skill Provider 可以声明 `build: {args, output}`。正式 `build` 在 Skill 发现前执行 Builder，
 退出码为零后从声明的产物目录投影；`check`、`explain` 和 `build --dry-run` 不执行 Builder。
 fresh source 尚无声明产物时先直接运行 `build`；之后的 `check` 只读检查该产物，不重复构建。
+Skill 投影根是生成型闭包命名空间：`verify` 拒绝额外、缺失、不安全或内容变化的文件；下一次正式
+`build` 会删除 Builder 新输出中已不存在的陈旧文件。
 Provider 也可以改为声明构建后的命令。`check`、`explain` 和 `build --dry-run`
 只展示命令，只有正式 `build` 才会调用。
 使用 `build --require-no-post-commands` 可以执行 fail-closed 的纯投影构建：只要

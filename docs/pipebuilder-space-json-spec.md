@@ -296,6 +296,9 @@ only requires exit status zero, validates the output as a Provider, and binds it
 and projected artifact digests in the normal ownership lock. `verify` does not rerun the Builder;
 it compares the current declared output digest and installed projections with that lock. `build` and `command` are mutually
 exclusive for one Provider.
+Each selected Skill projection root is closed: its complete regular-file set must equal the locked
+`common-skill` targets. Extra or unsafe entries fail `verify`; a real rebuild removes stale files
+under that generated root before publishing the new lock.
 
 Both Folder Providers and Git Providers may include a post command:
 

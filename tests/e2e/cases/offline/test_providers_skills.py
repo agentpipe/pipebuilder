@@ -238,6 +238,11 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
         self.assertEqual(lock["providers"][0]["build"], provider["build"])
         self.assertEqual(lock["skills"][0]["source"], "../built-component/dist/skills/built-skill")
         self.expect_ok(self.box.builder("verify"))
+        self.box.write_text(".agents/skills/built-skill/stale.txt", "stale projection\n")
+        self.expect_code(self.box.builder("verify"), "PB017")
+        self.expect_ok(self.box.builder("build"))
+        self.assertFalse((self.box.root / ".agents/skills/built-skill/stale.txt").exists())
+        self.expect_ok(self.box.builder("verify"))
         self.box.write_text("dist/skills/built-skill/drift.txt", "drift\n", base=source)
         self.expect_code(self.box.builder("verify"), "PB017")
 
