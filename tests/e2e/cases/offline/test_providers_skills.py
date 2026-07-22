@@ -181,6 +181,13 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
         self.assertFalse((self.box.root / "post-command.json").exists())
         self.expect_ok(self.box.builder("build", "--dry-run"))
         self.assertFalse((self.box.root / "post-command.json").exists())
+        self.expect_code(
+            self.box.builder("build", "--require-no-post-commands"),
+            "PB018",
+        )
+        self.assertFalse((self.box.root / "post-command.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/lock.json").exists())
+        self.assertFalse((self.box.root / ".agents").exists())
         built = self.expect_ok(self.box.builder("build"))
         self.assertEqual(built["summary"]["postCommands"], 1)
         post_result = json.loads((self.box.root / "post-command.json").read_text(encoding="utf-8"))

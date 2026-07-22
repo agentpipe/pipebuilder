@@ -283,6 +283,15 @@ class PipeSpaceTreeCases(PipeBuilderE2ECase):
             "raise SystemExit(23)\n",
         )
 
+        self.expect_code(
+            self.box.builder("build", "--require-no-post-commands"),
+            "PB018",
+        )
+        self.assertFalse((self.box.root / ".pipebuilder/tree-journal.json").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/tree-lock.json").exists())
+        self.assertFalse((child / ".pipebuilder/lock.json").exists())
+        self.assert_operation_locks_absent()
+
         self.expect_code(self.box.builder("build"), "PB016")
         journal_path = self.box.root / ".pipebuilder/tree-journal.json"
         journal = json.loads(journal_path.read_text(encoding="utf-8"))

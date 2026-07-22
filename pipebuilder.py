@@ -20,6 +20,7 @@ Quick start
     python3 pipebuilder.py check [SPACE] [--format text|json] [--offline]
     python3 pipebuilder.py explain [SPACE] [--format text|json] [--offline]
     python3 pipebuilder.py build [SPACE] [--format text|json] [--offline] [--dry-run]
+                                  [--require-no-post-commands]
     python3 pipebuilder.py verify [SPACE] [--format text|json]
     python3 pipebuilder.py clean [SPACE] [--format text|json]
     python3 pipebuilder.py --version
@@ -70,7 +71,9 @@ For Folder and Git Providers, subdir is the Skill Provider root and defaults to
 the current directory. An optional command runs after a normal build by default.
 Its cwd is relative to the Provider source root, its args bypass the shell, and
 {pipespaceRoot}, {sourceRoot}, and {providerRoot} are expanded. check, explain,
-and build --dry-run do not invoke the command.
+and build --dry-run do not invoke the command. Use
+--require-no-post-commands to make build fail before its first write if any
+selected Provider declares a command.
 
 Ownership and outputs
 ---------------------
@@ -117,7 +120,7 @@ except ImportError:  # Python 3.7-3.10 use the dependency-free compatibility par
     _tomllib = None
 
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 REPORT_SCHEMA = "pipebuilder-report.v1"
 LOCK_SCHEMA = "pipebuilder-lock.v1"
 SPACE_SCHEMA = "pipespace.v1"
@@ -198,6 +201,7 @@ DIAGNOSTIC_ACTIONS = {
     "PB015": "Migrate the legacy HarnessBuilder / THarness layout before building.",
     "PB016": "Correct the Provider post command or its runtime dependencies and retry.",
     "PB017": "Correct nested PipeSpace inputs or the recorded hierarchy state and retry.",
+    "PB018": "Review Provider post commands, then remove the fail-closed flag only when their side effects are approved.",
     "PBW001": "Review the selected Provider and shadowed Skill candidates.",
     "PBW002": "Prefer a standard Skill for new Claude Code workflows.",
     "PBW003": "Review the generated platform security surface before use.",
@@ -2868,6 +2872,22 @@ def run_post_commands(model: BuildModel) -> int:
     return executed
 
 
+def require_no_post_commands(models: Iterable[BuildModel]) -> None:
+    providers = [
+        f"{model.manifest.name}:{provider.provider_id}"
+        for model in models
+        for provider in model.providers
+        if provider.command is not None
+    ]
+    if providers:
+        fail(
+            "PB018",
+            "--require-no-post-commands requires a pure projection build; "
+            f"found {len(providers)} Provider post command(s)",
+            sources=tuple(providers),
+        )
+
+
 def clean(root: Path) -> tuple[int, list[Diagnostic]]:
     previous = load_previous_lock(root)
     if previous is None:
@@ -3193,7 +3213,12 @@ def tree_models_details(members: list[TreeMember], models: list[BuildModel]) -> 
     }
 
 
-def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any], list[Diagnostic]]:
+def build_space_tree(
+    tree: SpaceTree,
+    *,
+    offline: bool,
+    require_no_post: bool = False,
+) -> tuple[dict[str, Any], list[Diagnostic]]:
     with BuildLock(tree.root, "tree-build.lock", "PipeSpace Tree build"):
         tree = discover_space_tree(tree.root)
         members = tree_members(tree)
@@ -3202,6 +3227,8 @@ def build_space_tree(tree: SpaceTree, *, offline: bool) -> tuple[dict[str, Any],
                 locks.enter_context(BuildLock(member.root))
             existing = load_tree_lock(tree.root)
             members, models = tree_plan(tree, offline=offline)
+            if require_no_post:
+                require_no_post_commands(models)
             fingerprints = [model_fingerprint(model) for model in models]
             journal = new_tree_journal(tree, members, "build")
             persist_tree_journal(tree, journal)
@@ -3401,7 +3428,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--shared-skills",
         help="Shared Skill Provider relative to the new PipeSpace; selects pipebuilder",
     )
-    add_common_subcommand(subparsers.add_parser("build", help="Build a PipeSpace"), dry_run=True)
+    build_parser = subparsers.add_parser("build", help="Build a PipeSpace")
+    add_common_subcommand(build_parser, dry_run=True)
+    build_parser.add_argument(
+        "--require-no-post-commands",
+        action="store_true",
+        help="Fail before writes if any selected Provider declares a post command",
+    )
     add_common_subcommand(subparsers.add_parser("check", help="Validate and plan without writes"))
     add_common_subcommand(subparsers.add_parser("explain", help="Explain providers, skills, and targets"))
     add_common_subcommand(subparsers.add_parser("verify", help="Verify generated artifacts"), offline=False)
@@ -3468,7 +3501,11 @@ def main(argv: list[str] | None = None) -> int:
                 print_report(value, args.format)
                 return 0
             if args.command == "build" and not args.dry_run:
-                details, warnings = build_space_tree(tree, offline=args.offline)
+                details, warnings = build_space_tree(
+                    tree,
+                    offline=args.offline,
+                    require_no_post=args.require_no_post_commands,
+                )
                 value = report(
                     "build",
                     "ok",
@@ -3486,6 +3523,8 @@ def main(argv: list[str] | None = None) -> int:
                 print_report(value, args.format)
                 return 0
             members, models = tree_plan(tree, offline=args.offline)
+            if args.command == "build" and args.require_no_post_commands:
+                require_no_post_commands(models)
             command = "build --dry-run" if args.command == "build" else args.command
             details = tree_models_details(members, models)
             value = report(
@@ -3527,6 +3566,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "build" and not args.dry_run:
             with BuildLock(root):
                 model = plan(root, offline=args.offline)
+                if args.require_no_post_commands:
+                    require_no_post_commands((model,))
                 generated, removed = apply_build(model)
                 post_commands = run_post_commands(model)
             value = report(
@@ -3543,6 +3584,8 @@ def main(argv: list[str] | None = None) -> int:
             print_report(value, args.format)
             return 0
         model = plan(root, offline=args.offline)
+        if args.command == "build" and args.require_no_post_commands:
+            require_no_post_commands((model,))
         command = "build --dry-run" if args.command == "build" else args.command
         value = report(
             command,

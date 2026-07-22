@@ -118,7 +118,12 @@ class CliContractCases(PipeBuilderE2ECase):
         self.assertIn("OK check fixture-space", text.stdout)
         version = self.box.run_command([str(Path(__import__("sys").executable)), str(PIPEBUILDER), "--version"])
         self.assertEqual(version.returncode, 0)
-        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.3")
+        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.4")
+
+    def test_fail_closed_build_succeeds_when_no_provider_post_command_exists(self):
+        build = self.expect_ok(self.box.builder("build", "--require-no-post-commands"))
+        self.assertGreater(build["summary"]["generated"], 0)
+        self.expect_ok(self.box.builder("verify"))
 
     def test_json_report_contract_for_build_and_clean(self):
         build = self.expect_ok(self.box.builder("build"))

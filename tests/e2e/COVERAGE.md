@@ -63,6 +63,7 @@ This document counts independent black-box test methods; a table or subtest with
 | PB015 | every legacy marker | covered |
 | PB016 | Provider post command start/cwd/exit failure, hierarchy partial journal | covered |
 | PB017 | hierarchy discovery/receipt/stale-plan/member-state | covered |
+| PB018 | fail-closed Provider post-command preflight before writes | covered |
 | PBW001 | provider shadow | covered |
 | PBW002 | Claude command migration | covered |
 

@@ -148,7 +148,7 @@ class SkillReleaseCases(PipeBuilderE2ECase):
             cwd=extracted,
         )
         self.assertEqual(version.returncode, 0, version.stdout + version.stderr)
-        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.3")
+        self.assertEqual(version.stdout.strip(), "PipeBuilder 0.1.4")
 
     def test_updater_synchronizes_the_manifest_managed_skill_tree(self):
         archive = self.package()

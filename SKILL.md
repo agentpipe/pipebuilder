@@ -36,13 +36,27 @@ Run the following sequence from the target PipeSpace:
 ```bash
 python3 <skill-root>/pipebuilder.py check . --format json
 python3 <skill-root>/pipebuilder.py explain . --format json
-python3 <skill-root>/pipebuilder.py build . --dry-run --format json
-python3 <skill-root>/pipebuilder.py build . --format json
+python3 <skill-root>/pipebuilder.py build . --dry-run --require-no-post-commands --format json
+python3 <skill-root>/pipebuilder.py build . --require-no-post-commands --format json
 python3 <skill-root>/pipebuilder.py verify . --format json
 ```
 
 Stop if `check` or the dry run fails. A build is complete only when `verify`
 reports no input drift, digest drift, or orphaned output.
+
+`--require-no-post-commands` is the default Agent-safe build mode: it fails
+before the first write if any selected Provider declares a post command. If it
+reports `PB018`, inspect the commands in `explain`; run ordinary `build` only
+after their executable, arguments, working directory, and side effects are
+approved. Do not treat the flag as a way to silently skip required commands.
+
+If generated directories are protected by the host sandbox, request the
+narrowest persistent permission for the exact PipeBuilder safe-build command
+or installed `pipebuilder` executable. Never request a blanket Python, shell,
+workspace-write, or approval-bypass rule. Keep `clean` separately approved
+because it deletes lock-proven outputs. See
+[references/build-permissions.md](references/build-permissions.md) for the
+cross-Agent permission SOP.
 
 Use `clean` to remove generated files proven by the lock. Never recursively
 delete an Agent configuration directory.

@@ -276,7 +276,7 @@ folder 让客户端发现生成在 PipeSpace 根的原生配置，`project` fold
 
 ## 当前支持状态
 
-PipeBuilder 0.1.3 需要 Python 3.7+，支持三大桌面平台：
+PipeBuilder 0.1.4 需要 Python 3.7+，支持三大桌面平台：
 
 | 平台 | 状态 | 已测试版本 |
 | --- | --- | --- |
@@ -333,6 +333,8 @@ Git cache 位于当前 PipeSpace 的 `.pipebuilder/cache/git/`。`--offline` 只
 
 Skill Provider 还可以声明构建后的命令。`check`、`explain` 和 `build --dry-run`
 只展示命令，只有正式 `build` 才会调用。
+使用 `build --require-no-post-commands` 可以执行 fail-closed 的纯投影构建：只要
+任一已选 Provider 声明了 post command，PipeBuilder 就会在首次写入前以 `PB018` 退出。
 
 ## 常用命令
 
@@ -342,7 +344,7 @@ Skill Provider 还可以声明构建后的命令。`check`、`explain` 和 `buil
 python3 pipebuilder.py init [SPACE]
 python3 pipebuilder.py check [SPACE]
 python3 pipebuilder.py explain [SPACE] --format json
-python3 pipebuilder.py build [SPACE] [--offline] [--dry-run]
+python3 pipebuilder.py build [SPACE] [--offline] [--dry-run] [--require-no-post-commands]
 python3 pipebuilder.py verify [SPACE]
 python3 pipebuilder.py clean [SPACE]
 ```
@@ -410,8 +412,8 @@ E0 平台矩阵。仓库还包含 Codex、Cursor 和 Claude Code 的已安装客
 通过后，创建并推送匹配的 tag：
 
 ```bash
-git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
-git push origin v0.1.3
+git tag -a v0.1.4 -m "PipeBuilder v0.1.4"
+git push origin v0.1.4
 ```
 
 发布工作流会重新运行完整 E0 平台矩阵，校验 tag 与 `VERSION` 一致，然后发布

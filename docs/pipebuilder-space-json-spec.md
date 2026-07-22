@@ -285,7 +285,7 @@ Both Folder Providers and Git Providers may include a post command:
 }
 ```
 
-`cwd` is relative to the Provider source root and defaults to `.`. `args` is a non-empty string array that is executed without a shell. PipeBuilder expands `{pipespaceRoot}`, `{sourceRoot}`, and `{providerRoot}` in every argument and exposes the same paths as `PIPE_SPACE_ROOT`, `PIPE_PROVIDER_SOURCE_ROOT`, and `PIPE_PROVIDER_ROOT`. A normal `build` invokes post commands in Provider order after PipeBuilder's own outputs have been written. `check`, `explain`, and `build --dry-run` only display them and do not execute them.
+`cwd` is relative to the Provider source root and defaults to `.`. `args` is a non-empty string array that is executed without a shell. PipeBuilder expands `{pipespaceRoot}`, `{sourceRoot}`, and `{providerRoot}` in every argument and exposes the same paths as `PIPE_SPACE_ROOT`, `PIPE_PROVIDER_SOURCE_ROOT`, and `PIPE_PROVIDER_ROOT`. A normal `build` invokes post commands in Provider order after PipeBuilder's own outputs have been written. `check`, `explain`, and `build --dry-run` only display them and do not execute them. `build --require-no-post-commands` fails with `PB018` before any build output, ownership lock, or hierarchy journal is written when any selected Provider in the planned PipeSpace tree declares a post command; it never silently skips a command.
 
 Absolute paths are not allowed in the manifest, which keeps the PipeSpace movable. A genuine need for a machine-local path should be addressed through the external directory layout, a symlink, or a future local-override mechanism.
 
@@ -613,13 +613,14 @@ PB014 stale-build-lock
 PB015 legacy-layout-detected
 PB016 provider-post-command-failed
 PB017 invalid-pipespace-hierarchy
+PB018 provider-post-command-forbidden
 ```
 
 `PB012` is reserved as an early draft number but is not part of the stable `pipespace.v1` contract. The manifest accepts only the four built-in Agents, and `PB001` rejects an unknown Agent before adapter dispatch, so an artificial failure path must not be created for `PB012`.
 
 `PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or a maintenance Agent acting on Human direction.
 
-`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors.
+`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors. `PB018` reports that fail-closed build mode found at least one configured Provider post command; its `sources` identify the PipeSpace and Provider offenders.
 
 When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for E2E input and golden-expectation rules.
 

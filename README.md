@@ -293,7 +293,7 @@ ownership of other files.
 
 ## Current Support
 
-PipeBuilder 0.1.3 requires Python 3.7+ and supports all three major desktop platforms:
+PipeBuilder 0.1.4 requires Python 3.7+ and supports all three major desktop platforms:
 
 | Platform | Status | Tested versions |
 | --- | --- | --- |
@@ -353,6 +353,9 @@ is delegated to a Git credential helper or SSH agent; never put credentials in
 
 A Skill Provider may also declare post-build commands. `check`, `explain`, and
 `build --dry-run` only display them; only a real `build` invokes them.
+Use `build --require-no-post-commands` for a fail-closed pure projection build:
+PipeBuilder exits with `PB018` before its first write if any selected Provider
+declares a post command.
 
 ## Common Commands
 
@@ -362,7 +365,7 @@ Single PipeSpace:
 python3 pipebuilder.py init [SPACE]
 python3 pipebuilder.py check [SPACE]
 python3 pipebuilder.py explain [SPACE] --format json
-python3 pipebuilder.py build [SPACE] [--offline] [--dry-run]
+python3 pipebuilder.py build [SPACE] [--offline] [--dry-run] [--require-no-post-commands]
 python3 pipebuilder.py verify [SPACE]
 python3 pipebuilder.py clean [SPACE]
 ```
@@ -434,8 +437,8 @@ Set `VERSION` in `pipebuilder.py` and keep the documented version and version co
 in sync. After the main E0 workflow passes, create and push the matching tag:
 
 ```bash
-git tag -a v0.1.3 -m "PipeBuilder v0.1.3"
-git push origin v0.1.3
+git tag -a v0.1.4 -m "PipeBuilder v0.1.4"
+git push origin v0.1.4
 ```
 
 The release workflow reruns the complete E0 platform matrix, verifies that the tag matches
