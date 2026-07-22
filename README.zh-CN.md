@@ -331,7 +331,10 @@ Git cache 位于当前 PipeSpace 的 `.pipebuilder/cache/git/`。`--offline` 只
 和本地 immutable snapshot，不访问远程。认证交给 Git credential helper 或 SSH agent，
 不得把凭据写入 `pipespace.json`。
 
-Skill Provider 还可以声明构建后的命令。`check`、`explain` 和 `build --dry-run`
+Skill Provider 可以声明 `build: {args, output}`。正式 `build` 在 Skill 发现前执行 Builder，
+退出码为零后从声明的产物目录投影；`check`、`explain` 和 `build --dry-run` 不执行 Builder。
+fresh source 尚无声明产物时先直接运行 `build`；之后的 `check` 只读检查该产物，不重复构建。
+Provider 也可以改为声明构建后的命令。`check`、`explain` 和 `build --dry-run`
 只展示命令，只有正式 `build` 才会调用。
 使用 `build --require-no-post-commands` 可以执行 fail-closed 的纯投影构建：只要
 任一已选 Provider 声明了 post command，PipeBuilder 就会在首次写入前以 `PB018` 退出。

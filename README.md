@@ -351,7 +351,12 @@ uses only the existing lock and local immutable snapshot without remote access. 
 is delegated to a Git credential helper or SSH agent; never put credentials in
 `pipespace.json`.
 
-A Skill Provider may also declare post-build commands. `check`, `explain`, and
+A Skill Provider may declare `build: {args, output}`. A real build executes it before
+Skill discovery and projects from the declared output directory after a zero exit.
+`check`, `explain`, and `build --dry-run` do not execute Skill Builders. On a fresh source where
+the declared output does not exist yet, run `build` first; subsequent `check` calls inspect that
+output without rebuilding it. A Provider may
+alternatively declare a post-build command. `check`, `explain`, and
 `build --dry-run` only display them; only a real `build` invokes them.
 Use `build --require-no-post-commands` for a fail-closed pure projection build:
 PipeBuilder exits with `PB018` before its first write if any selected Provider

@@ -57,6 +57,8 @@ Optional space-level sources:
 External Skill Providers are declared in pipespace.json.skillProviders.
 Supported forms:
     {"type":"folder", "path":"../shared-skills"}
+    {"type":"folder", "path":"../component",
+     "build":{"args":["node","build.mjs"], "output":"dist/skills"}}
     {"type":"folder", "path":"../component", "subdir":"skills",
      "command":{"cwd":".", "args":["node","build.mjs","--output","{pipespaceRoot}"]}}
     {"type":"git", "url":"https://example/repo.git", "branch":"main", "subdir":"skills"}
@@ -68,7 +70,10 @@ written to the manifest. Git mirrors and immutable snapshots are cached under
 <space>/.pipebuilder/cache/git/ as ignored local Builder state.
 
 For Folder and Git Providers, subdir is the Skill Provider root and defaults to
-the current directory. An optional command runs after a normal build by default.
+the current directory. An optional build runs before Skill discovery during a
+normal build; its successful output directory becomes the Provider root. An
+optional command runs after a normal build by default. build and command are
+mutually exclusive.
 Its cwd is relative to the Provider source root, its args bypass the shell, and
 {pipespaceRoot}, {sourceRoot}, and {providerRoot} are expanded. check, explain,
 and build --dry-run do not invoke the command. Use
@@ -199,7 +204,7 @@ DIAGNOSTIC_ACTIONS = {
     "PB013": "Wait for the active build or clean operation to finish.",
     "PB014": "Confirm the process is gone, then remove the stale build.lock.",
     "PB015": "Migrate the legacy HarnessBuilder / THarness layout before building.",
-    "PB016": "Correct the Provider post command or its runtime dependencies and retry.",
+    "PB016": "Correct the Skill Builder or Provider post command and its runtime dependencies, then retry.",
     "PB017": "Correct nested PipeSpace inputs or the recorded hierarchy state and retry.",
     "PB018": "Review Provider post commands, then remove the fail-closed flag only when their side effects are approved.",
     "PBW001": "Review the selected Provider and shadowed Skill candidates.",
@@ -580,6 +585,7 @@ class Provider:
     commit: str | None = None
     subdir: str | None = None
     command: dict[str, Any] | None = None
+    build: dict[str, Any] | None = None
 
 
 @dataclasses.dataclass
@@ -669,6 +675,31 @@ def validate_provider_command(value: Any, index: int) -> dict[str, Any] | None:
     return {"cwd": Path(cwd).as_posix(), "args": list(arguments)}
 
 
+def validate_provider_build(value: Any, index: int) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {"args", "output"}:
+        fail("PB001", f"skillProviders[{index}].build accepts exactly args and output")
+    arguments = value.get("args")
+    if (
+        not isinstance(arguments, list)
+        or not arguments
+        or any(not isinstance(argument, str) or not argument or any(ord(char) < 32 for char in argument) for argument in arguments)
+    ):
+        fail("PB001", f"skillProviders[{index}].build.args must be an array of non-empty strings")
+    output = value.get("output")
+    if (
+        not isinstance(output, str)
+        or not output.strip()
+        or output == "."
+        or Path(output).is_absolute()
+        or "\\" in output
+        or any(part in {"", ".", ".."} for part in output.split("/"))
+    ):
+        fail("PB001", f"skillProviders[{index}].build.output must be a safe non-root relative POSIX path")
+    return {"args": list(arguments), "output": Path(output).as_posix()}
+
+
 def load_manifest(root: Path) -> Manifest:
     path = root / "pipespace.json"
     raw = read_json(path, "PB001", "manifest")
@@ -705,9 +736,9 @@ def load_manifest(root: Path) -> Manifest:
             fail("PB001", f"skillProviders[{index}] must be an object with a type", sources=(path.as_posix(),))
         kind = item["type"]
         if kind == "folder":
-            allowed = {"type", "path", "subdir", "command"}
+            allowed = {"type", "path", "subdir", "command", "build"}
             if set(item) - allowed or not {"type", "path"}.issubset(item):
-                fail("PB001", f"skillProviders[{index}] folder accepts type, path, optional subdir and command", sources=(path.as_posix(),))
+                fail("PB001", f"skillProviders[{index}] folder accepts type, path, optional subdir, command, and build", sources=(path.as_posix(),))
             configured = item.get("path")
             if not isinstance(configured, str) or not configured.strip():
                 fail("PB001", f"skillProviders[{index}].path must be a non-empty string", sources=(path.as_posix(),))
@@ -715,14 +746,20 @@ def load_manifest(root: Path) -> Manifest:
                 fail("PB001", f"skillProviders[{index}].path must be relative", sources=(path.as_posix(),))
             normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
             command = validate_provider_command(item.get("command"), index)
+            build = validate_provider_build(item.get("build"), index)
+            if command is not None and build is not None:
+                fail("PB001", f"skillProviders[{index}] cannot declare both command and build", sources=(path.as_posix(),))
             normalized_provider_path = Path(os.path.normpath(configured)).as_posix()
             normalized = {"type": kind, "path": os.path.normcase(normalized_provider_path), "subdir": normalized_subdir}
             provider = {"type": kind, "path": configured, "subdir": normalized_subdir}
             if command is not None:
                 normalized["command"] = command
                 provider["command"] = command
+            if build is not None:
+                normalized["build"] = build
+                provider["build"] = build
         elif kind == "git":
-            allowed = {"type", "url", "branch", "tag", "subdir", "command"}
+            allowed = {"type", "url", "branch", "tag", "subdir", "command", "build"}
             if set(item) - allowed or not {"type", "url"}.issubset(item):
                 fail(
                     "PB001",
@@ -758,6 +795,9 @@ def load_manifest(root: Path) -> Manifest:
                 fail("PB001", f"skillProviders[{index}].{selector_kind} is not a safe Git name", sources=(path.as_posix(),))
             normalized_subdir = validate_provider_subdir(item.get("subdir"), index)
             command = validate_provider_command(item.get("command"), index)
+            build = validate_provider_build(item.get("build"), index)
+            if command is not None and build is not None:
+                fail("PB001", f"skillProviders[{index}] cannot declare both command and build", sources=(path.as_posix(),))
             normalized = {
                 "type": kind,
                 "url": url,
@@ -768,6 +808,9 @@ def load_manifest(root: Path) -> Manifest:
             if command is not None:
                 normalized["command"] = command
                 provider["command"] = command
+            if build is not None:
+                normalized["build"] = build
+                provider["build"] = build
         else:
             fail("PB006", f"Unsupported provider type: {kind}", sources=(path.as_posix(),))
         spec = canonical_json(normalized)
@@ -1203,12 +1246,72 @@ def extract_git_snapshot(archive: bytes, destination: Path) -> None:
         raise
 
 
+def run_skill_builder(provider_id: str, source_root: Path, build: dict[str, Any]) -> Path:
+    source_root = source_root.resolve()
+    output = source_root.joinpath(*build["output"].split("/"))
+    if source_root not in output.parents:
+        fail("PB011", f"Skill Builder output escapes its source root: {build['output']}", sources=(provider_id,))
+    replacements = {
+        "{sourceRoot}": str(source_root),
+        "{buildOutput}": str(output),
+    }
+    arguments: list[str] = []
+    for configured in build["args"]:
+        argument = configured
+        for marker, value in replacements.items():
+            argument = argument.replace(marker, value)
+        arguments.append(argument)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PIPE_SKILL_SOURCE_ROOT": str(source_root),
+            "PIPE_SKILL_BUILD_OUTPUT": str(output),
+        }
+    )
+    try:
+        completed = subprocess.run(
+            arguments,
+            cwd=str(source_root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        fail("PB016", f"Skill Builder failed to start: {exc}", sources=(provider_id,))
+    if completed.returncode != 0:
+        fail(
+            "PB016",
+            f"Skill Builder exited with status {completed.returncode}: {arguments[0]}",
+            sources=(provider_id,),
+        )
+    if output.is_symlink() or not output.is_dir():
+        fail(
+            "PB016",
+            f"Skill Builder succeeded without its declared output directory: {build['output']}",
+            sources=(provider_id,),
+        )
+    if output.resolve() != output or source_root not in output.resolve().parents:
+        fail(
+            "PB011",
+            f"Skill Builder output must remain a real directory beneath its source root: {build['output']}",
+            sources=(provider_id,),
+        )
+    tree_digest(output)
+    return output
+
+
 def load_git_provider(
     root: Path,
     item: dict[str, Any],
     priority: int,
     previous: dict[str, Any] | None,
     offline: bool,
+    run_builders: bool,
 ) -> Provider:
     url = item["url"]
     selector_kind = "branch" if "branch" in item else "tag"
@@ -1222,6 +1325,8 @@ def load_git_provider(
     }
     if item.get("command") is not None:
         identity_value["command"] = item["command"]
+    if item.get("build") is not None:
+        identity_value["build"] = item["build"]
     identity = canonical_json(identity_value)
     identity_hash = hashlib.sha256(identity.encode()).hexdigest()
     provider_id = "git:" + identity_hash[:16]
@@ -1281,14 +1386,18 @@ def load_git_provider(
         if re.fullmatch(r"[0-9a-f]{40,64}", commit) is None:
             fail("PB005", f"Git Provider returned an invalid commit for {selector_kind} {selector_value}")
     command = item.get("command")
+    build = item.get("build")
     subdir_hash = hashlib.sha256(subdir.encode()).hexdigest()[:16]
-    source_snapshot = cache / "snapshots" / commit / ("full" if command is not None else subdir_hash)
+    source_snapshot = cache / "snapshots" / commit / ("full" if command is not None or build is not None else subdir_hash)
     if not source_snapshot.is_dir():
-        treeish = commit if command is not None or subdir == "." else f"{commit}:{subdir}"
+        treeish = commit if command is not None or build is not None or subdir == "." else f"{commit}:{subdir}"
         archive = run_git(["--git-dir", str(mirror), "archive", "--format=tar", treeish], binary=True)
         assert isinstance(archive, bytes)
         extract_git_snapshot(archive, source_snapshot)
-    snapshot = source_snapshot / subdir if command is not None and subdir != "." else source_snapshot
+    if build is not None and run_builders:
+        run_skill_builder(provider_id, source_snapshot, build)
+    provider_base = source_snapshot.joinpath(*build["output"].split("/")) if build is not None else source_snapshot
+    snapshot = provider_base / subdir if (command is not None or build is not None) and subdir != "." else provider_base
     if not snapshot.is_dir():
         fail("PB005", f"Git Provider subdir is not a directory: {subdir}", sources=(url, subdir))
     snapshot_digest = tree_digest(snapshot)
@@ -1314,6 +1423,7 @@ def load_git_provider(
         commit,
         subdir,
         command,
+        build,
     )
 
 
@@ -1322,6 +1432,7 @@ def load_providers(
     manifest: Manifest,
     previous: dict[str, Any] | None = None,
     offline: bool = False,
+    run_builders: bool = False,
 ) -> list[Provider]:
     providers: list[Provider] = []
     seen_folder_roots: dict[str, str] = {}
@@ -1332,17 +1443,21 @@ def load_providers(
         specs.insert(0, (True, {"type": "folder", "path": ".pipebuilder/skills", "subdir": "."}))
     for priority, (is_space_local, item) in enumerate(specs):
         if item["type"] == "git":
-            providers.append(load_git_provider(root, item, priority, previous, offline))
+            providers.append(load_git_provider(root, item, priority, previous, offline, run_builders))
             continue
         configured = item["path"]
         provider_id = "space-local" if is_space_local else f"folder:{configured}"
         subdir = item.get("subdir", ".")
         command = item.get("command")
+        build = item.get("build")
         configured_path = root / configured
         configured_is_symlink = configured_path.is_symlink()
         try:
             source_root = configured_path.resolve()
-            provider_root = (source_root / subdir).resolve()
+            if build is not None and run_builders:
+                run_skill_builder(provider_id, source_root, build)
+            provider_base = source_root.joinpath(*build["output"].split("/")) if build is not None else source_root
+            provider_root = (provider_base / subdir).resolve()
         except (OSError, RuntimeError) as exc:
             fail("PB011", f"Unsafe Skill provider path: {configured}: {exc}", sources=(configured,))
         if not provider_root.is_dir():
@@ -1375,6 +1490,7 @@ def load_providers(
                 tree_digest(provider_root),
                 subdir=subdir,
                 command=command,
+                build=build,
             )
         )
     return providers
@@ -2527,11 +2643,7 @@ def make_lock(
             {
                 "name": skill.name,
                 "provider": skill.provider.provider_id,
-                "source": (
-                    f"{skill.provider.configured_path}/{skill.provider.subdir}/{skill.name}"
-                    if skill.provider.provider_type == "folder" and skill.provider.subdir != "."
-                    else f"{skill.provider.configured_path}/{skill.name}"
-                ),
+                "source": provider_skill_source(skill.provider, skill.name),
                 "digest": skill.digest,
                 "selectedBy": skill.selected_by,
                 "matchedTags": skill.matched_tags,
@@ -2555,6 +2667,18 @@ def make_lock(
     }
 
 
+def provider_skill_source(provider: Provider, skill_name: str) -> str:
+    if provider.provider_type != "folder":
+        return f"{provider.configured_path}/{skill_name}"
+    parts = [provider.configured_path]
+    if provider.build is not None:
+        parts.append(provider.build["output"])
+    if provider.subdir not in {None, "."}:
+        parts.append(provider.subdir)
+    parts.append(skill_name)
+    return "/".join(part.rstrip("/") for part in parts)
+
+
 def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
     record: dict[str, Any] = {
         "id": provider.provider_id,
@@ -2570,7 +2694,15 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
         assert provider.commit is not None
         assert provider.subdir is not None
         cache_id = hashlib.sha256(provider.url.encode()).hexdigest()
-        subdir_id = "full/" + provider.subdir if provider.command is not None else hashlib.sha256(provider.subdir.encode()).hexdigest()[:16]
+        if provider.command is not None:
+            subdir_id = "full/" + provider.subdir
+        elif provider.build is not None:
+            suffix = provider.build["output"]
+            if provider.subdir != ".":
+                suffix += "/" + provider.subdir
+            subdir_id = "full/" + suffix
+        else:
+            subdir_id = hashlib.sha256(provider.subdir.encode()).hexdigest()[:16]
         record.update(
             {
                 "url": provider.url,
@@ -2590,6 +2722,8 @@ def provider_lock_record(root: Path, provider: Provider) -> dict[str, Any]:
         )
     if provider.command is not None:
         record["command"] = provider.command
+    if provider.build is not None:
+        record["build"] = provider.build
     return record
 
 
@@ -2770,7 +2904,7 @@ class BuildModel:
     warnings: list[Diagnostic]
 
 
-def plan(root: Path, *, offline: bool = False) -> BuildModel:
+def plan(root: Path, *, offline: bool = False, run_builders: bool = False) -> BuildModel:
     if not root.is_dir():
         fail("PB001", f"PipeSpace root is not a directory: {root}")
     detect_legacy(root)
@@ -2778,7 +2912,7 @@ def plan(root: Path, *, offline: bool = False) -> BuildModel:
     workspace = load_workspace(root, manifest)
     validate_agent_namespace(root / ".pipebuilder" / "agents", "PipeSpace")
     previous = load_previous_lock(root)
-    providers = load_providers(root, manifest, previous, offline)
+    providers = load_providers(root, manifest, previous, offline, run_builders)
     warnings: list[Diagnostic] = []
     skills, resolved = resolve_skills(providers, manifest, warnings)
     operations = Planner(root, manifest, workspace, skills, warnings).build()
@@ -2920,6 +3054,15 @@ def model_details(model: BuildModel) -> dict[str, Any]:
             "folders": [{"name": item.name, "path": item.path} for item in model.workspace.folders],
         },
         "providers": [provider_lock_record(model.root, item) for item in model.providers],
+        "skillBuilders": [
+            {
+                "provider": item.provider_id,
+                "args": item.build["args"],
+                "output": item.build["output"],
+            }
+            for item in model.providers
+            if item.build is not None
+        ],
         "postCommands": [
             {
                 "provider": item.provider_id,
@@ -2959,9 +3102,9 @@ def model_fingerprint(model: BuildModel) -> str:
     return sha256_bytes(json_bytes(lock))
 
 
-def tree_plan(tree: SpaceTree, *, offline: bool) -> tuple[list[TreeMember], list[BuildModel]]:
+def tree_plan(tree: SpaceTree, *, offline: bool, run_builders: bool = False) -> tuple[list[TreeMember], list[BuildModel]]:
     members = tree_members(tree)
-    models = [plan(member.root, offline=offline) for member in members]
+    models = [plan(member.root, offline=offline, run_builders=run_builders) for member in members]
     for member, model in zip(members, models):
         if model.manifest.name != member.expect_name:
             fail(
@@ -3144,6 +3287,20 @@ def verify_member_state(member: TreeMember) -> tuple[dict[str, Any], str]:
             f"PipeSpace inputs drifted from its ownership lock: {member.path}",
             sources=(manifest.path.as_posix(), workspace.path.as_posix(), lock_path.as_posix()),
         )
+    built_records = [item for item in lock.get("providers", []) if isinstance(item, dict) and item.get("build") is not None]
+    if built_records:
+        current = {
+            provider.provider_id: provider_lock_record(member.root, provider)
+            for provider in load_providers(member.root, manifest, lock, offline=True)
+            if provider.build is not None
+        }
+        for recorded in built_records:
+            if canonical_json(current.get(recorded.get("id"))) != canonical_json(recorded):
+                fail(
+                    "PB017",
+                    f"Skill Builder output drifted from the ownership lock: {recorded.get('id')}",
+                    sources=(lock_path.as_posix(),),
+                )
     for artifact in lock["artifacts"]:
         target = member.root / normalize_target(artifact["target"])
         ensure_safe_parent(member.root, target)
@@ -3226,7 +3383,7 @@ def build_space_tree(
             for member in sorted(members, key=lambda item: os.path.normcase(str(item.root))):
                 locks.enter_context(BuildLock(member.root))
             existing = load_tree_lock(tree.root)
-            members, models = tree_plan(tree, offline=offline)
+            members, models = tree_plan(tree, offline=offline, run_builders=True)
             if require_no_post:
                 require_no_post_commands(models)
             fingerprints = [model_fingerprint(model) for model in models]
@@ -3565,7 +3722,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "build" and not args.dry_run:
             with BuildLock(root):
-                model = plan(root, offline=args.offline)
+                model = plan(root, offline=args.offline, run_builders=True)
                 if args.require_no_post_commands:
                     require_no_post_commands((model,))
                 generated, removed = apply_build(model)

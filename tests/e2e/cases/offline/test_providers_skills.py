@@ -197,6 +197,69 @@ class ProviderResolutionCases(PipeBuilderE2ECase):
         self.assertNotEqual(post_result["sourceRoot"], post_result["providerRoot"])
         self.assertTrue((self.box.root / ".agents/skills/commanded/SKILL.md").is_file())
 
+    def test_folder_skill_builder_runs_before_projection_and_output_is_the_provider(self):
+        source = self.box.base / "built-component"
+        self.box.write_text(
+            "build.py",
+            "import pathlib,sys\n"
+            "output=pathlib.Path(sys.argv[1])\n"
+            "skill=output/'built-skill'\n"
+            "skill.mkdir(parents=True,exist_ok=True)\n"
+            "(skill/'SKILL.md').write_text('---\\nname: built-skill\\ndescription: Built Skill.\\n---\\n\\nbuilt\\n',encoding='utf-8')\n"
+            "marker=pathlib.Path('builder-runs.txt')\n"
+            "marker.write_text(marker.read_text(encoding='utf-8')+'run\\n' if marker.exists() else 'run\\n',encoding='utf-8')\n",
+            base=source,
+        )
+        provider = {
+            "type": "folder",
+            "path": "../built-component",
+            "build": {
+                "args": [sys.executable, "build.py", "{buildOutput}"],
+                "output": "dist/skills",
+            },
+        }
+        self.box.manifest(agents=["codex"], skills=["built-skill"], providers=[provider])
+
+        self.expect_code(self.box.builder("check"), "PB005")
+        self.assertFalse((source / "builder-runs.txt").exists())
+        built = self.expect_ok(self.box.builder("build"))
+        self.assertEqual(built["summary"]["skills"], 1)
+        self.assertEqual((source / "builder-runs.txt").read_text(encoding="utf-8"), "run\n")
+        installed = self.box.root / ".agents/skills/built-skill/SKILL.md"
+        self.assertIn("built", installed.read_text(encoding="utf-8"))
+
+        explained = self.expect_ok(self.box.builder("explain"))
+        self.assertEqual(
+            explained["details"]["skillBuilders"],
+            [{"provider": "folder:../built-component", "args": provider["build"]["args"], "output": "dist/skills"}],
+        )
+        self.assertEqual((source / "builder-runs.txt").read_text(encoding="utf-8"), "run\n")
+        lock = json.loads((self.box.root / ".pipebuilder/lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(lock["providers"][0]["build"], provider["build"])
+        self.assertEqual(lock["skills"][0]["source"], "../built-component/dist/skills/built-skill")
+        self.expect_ok(self.box.builder("verify"))
+        self.box.write_text("dist/skills/built-skill/drift.txt", "drift\n", base=source)
+        self.expect_code(self.box.builder("verify"), "PB017")
+
+    def test_skill_builder_failure_or_missing_output_publishes_no_projection(self):
+        source = self.box.base / "broken-builder"
+        self.box.write_text("fail.py", "raise SystemExit(7)\n", base=source)
+        self.box.manifest(
+            agents=["codex"],
+            providers=[{
+                "type": "folder",
+                "path": "../broken-builder",
+                "build": {"args": [sys.executable, "fail.py"], "output": "dist/skills"},
+            }],
+        )
+        self.expect_code(self.box.builder("build"), "PB016")
+        self.assertFalse((self.box.root / ".agents").exists())
+        self.assertFalse((self.box.root / ".pipebuilder/lock.json").exists())
+
+        self.box.write_text("fail.py", "pass\n", base=source)
+        self.expect_code(self.box.builder("build"), "PB016")
+        self.assertFalse((self.box.root / ".agents").exists())
+
 
 class GitProviderCases(PipeBuilderE2ECase):
     metadata = CaseMetadata(
@@ -264,6 +327,33 @@ class GitProviderCases(PipeBuilderE2ECase):
         self.assertTrue(next(self.cache.rglob("repository.git")).is_dir())
         self.assertIn("branch-one", (self.box.root / ".agents/skills/from-git/SKILL.md").read_text(encoding="utf-8"))
         self.assertFalse(any(path.name == ".git" for path in self.box.root.rglob(".git")))
+
+    def test_git_skill_builder_projects_declared_output_and_reuses_it_offline(self):
+        self.box.write_text(
+            "build.py",
+            "import pathlib,sys\n"
+            "skill=pathlib.Path(sys.argv[1])/'git-built'\n"
+            "skill.mkdir(parents=True,exist_ok=True)\n"
+            "(skill/'SKILL.md').write_text('---\\nname: git-built\\ndescription: Git Built Skill.\\n---\\n',encoding='utf-8')\n",
+            base=self.repo,
+        )
+        self.git("add", ".")
+        self.git("commit", "-m", "add skill builder")
+        provider = {
+            "type": "git",
+            "url": "../repos/catalog",
+            "branch": "main",
+            "build": {
+                "args": [sys.executable, "build.py", "{buildOutput}"],
+                "output": "dist/skills",
+            },
+        }
+        self.box.manifest(agents=["codex"], skills=["git-built"], providers=[provider])
+        self.expect_ok(self.box.builder("build", env=self.provider_env))
+        self.assertTrue((self.box.root / ".agents/skills/git-built/SKILL.md").is_file())
+        self.assertEqual(self.lock_git_provider()["build"], provider["build"])
+        self.expect_ok(self.box.builder("build", "--offline", env=self.provider_env))
+        self.expect_ok(self.box.builder("verify", env=self.provider_env))
 
     def test_branch_advances_online_but_offline_reuses_locked_commit(self):
         first_commit = self.commit_skill("moving", "first")

@@ -271,6 +271,32 @@ Constraints:
 - the Provider realpath and directory-content digest are written to the lock;
 - only direct subdirectories of the Provider root are Skill candidates.
 
+Folder and Git Providers may instead build their Skill Provider root before projection:
+
+```json
+{
+  "type": "folder",
+  "path": "../rounditer",
+  "build": {
+    "args": ["node", "build.mjs"],
+    "output": "dist/skills"
+  }
+}
+```
+
+`build` accepts exactly `args` and `output`. `args` is executed without a shell from the
+Provider source root. `output` is a safe relative POSIX directory beneath that source root;
+after a zero exit it becomes the Provider root, with optional `subdir` resolved beneath it.
+PipeBuilder expands `{sourceRoot}` and `{buildOutput}` and also exposes them as
+`PIPE_SKILL_SOURCE_ROOT` and `PIPE_SKILL_BUILD_OUTPUT`. A real `build` runs the Skill Builder
+before Skill discovery. `check`, `explain`, and `build --dry-run` never execute it and inspect
+the currently existing output. A fresh source without that output must run `build` first;
+later `check` calls remain read-only. Builder success defines semantic build success; PipeBuilder
+only requires exit status zero, validates the output as a Provider, and binds its exact Skill
+and projected artifact digests in the normal ownership lock. `verify` does not rerun the Builder;
+it compares the current declared output digest and installed projections with that lock. `build` and `command` are mutually
+exclusive for one Provider.
+
 Both Folder Providers and Git Providers may include a post command:
 
 ```json
@@ -620,7 +646,7 @@ PB018 provider-post-command-forbidden
 
 `PB015` identifies legacy THarness layouts such as `tagents/`, Space-root `.pipe-agents/`, `private/`, `.harness-space.yaml`, `.harness-lock.yaml`, or a workspace source template. PipeBuilder v1 does not read both layouts, merge them automatically, or rename them in place during build. Migration is performed by a separate tool or a maintenance Agent acting on Human direction.
 
-`PB016` reports a Provider post command that cannot start, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors. `PB018` reports that fail-closed build mode found at least one configured Provider post command; its `sources` identify the PipeSpace and Provider offenders.
+`PB016` reports a Skill Builder or Provider post command that cannot start, omits its declared output, has an invalid working directory, or exits with a nonzero status. `PB017` reports nested PipeSpace discovery, aggregate-state, stale-plan, and member-state errors. `PB018` reports that fail-closed build mode found at least one configured Provider post command; its `sources` identify the PipeSpace and Provider offenders.
 
 When the CLI uses `--format json`, diagnostics are wrapped in the versioned `pipebuilder-report.v1`. Tests and automation must depend on `code` and structured fields rather than parsing human-readable messages. See the [PipeBuilder Python E2E Test Architecture](pipebuilder-test-architecture.md) for E2E input and golden-expectation rules.
 
